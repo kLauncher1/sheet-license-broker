@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sheet-License-Broker · Google Sheets Serverless Auth & License Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #06110d;
+      --bg-surface: #0c1f17;
+      --bg-surface-elevated: #132e23;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-sheets: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-green: #10b981;
+      --accent-emerald: #059669;
+      --accent-blue: #38bdf8;
+      --accent-red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 28px;
+    }
+    .logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo-badge {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      letter-spacing: 0.5px;
+    }
+    .logo-title { font-size: 20px; font-weight: 700; }
+    .header-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-muted); }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-green);
+      box-shadow: 0 0 10px var(--accent-green);
+    }
+    .grid-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+    .card-value { font-size: 24px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--accent-green); }
+    .card-subtext { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 12px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: var(--bg-surface-elevated);
+      color: var(--accent-green);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .table-box {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 28px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .table-box th, .table-box td {
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .table-box th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+
+    .action-bar { display: flex; gap: 12px; margin-bottom: 16px; }
+    .btn-action {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo-area">
+      <div class="logo-badge">SHEET-LICENSE-BROKER</div>
+      <div class="logo-title">Serverless License & Auth Gateway</div>
+    </div>
+    <div class="header-meta">
+      <span class="pulse-dot"></span>
+      <span>Backend: Google Sheets Live</span>
+      <span>•</span>
+      <span>Hosting Cost: $0/mo</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid-stats">
+      <div class="card">
+        <div class="card-title">Active Licenses</div>
+        <div class="card-value" id="val-licenses">--</div>
+        <div class="card-subtext">Google Sheets: Licenses Tab</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Registered Users</div>
+        <div class="card-value" id="val-users">--</div>
+        <div class="card-subtext">Google Sheets: Users Tab</div>
+      </div>
+      <div class="card">
+        <div class="card-title">KV Database Documents</div>
+        <div class="card-value" id="val-docs">--</div>
+        <div class="card-subtext">Google Sheets: KV_Database Tab</div>
+      </div>
+    </section>
+
+    <div class="action-bar">
+      <button class="btn-action" onclick="createLicense()">+ Generate License Key</button>
+      <button class="btn-action" style="background: var(--bg-surface-elevated); border: 1px solid rgba(255,255,255,0.1);" onclick="registerUser()">+ Register New User</button>
+    </div>
+
+    <table class="table-box">
+      <thead>
+        <tr>
+          <th>License Key</th>
+          <th>Bound HWID (Machine)</th>
+          <th>Max Devices</th>
+          <th>Status</th>
+          <th>Expires At</th>
+          <th>Created At</th>
+        </tr>
+      </thead>
+      <tbody id="licenses-body">
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+            Loading licenses from Google Sheets...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <script>
+    async function refresh() {
+      try {
+        const [lics, users, docs] = await Promise.all([
+          fetch('/api/licenses').then(r => r.json()),
+          fetch('/api/users').then(r => r.json()),
+          fetch('/api/docs').then(r => r.json())
+        ]);
+
+        document.getElementById('val-licenses').textContent = lics.length;
+        document.getElementById('val-users').textContent = users.length;
+        document.getElementById('val-docs').textContent = docs.length;
+
+        const tbody = document.getElementById('licenses-body');
+        if (lics.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#94a3b8;">No licenses found. Click "+ Generate License Key" to issue one.</td></tr>';
+        } else {
+          tbody.innerHTML = lics.map(l => `
+            <tr>
+              <td style="font-family: monospace; font-weight:700; color:#10b981;">${l.license_key}</td>
+              <td style="font-family: monospace; color:#94a3b8;">${l.bound_hwid || '<Unbound / Ready>'}</td>
+              <td>${l.max_devices}</td>
+              <td><span class="pill pill-active">${l.status}</span></td>
+              <td style="font-size:12px; color:#cbd5e1;">${new Date(l.expires_at).toLocaleDateString()}</td>
+              <td style="font-size:12px; color:#64748b;">${new Date(l.created_at).toLocaleDateString()}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load telemetry:', err);
+      }
+    }
+
+    async function createLicense() {
+      const days = prompt('Enter validity duration in days:', '30');
+      if (!days) return;
+      await fetch('/api/licenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: Number(days), max_devices: 1 })
+      });
+      refresh();
+    }
+
+    async function registerUser() {
+      const username = prompt('Enter username:');
+      if (!username) return;
+      const password = prompt('Enter password:');
+      if (!password) return;
+
+      await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role: 'user' })
+      });
+      refresh();
+    }
+
+    refresh();
+    setInterval(refresh, 2500);
+  </script>
+</body>
+</html>
