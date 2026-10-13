@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -8,43 +9,66 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/kLauncher1/sheet-license-broker/internal/auth"
-	"github.com/kLauncher1/sheet-license-broker/internal/db"
-	"github.com/kLauncher1/sheet-license-broker/internal/license"
+	"github.com/kLauncher1/sheet-license-broker/internal/proxy"
 )
 
 //go:embed web/dist/*
 var embeddedDist embed.FS
 
-// AppServer orchestrates in-memory mock engine and Google Sheets API gateway.
+// AppServer orchestrates the serverless Google Sheets proxy and web console.
 type AppServer struct {
-	authMgr    *auth.Manager
-	licenseMgr *license.Manager
-	storage    *db.Storage
+	proxy *proxy.Proxy
 }
 
-func newAppServer() *AppServer {
-	return &AppServer{
-		authMgr:    auth.NewManager(),
-		licenseMgr: license.NewManager(),
-		storage:    db.NewStorage(),
+func newAppServer() (*AppServer, error) {
+	webAppURL := strings.TrimSpace(os.Getenv("GAS_WEBAPP_URL"))
+	offlineMode := os.Getenv("OFFLINE_MODE") == "1" || strings.ToLower(os.Getenv("OFFLINE_MODE")) == "true"
+
+	cacheTTL := 10 * time.Minute
+	if ttlSec := os.Getenv("CACHE_TTL_SECONDS"); ttlSec != "" {
+		if s, err := strconv.Atoi(ttlSec); err == nil && s > 0 {
+			cacheTTL = time.Duration(s) * time.Second
+		}
 	}
+
+	px, err := proxy.NewProxy(proxy.ProxyConfig{
+		WebAppURL:   webAppURL,
+		OfflineMode: offlineMode,
+		CacheTTL:    cacheTTL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to init proxy: %w", err)
+	}
+
+	return &AppServer{proxy: px}, nil
 }
 
 func main() {
-	server := newAppServer()
+	server, err := newAppServer()
+	if err != nil {
+		log.Fatalf("[Init Error] %v", err)
+	}
 
-	// Seed demo license for initial UI dashboard inspection
-	demoLic := server.licenseMgr.CreateLicense(30, 1)
-	log.Printf("[Init] Pre-seeded demo license key: %s", demoLic.LicenseKey)
+	ctx := context.Background()
+
+	// Seed demo license for initial UI dashboard inspection if standalone
+	if !server.proxy.IsRemoteEnabled() {
+		demoLic, _ := server.proxy.CreateLicense(ctx, 30, 1)
+		log.Printf("[Init] Pre-seeded demo license key: %s (Local Standalone Mode)", demoLic.LicenseKey)
+	} else {
+		log.Printf("[Init] Remote Google Apps Script Web App active: %s", server.proxy.WebAppURL())
+	}
 
 	mux := http.NewServeMux()
 
 	// API Routes
 	mux.HandleFunc("/api/health", server.handleHealth)
+	mux.HandleFunc("/api/proxy/ping", server.handleProxyPing)
+	mux.HandleFunc("/api/proxy/status", server.handleProxyStatus)
 	mux.HandleFunc("/api/licenses", server.handleLicenses)
 	mux.HandleFunc("/api/licenses/validate", server.handleValidateLicense)
 	mux.HandleFunc("/api/users", server.handleUsers)
@@ -64,7 +88,6 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		// Serve embedded files or fallback to index.html
 		fileServer.ServeHTTP(w, r)
 	})
 
@@ -76,14 +99,14 @@ func main() {
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
 	log.Printf("=====================================================")
 	log.Printf("  Sheet-License-Broker Server active on http://%s", addr)
-	log.Printf("  Serving Google Sheets serverless auth & license engine")
+	log.Printf("  Mode: %v (Remote: %v)", server.proxy.Status()["mode"], server.proxy.IsRemoteEnabled())
 	log.Printf("=====================================================")
 
 	s := &http.Server{
 		Addr:         addr,
 		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
 	}
 
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -92,18 +115,33 @@ func main() {
 }
 
 func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+	status := s.proxy.Status()
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "0.1.0",
+		"version":   "0.2.0",
+		"proxy":     status,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (s *AppServer) handleProxyPing(w http.ResponseWriter, r *http.Request) {
+	res, err := s.proxy.Ping(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *AppServer) handleProxyStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.proxy.Status())
 }
 
 func (s *AppServer) handleLicenses(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		lics := s.licenseMgr.ListLicenses()
+		lics := s.proxy.ListLicenses()
 		writeJSON(w, http.StatusOK, lics)
 	case http.MethodPost:
 		var req struct {
@@ -120,7 +158,11 @@ func (s *AppServer) handleLicenses(w http.ResponseWriter, r *http.Request) {
 		if req.MaxDevices <= 0 {
 			req.MaxDevices = 1
 		}
-		lic := s.licenseMgr.CreateLicense(req.Days, req.MaxDevices)
+		lic, err := s.proxy.CreateLicense(r.Context(), req.Days, req.MaxDevices)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusCreated, lic)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -141,17 +183,18 @@ func (s *AppServer) handleValidateLicense(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	lic, err := s.licenseMgr.VerifyAndBind(req.LicenseKey, req.HWID)
+	res, err := s.proxy.VerifyLicense(r.Context(), req.LicenseKey, req.HWID)
 	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
+			"valid":   false,
+			"error":   err.Error(),
+			"message": res.Message,
+			"source":  res.Source,
+		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"valid":      true,
-		"license":    lic,
-		"expires_at": lic.ExpiresAt,
-	})
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (s *AppServer) handleUsers(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +202,7 @@ func (s *AppServer) handleUsers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	users := s.authMgr.ListUsers()
+	users := s.proxy.ListUsers()
 	writeJSON(w, http.StatusOK, users)
 }
 
@@ -178,7 +221,7 @@ func (s *AppServer) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.authMgr.RegisterUser(req.Username, req.Password, req.Role)
+	user, err := s.proxy.RegisterUser(r.Context(), req.Username, req.Password, req.Role)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -200,7 +243,7 @@ func (s *AppServer) handleLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.authMgr.Authenticate(req.Username, req.Password)
+	user, err := s.proxy.AuthenticateUser(r.Context(), req.Username, req.Password)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
 		return
@@ -214,7 +257,7 @@ func (s *AppServer) handleLoginUser(w http.ResponseWriter, r *http.Request) {
 func (s *AppServer) handleDocs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		docs := s.storage.ListAll()
+		docs := s.proxy.ListDocuments()
 		writeJSON(w, http.StatusOK, docs)
 	case http.MethodPost:
 		var req struct {
@@ -226,7 +269,11 @@ func (s *AppServer) handleDocs(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON payload"})
 			return
 		}
-		doc := s.storage.Put(req.Collection, req.DocID, req.Payload)
+		doc, err := s.proxy.PutDocument(r.Context(), req.Collection, req.DocID, req.Payload)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusCreated, doc)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

@@ -148,7 +148,9 @@
     </div>
     <div class="header-meta">
       <span class="pulse-dot"></span>
-      <span>Backend: Google Sheets Live</span>
+      <span id="backend-badge">Backend: Detecting...</span>
+      <span>•</span>
+      <span id="cache-badge">Cache: 0 items</span>
       <span>•</span>
       <span>Hosting Cost: $0/mo</span>
     </div>
@@ -171,11 +173,17 @@
         <div class="card-value" id="val-docs">--</div>
         <div class="card-subtext">Google Sheets: KV_Database Tab</div>
       </div>
+      <div class="card">
+        <div class="card-title">Local Cache Entries</div>
+        <div class="card-value" id="val-cache">--</div>
+        <div class="card-subtext">Offline Fallback & Quota Protection</div>
+      </div>
     </section>
 
     <div class="action-bar">
       <button class="btn-action" onclick="createLicense()">+ Generate License Key</button>
       <button class="btn-action" style="background: var(--bg-surface-elevated); border: 1px solid rgba(255,255,255,0.1);" onclick="registerUser()">+ Register New User</button>
+      <button class="btn-action" style="background: var(--bg-surface-elevated); border: 1px solid rgba(255,255,255,0.1);" onclick="pingBackend()">⚡ Ping Backend</button>
     </div>
 
     <table class="table-box">
@@ -202,15 +210,27 @@
   <script>
     async function refresh() {
       try {
-        const [lics, users, docs] = await Promise.all([
+        const [lics, users, docs, health] = await Promise.all([
           fetch('/api/licenses').then(r => r.json()),
           fetch('/api/users').then(r => r.json()),
-          fetch('/api/docs').then(r => r.json())
+          fetch('/api/docs').then(r => r.json()),
+          fetch('/api/health').then(r => r.json())
         ]);
 
         document.getElementById('val-licenses').textContent = lics.length;
         document.getElementById('val-users').textContent = users.length;
         document.getElementById('val-docs').textContent = docs.length;
+
+        if (health && health.proxy) {
+          const p = health.proxy;
+          document.getElementById('val-cache').textContent = p.cache_entries || 0;
+          document.getElementById('cache-badge').textContent = `Cache: ${p.cache_entries || 0} items`;
+          if (p.remote_enabled) {
+            document.getElementById('backend-badge').innerHTML = '<span style="color:#10b981; font-weight:600;">Backend: Google Sheets Live (Proxy)</span>';
+          } else {
+            document.getElementById('backend-badge').innerHTML = '<span style="color:#38bdf8; font-weight:600;">Backend: Local Standalone (Memory)</span>';
+          }
+        }
 
         const tbody = document.getElementById('licenses-body');
         if (lics.length === 0) {
@@ -229,6 +249,17 @@
         }
       } catch (err) {
         console.error('Failed to load telemetry:', err);
+      }
+    }
+
+    async function pingBackend() {
+      try {
+        const start = performance.now();
+        const res = await fetch('/api/proxy/ping').then(r => r.json());
+        const latency = Math.round(performance.now() - start);
+        alert(`⚡ Backend Ping Result:\n\nMode: ${res.mode}\nStatus: ${res.status}\nMessage: ${res.message || 'OK'}\nLatency: ${latency}ms`);
+      } catch (e) {
+        alert('Ping error: ' + e.message);
       }
     }
 
