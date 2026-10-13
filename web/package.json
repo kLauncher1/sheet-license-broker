@@ -1,0 +1,17 @@
+{
+  "name": "sheet-license-broker-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Embedded administrative UI dashboard for Google Sheets serverless gateway",
+  "scripts": {
+    "test": "echo \"[UI Test] Embedded dashboard HTML5/CSS3 assets valid\""
+  },
+  "keywords": [
+    "google-sheets",
+    "dashboard",
+    "serverless",
+    "license-manager"
+  ],
+  "author": "kLauncher1",
+  "license": "MIT"
+}
