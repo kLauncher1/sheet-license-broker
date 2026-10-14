@@ -137,7 +137,7 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "0.3.0",
+		"version":   "0.4.0",
 		"proxy":     status,
 		"security": map[string]interface{}{
 			"hmac_enforced": s.guard.IsEnforced(),

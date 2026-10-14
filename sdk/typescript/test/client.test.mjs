@@ -1,0 +1,131 @@
+import assert from 'node:assert';
+import { createHash, createHmac } from 'node:crypto';
+import http from 'node:http';
+import { describe, it, before, after } from 'node:test';
+import {
+  getMachineHwid,
+  SheetLicenseClient,
+  AuthenticationError,
+  LicenseValidationError,
+} from '../dist/index.js';
+
+describe('Sheet License Broker TypeScript Client Tests', () => {
+  let server;
+  let baseUrl;
+  const SECRET_KEY = 'test-secret-key-ts';
+
+  before(async () => {
+    server = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', () => {
+        const bodyStr = Buffer.concat(chunks).toString('utf8');
+        const sig = req.headers['x-signature'];
+        const ts = req.headers['x-timestamp'];
+        const nonce = req.headers['x-nonce'];
+
+        if (sig && ts && nonce) {
+          const bHash = createHash('sha256').update(bodyStr).digest('hex');
+          const canonical = `${req.method.toUpperCase()}\n${req.url}\n${ts}\n${nonce}\n${bHash}`;
+          const expectedSig = createHmac('sha256', SECRET_KEY).update(canonical).digest('hex');
+          if (sig !== expectedSig) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'invalid_signature', message: 'Signature mismatch' }));
+            return;
+          }
+        }
+
+        if (req.url === '/health' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'healthy', version: '0.4.0' }));
+          return;
+        }
+
+        if (req.url === '/api/licenses/validate' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          if (payload.license_key === 'VALID-KEY-TS') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              valid: true,
+              message: 'License active',
+              source: 'memory',
+              license: { key: payload.license_key, hwid: payload.hwid, status: 'active' }
+            }));
+          } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ valid: false, error: 'License invalid or expired' }));
+          }
+          return;
+        }
+
+        if (req.url === '/api/users/login' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          if (payload.username === 'admin' && payload.password === 'pass') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ authenticated: true, username: 'admin' }));
+          } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Bad credentials' }));
+          }
+          return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'not_found' }));
+      });
+    });
+
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    baseUrl = `http://127.0.0.1:${port}`;
+  });
+
+  after(async () => {
+    await new Promise(resolve => server.close(resolve));
+  });
+
+  it('generates consistent and valid HWID string', () => {
+    const hwid1 = getMachineHwid();
+    const hwid2 = getMachineHwid();
+    assert.ok(hwid1.startsWith('HWID-'), 'Should start with HWID- prefix');
+    assert.strictEqual(hwid1.split('-').length, 5, 'Should have 5 dash-separated sections');
+    assert.strictEqual(hwid1, hwid2, 'HWID must be deterministic on the same host');
+  });
+
+  it('queries health status successfully', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const health = await client.health();
+    assert.strictEqual(health.status, 'healthy');
+    assert.strictEqual(health.version, '0.4.0');
+  });
+
+  it('validates active license with HMAC request signing', async () => {
+    const client = new SheetLicenseClient({ baseUrl, secretKey: SECRET_KEY });
+    const res = await client.verifyLicense('VALID-KEY-TS');
+    assert.strictEqual(res.valid, true);
+    assert.strictEqual(res.license?.key, 'VALID-KEY-TS');
+  });
+
+  it('rejects invalid license with LicenseValidationError', async () => {
+    const client = new SheetLicenseClient({ baseUrl, secretKey: SECRET_KEY });
+    await assert.rejects(
+      async () => client.verifyLicense('INVALID-KEY-TS'),
+      (err) => err instanceof LicenseValidationError
+    );
+  });
+
+  it('rejects tampered secret key with AuthenticationError', async () => {
+    const client = new SheetLicenseClient({ baseUrl, secretKey: 'wrong-secret' });
+    await assert.rejects(
+      async () => client.verifyLicense('VALID-KEY-TS'),
+      (err) => err instanceof AuthenticationError
+    );
+  });
+
+  it('authenticates user login credentials', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const res = await client.loginUser('admin', 'pass');
+    assert.strictEqual(res.authenticated, true);
+    assert.strictEqual(res.username, 'admin');
+  });
+});
