@@ -3,9 +3,12 @@ import { getMachineHwid } from './hwid.ts';
 import type {
   BrokerClientOptions,
   DocumentResponse,
+  FeatureCheckResponse,
   HealthResponse,
   LicenseRecord,
   LicenseValidationResponse,
+  UsageRecord,
+  UsageRecordResponse,
   UserAuthResponse,
 } from './types.js';
 
@@ -239,5 +242,50 @@ export class SheetLicenseClient {
       collection,
       id,
     });
+  }
+
+  /**
+   * Checks whether a feature entitlement is enabled for a license key.
+   */
+  public async isFeatureEnabled(licenseKey: string, feature: string): Promise<boolean> {
+    const res = await this.request<FeatureCheckResponse>('POST', '/api/features/check', {
+      license_key: licenseKey.trim(),
+      feature: feature.trim(),
+    });
+    return Boolean(res.enabled);
+  }
+
+  /**
+   * Reports resource consumption units for a license key with quota check.
+   */
+  public async recordUsage(
+    licenseKey: string,
+    metric: string,
+    units: number = 1,
+    limit: number = 0,
+    period: string = ''
+  ): Promise<UsageRecordResponse> {
+    const payload: Record<string, unknown> = {
+      license_key: licenseKey.trim(),
+      metric: metric.trim(),
+      units,
+      limit,
+    };
+    if (period) {
+      payload.period = period.trim();
+    }
+    return this.request<UsageRecordResponse>('POST', '/api/usage/record', payload);
+  }
+
+  /**
+   * Retrieves consumption records for all metered resources of a license key.
+   */
+  public async getUsage(licenseKey: string): Promise<UsageRecord[]> {
+    const quoted = encodeURIComponent(licenseKey.trim());
+    const res = await this.request<{ status: string; records: UsageRecord[] }>(
+      'GET',
+      `/api/usage/stats?license_key=${quoted}`
+    );
+    return res.records || [];
   }
 }

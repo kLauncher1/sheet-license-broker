@@ -279,6 +279,32 @@ class SheetLicenseClient:
             "id": doc_id,
         })
 
+    def is_feature_enabled(self, license_key: str, feature: str) -> bool:
+        """Checks if a feature entitlement is enabled for a given license key."""
+        res = self._request("POST", "/api/features/check", {
+            "license_key": license_key.strip(),
+            "feature": feature.strip(),
+        })
+        return bool(res.get("enabled", False))
+
+    def record_usage(self, license_key: str, metric: str, units: int = 1, limit: int = 0, period: str = "") -> Dict[str, Any]:
+        """Reports resource consumption units for a license key with quota check."""
+        payload = {
+            "license_key": license_key.strip(),
+            "metric": metric.strip(),
+            "units": units,
+            "limit": limit,
+        }
+        if period:
+            payload["period"] = period.strip()
+        return self._request("POST", "/api/usage/record", payload)
+
+    def get_usage(self, license_key: str) -> List[Dict[str, Any]]:
+        """Retrieves consumption records for all metered resources of a license key."""
+        quoted = urllib.parse.quote(license_key.strip())
+        res = self._request("GET", f"/api/usage/stats?license_key={quoted}")
+        return res.get("records", [])
+
 
 if __name__ == "__main__":
     import sys

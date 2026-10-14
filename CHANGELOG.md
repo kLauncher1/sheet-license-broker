@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-10-14
+
+### Added
+- Dynamic feature flag entitlement and usage-based tier metering engine (`internal/feature/feature.go`, `internal/feature/feature_test.go`) supporting standard subscription tiers (`free`, `pro`, `enterprise`), custom feature overrides per license, thread-safe atomic consumption counters, and daily quota threshold enforcement.
+- Dedicated modular feature and usage routes (`routes_feature.go`, `routes_feature_test.go`) wiring `GET /api/features`, `POST /api/features/check`, `POST /api/usage/record`, and `GET /api/usage/stats` while maintaining modular line limits.
+- Proxy layer integration (`internal/proxy/feature.go`, `internal/proxy/feature_test.go`) coordinating feature checks, entitlement resolution, and consumption recording across local memory caches and remote Google Sheets.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and persistence for `FeatureFlags` and `Usage_Metering` sheets, with actions `features_list`, `usage_record`, `usage_get`, and tier-aware license creation.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`) returning tier and feature flags directly on edge KV cache hits.
+- Multi-language client SDK extensions across Go (`sdk/go`), Python (`sdk/python`), TypeScript / Node.js (`sdk/typescript`), and C# (`sdk/csharp`) adding `IsFeatureEnabled`, `RecordUsage`, and `GetUsage` methods.
+- Embedded administration dashboard update (`web/dist/index.html`) featuring an interactive "Features & Metering" tab with live entitlement evaluator, tier catalog matrix, and usage simulation tools.
+- Version bump to 0.7.0 across core binary, manifests, documentation, and client libraries.
+
 ## [0.6.0] - 2026-10-14
 
 ### Added

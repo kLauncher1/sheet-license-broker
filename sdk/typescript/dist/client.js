@@ -190,4 +190,31 @@ export class SheetLicenseClient {
       id,
     });
   }
+
+  async isFeatureEnabled(licenseKey, feature) {
+    const res = await this.request('POST', '/api/features/check', {
+      license_key: licenseKey.trim(),
+      feature: feature.trim(),
+    });
+    return Boolean(res.enabled);
+  }
+
+  async recordUsage(licenseKey, metric, units = 1, limit = 0, period = '') {
+    const payload = {
+      license_key: licenseKey.trim(),
+      metric: metric.trim(),
+      units,
+      limit,
+    };
+    if (period) {
+      payload.period = period.trim();
+    }
+    return this.request('POST', '/api/usage/record', payload);
+  }
+
+  async getUsage(licenseKey) {
+    const quoted = encodeURIComponent(licenseKey.trim());
+    const res = await this.request('GET', `/api/usage/stats?license_key=${quoted}`);
+    return res.records || [];
+  }
 }

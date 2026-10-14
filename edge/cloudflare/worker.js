@@ -199,6 +199,8 @@ async function handleEdgeLicenseValidation(request, env) {
           license_key: licenseKey,
           hwid_bound: cached.hwid_bound || hwid,
           expires_at: cached.expires_at,
+          tier: cached.tier || 'pro',
+          features: cached.features || ['basic_license', 'community_support', 'analytics', 'csv_export', 'extended_logs'],
           source: 'edge_kv_cache',
           message: 'Verified instantly via Cloudflare Edge KV'
         }), {

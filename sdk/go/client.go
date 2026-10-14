@@ -36,11 +36,23 @@ type LicenseRecord struct {
 
 // ValidationResult represents response from /api/licenses/validate.
 type ValidationResult struct {
-	Valid   bool           `json:"valid"`
-	Message string         `json:"message,omitempty"`
-	Error   string         `json:"error,omitempty"`
-	Source  string         `json:"source,omitempty"`
-	License *LicenseRecord `json:"license,omitempty"`
+	Valid    bool           `json:"valid"`
+	Message  string         `json:"message,omitempty"`
+	Error    string         `json:"error,omitempty"`
+	Source   string         `json:"source,omitempty"`
+	Tier     string         `json:"tier,omitempty"`
+	Features []string       `json:"features,omitempty"`
+	License  *LicenseRecord `json:"license,omitempty"`
+}
+
+// UsageRecord represents consumption telemetry for a metered metric.
+type UsageRecord struct {
+	Key       string `json:"key"`
+	Metric    string `json:"metric"`
+	Period    string `json:"period"`
+	Count     int64  `json:"count"`
+	Limit     int64  `json:"limit"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // Client interacts with the sheet-license-broker HTTP API.
@@ -205,4 +217,54 @@ func (c *Client) Health(ctx context.Context) (map[string]interface{}, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+// IsFeatureEnabled queries the broker to determine whether a feature is permitted.
+func (c *Client) IsFeatureEnabled(ctx context.Context, licenseKey, feature string) (bool, string, error) {
+	req := map[string]string{
+		"license_key": strings.TrimSpace(licenseKey),
+		"feature":     strings.TrimSpace(feature),
+	}
+	var res struct {
+		Status  string `json:"status"`
+		Enabled bool   `json:"enabled"`
+		Tier    string `json:"tier"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/features/check", req, &res); err != nil {
+		return false, "", err
+	}
+	return res.Enabled, res.Tier, nil
+}
+
+// RecordUsage reports resource consumption for a license key with optional limit check.
+func (c *Client) RecordUsage(ctx context.Context, licenseKey, metric, period string, units, limit int64) (*UsageRecord, bool, error) {
+	req := map[string]interface{}{
+		"license_key": strings.TrimSpace(licenseKey),
+		"metric":      strings.TrimSpace(metric),
+		"period":      strings.TrimSpace(period),
+		"units":       units,
+		"limit":       limit,
+	}
+	var res struct {
+		Status   string      `json:"status"`
+		Record   UsageRecord `json:"record"`
+		Exceeded bool        `json:"exceeded"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/usage/record", req, &res); err != nil {
+		return nil, false, err
+	}
+	return &res.Record, res.Exceeded, nil
+}
+
+// GetUsage retrieves all recorded usage records for a license key.
+func (c *Client) GetUsage(ctx context.Context, licenseKey string) ([]UsageRecord, error) {
+	path := fmt.Sprintf("/api/usage/stats?license_key=%s", strings.TrimSpace(licenseKey))
+	var res struct {
+		Status  string        `json:"status"`
+		Records []UsageRecord `json:"records"`
+	}
+	if err := c.request(ctx, http.MethodGet, path, nil, &res); err != nil {
+		return nil, err
+	}
+	return res.Records, nil
 }

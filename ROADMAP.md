@@ -43,10 +43,12 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Prometheus-compatible metrics endpoint for enterprise monitoring (`internal/metrics/metrics.go`, `/metrics`)
 - [x] Automated security incident webhooks for Slack and Discord alert channels (`internal/webhook/alerts.go`)
 
-## Phase 7: Dynamic Feature Flags & Usage-Based Tier Metering (v0.7.0)
-- [ ] Dynamic feature entitlement tags attached to license records
-- [ ] Daily API usage and seat-count metering stored in Google Sheets
-- [ ] Client SDK helpers for conditional feature gating (`client.isFeatureEnabled("analytics")`)
+## Phase 7: Dynamic Feature Flags & Usage-Based Tier Metering (v0.7.0) - Completed
+- [x] Standard subscription tiers (`free`, `pro`, `enterprise`) and dynamic feature flags (`internal/feature/feature.go`)
+- [x] Daily API usage and seat-count metering stored in Google Sheets (`Usage_Metering` sheet)
+- [x] Multi-language client SDK helpers for conditional feature gating (`isFeatureEnabled`) and usage tracking
+- [x] Cloudflare Edge Worker gateway edge KV caching for tier and feature lookups
+- [x] Embedded admin console Features & Metering interactive management tab
 
 ## Phase 8: Cryptographic Hardware Attestation & Enclave Binding (v0.8.0)
 - [ ] TPM 2.0 endorsement key signing and platform configuration register (PCR) binding
@@ -62,3 +64,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Raft-inspired lightweight quorum consensus across distributed broker nodes
 - [ ] Conflict-free Replicated Data Type (CRDT) document synchronization
 - [ ] Multi-region active-active mesh with automated network partition healing
+
+## Phase 11: Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning (v1.1.0)
+- [ ] SAML 2.0 and OIDC federation bridge mapping corporate identity providers to sheet roles
+- [ ] Automated directory user synchronization and license seat deprovisioning via SCIM 2.0
+- [ ] Scoped RBAC permissions and ephemeral session token issuance
+
+## Phase 12: Zero-Knowledge Proof (ZKP) Offline License Verification (v1.2.0)
+- [ ] Zero-knowledge cryptographic proof generation for air-gapped machine entitlement verification
+- [ ] zk-SNARK compact attestation certificates without leaking user or device hardware identities
+- [ ] Quantum-resistant cryptographic signature schemes (ML-DSA / Dilithium) for future-proof entitlement chains

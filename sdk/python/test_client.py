@@ -31,7 +31,18 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "healthy", "version": "0.4.0"}).encode())
+            self.wfile.write(json.dumps({"status": "healthy", "version": "0.7.0"}).encode())
+            return
+        if self.path.startswith("/api/usage/stats"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "records": [
+                    {"metric": "api_calls", "count": 100, "limit": 1000}
+                ]
+            }).encode())
             return
         self.send_error(404, "Not Found")
 
@@ -104,6 +115,37 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": True, "action": data.get("action")}).encode())
             return
 
+        if self.path == "/api/features/check":
+            data = json.loads(body.decode()) if body else {}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "license_key": data.get("license_key"),
+                "feature": data.get("feature"),
+                "enabled": data.get("feature") == "analytics",
+                "tier": "pro"
+            }).encode())
+            return
+
+        if self.path == "/api/usage/record":
+            data = json.loads(body.decode()) if body else {}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "exceeded": False,
+                "record": {
+                    "key": data.get("license_key"),
+                    "metric": data.get("metric"),
+                    "count": data.get("units", 1),
+                    "limit": data.get("limit", 0)
+                }
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -133,7 +175,7 @@ class TestSheetLicenseClient(unittest.TestCase):
         client = SheetLicenseClient(self.base_url)
         res = client.health()
         self.assertEqual(res.get("status"), "healthy")
-        self.assertEqual(res.get("version"), "0.4.0")
+        self.assertEqual(res.get("version"), "0.7.0")
 
     def test_validate_license_success_with_hmac(self):
         client = SheetLicenseClient(self.base_url, secret_key="test-secret-key-12345")
@@ -169,6 +211,22 @@ class TestSheetLicenseClient(unittest.TestCase):
         res = client.verify_license("VALID-KEY-123")
         self.assertTrue(res.get("valid"))
         self.assertEqual(res.get("tenant_id"), "tenant-acme")
+
+    def test_features_and_usage(self):
+        client = SheetLicenseClient(self.base_url)
+        # 1. Feature check
+        self.assertTrue(client.is_feature_enabled("VALID-KEY-123", "analytics"))
+        self.assertFalse(client.is_feature_enabled("VALID-KEY-123", "sso"))
+
+        # 2. Record usage
+        rec = client.record_usage("VALID-KEY-123", "api_calls", units=25, limit=500)
+        self.assertEqual(rec.get("status"), "success")
+        self.assertFalse(rec.get("exceeded"))
+
+        # 3. Get usage
+        stats = client.get_usage("VALID-KEY-123")
+        self.assertEqual(len(stats), 1)
+        self.assertEqual(stats[0]["metric"], "api_calls")
 
 
 if __name__ == "__main__":

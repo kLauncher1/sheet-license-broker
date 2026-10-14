@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.6.0-emerald.svg" alt="Version: v0.6.0">
+  <img src="https://img.shields.io/badge/version-v0.7.0-emerald.svg" alt="Version: v0.7.0">
+  <img src="https://img.shields.io/badge/tiers-dynamic%20flags-8B5CF6.svg" alt="Feature Flags & Tier Metering">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
   <img src="https://img.shields.io/badge/high--availability-active--standby-059669.svg" alt="High Availability">
   <img src="https://img.shields.io/badge/metrics-prometheus-E6522C.svg" alt="Prometheus Metrics">
@@ -21,10 +22,11 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, multi-tenant namespacing, dual-sheet active-standby high availability, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Dynamic Feature Flags & Usage-Based Tier Metering**: Free, Pro, and Enterprise subscription tiers with runtime feature gating (`client.isFeatureEnabled("analytics")`) and atomic consumption quota tracking persisted directly in Google Sheets.
 - **Dual-Sheet Active-Standby Replication**: Automatic failover between primary and standby sheets with collision-free bidirectional reconciliation.
 - **Encrypted Local Disk Spool**: AES-256-GCM encrypted journal queue (`spool.bin`) guaranteeing zero data loss during network disruptions.
 - **Enterprise Prometheus Telemetry (`/metrics`)**: Built-in scraper endpoint exposing counters, gauges, and latencies in Prometheus format.
@@ -346,6 +348,97 @@ Content-Type: application/json
 
 ---
 
+### Dynamic Feature Flags & Usage-Based Tier Metering
+
+#### List Standard Feature Catalogue & Tiers
+```http
+GET /api/features
+```
+**Response:**
+```json
+{
+  "tiers": {
+    "free": {
+      "name": "free",
+      "features": ["basic_access"],
+      "daily_quotas": { "api_calls": 500, "export_rows": 100 }
+    },
+    "pro": {
+      "name": "pro",
+      "features": ["basic_access", "analytics", "csv_export", "extended_logs"],
+      "daily_quotas": { "api_calls": 50000, "export_rows": 100000 }
+    },
+    "enterprise": {
+      "name": "enterprise",
+      "features": ["basic_access", "analytics", "csv_export", "extended_logs", "sso", "audit_export", "unlimited_seats", "priority_support"],
+      "daily_quotas": { "api_calls": 10000000, "export_rows": 50000000 }
+    }
+  }
+}
+```
+
+#### Check License Feature Entitlement
+```http
+POST /api/features/check
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "feature": "analytics"
+}
+```
+**Response:**
+```json
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "feature": "analytics",
+  "tier": "pro",
+  "allowed": true
+}
+```
+
+#### Record Usage & Enforce Tier Quotas
+```http
+POST /api/usage/record
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "metric": "api_calls",
+  "units": 1
+}
+```
+**Response:**
+```json
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "metric": "api_calls",
+  "units": 1,
+  "current_usage": 42,
+  "daily_quota": 50000,
+  "quota_exceeded": false,
+  "success": true
+}
+```
+
+#### Query Usage Statistics
+```http
+GET /api/usage/stats?license_key=KEY-7F2A-9C4B-E108
+```
+**Response:**
+```json
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "date": "2026-10-14",
+  "tier": "pro",
+  "metrics": {
+    "api_calls": 42
+  }
+}
+```
+
+---
+
 ## ⚡ Cloudflare Edge Gateway
 
 For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
@@ -374,10 +467,17 @@ from sheet_license_client import SheetLicenseClient, get_machine_hwid
 
 client = SheetLicenseClient(base_url="http://localhost:9082", secret_key="your-hmac-secret")
 
-# Verify license key (automatically attaches local machine HWID)
+# 1. Verify license key (automatically attaches local machine HWID)
 res = client.verify_license("SLB-XXXX-XXXX-XXXX")
 if res.get("valid"):
-    print("License verified:", res["license"])
+    print("License verified. Tier:", res.get("tier"))
+
+    # 2. Check dynamic feature flag entitlement
+    if client.is_feature_enabled("SLB-XXXX-XXXX-XXXX", "analytics"):
+        print("Analytics module enabled!")
+
+    # 3. Record consumption towards tier quotas
+    client.record_usage("SLB-XXXX-XXXX-XXXX", "api_calls", 1)
 else:
     print("Denied:", res.get("message"))
 ```
@@ -391,10 +491,18 @@ using SheetLicenseBroker;
 
 var client = new SheetLicenseClient("http://localhost:9082", "your-hmac-secret");
 
-// Asynchronous or synchronous for game loops
-var result = client.VerifyLicense("SLB-XXXX-XXXX-XXXX");
+// Verify license and check tier entitlement
+var result = await client.VerifyLicenseAsync("SLB-XXXX-XXXX-XXXX");
 if (result.Valid) {
-    Console.WriteLine("Access granted! Expiry: " + result.ExpirationDate);
+    Console.WriteLine($"Access granted! Tier: {result.Tier}, Expiry: {result.ExpirationDate}");
+
+    // Dynamic feature gating
+    if (await client.IsFeatureEnabledAsync("SLB-XXXX-XXXX-XXXX", "analytics")) {
+        Console.WriteLine("Analytics initialized.");
+    }
+
+    // Record usage
+    await client.RecordUsageAsync("SLB-XXXX-XXXX-XXXX", "api_calls", 1);
 }
 ```
 
@@ -412,7 +520,16 @@ const client = new SheetLicenseClient({
 
 const result = await client.verifyLicense('SLB-XXXX-XXXX-XXXX');
 if (result.valid) {
-  console.log('License active for device:', result.license?.bound_devices);
+  console.log('License active. Tier:', result.tier);
+
+  // Dynamic feature gating
+  const hasAnalytics = await client.isFeatureEnabled('SLB-XXXX-XXXX-XXXX', 'analytics');
+  if (hasAnalytics) {
+    console.log('Analytics feature enabled for client');
+  }
+
+  // Record usage metrics
+  await client.recordUsage('SLB-XXXX-XXXX-XXXX', 'api_calls', 1);
 }
 ```
 
@@ -434,7 +551,16 @@ func main() {
 
 	res, err := client.VerifyLicense(context.Background(), "SLB-XXXX-XXXX-XXXX", "")
 	if err == nil && res.Valid {
-		fmt.Println("License valid. Launching application...")
+		fmt.Printf("License valid (Tier: %s). Launching application...\n", res.Tier)
+
+		// Dynamic feature gating
+		allowed, _ := client.IsFeatureEnabled(context.Background(), "SLB-XXXX-XXXX-XXXX", "analytics")
+		if allowed {
+			fmt.Println("Analytics feature enabled.")
+		}
+
+		// Record usage consumption
+		_ = client.RecordUsage(context.Background(), "SLB-XXXX-XXXX-XXXX", "api_calls", 1)
 	}
 }
 ```

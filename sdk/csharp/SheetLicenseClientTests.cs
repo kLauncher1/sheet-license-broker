@@ -64,7 +64,17 @@ namespace SheetLicenseBrokerTests
                         else if (ctx.Request.Url.AbsolutePath == "/health")
                         {
                             ctx.Response.StatusCode = 200;
-                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"healthy\",\"version\":\"0.4.0\"}");
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"healthy\",\"version\":\"0.7.0\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/features/check")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"enabled\":true,\"tier\":\"pro\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/usage/record")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"exceeded\":false,\"record\":{\"count\":10}}");
                         }
                         else
                         {
@@ -112,6 +122,24 @@ namespace SheetLicenseBrokerTests
                     return 1;
                 }
                 Console.WriteLine("PASS: Health check query");
+
+                // Test Feature check
+                bool hasAnalytics = client.IsFeatureEnabled("SLB-TEST-12345", "analytics");
+                if (!hasAnalytics)
+                {
+                    Console.Error.WriteLine("FAIL: Expected analytics feature to be enabled");
+                    return 1;
+                }
+                Console.WriteLine("PASS: Feature entitlement check");
+
+                // Test Usage recording
+                string usageRaw = client.RecordUsageAsync("SLB-TEST-12345", "api_calls", 10, 100).GetAwaiter().GetResult();
+                if (!usageRaw.Contains("\"status\":\"success\""))
+                {
+                    Console.Error.WriteLine("FAIL: Usage recording failed: " + usageRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Usage consumption recording");
 
                 Console.WriteLine("=== All C# Client Tests Passed Successfully! ===");
                 return 0;

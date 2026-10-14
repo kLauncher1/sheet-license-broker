@@ -10,6 +10,7 @@ import (
 
 	"github.com/kLauncher1/sheet-license-broker/internal/auth"
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
+	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
@@ -40,20 +41,24 @@ type ProxyConfig struct {
 
 // VerifyResult captures the unified result of a license check.
 type VerifyResult struct {
-	Valid      bool   `json:"valid"`
-	LicenseKey string `json:"license_key"`
-	HWIDBound  string `json:"hwid_bound"`
-	ExpiresAt  string `json:"expires_at"`
-	Source     string `json:"source"` // "cache", "remote_gas", "local_fallback", "offline_cache"
-	Message    string `json:"message,omitempty"`
+	Valid      bool     `json:"valid"`
+	LicenseKey string   `json:"license_key"`
+	HWIDBound  string   `json:"hwid_bound"`
+	ExpiresAt  string   `json:"expires_at"`
+	Tier       string   `json:"tier,omitempty"`
+	Features   []string `json:"features,omitempty"`
+	Source     string   `json:"source"` // "cache", "remote_gas", "local_fallback", "offline_cache"
+	Message    string   `json:"message,omitempty"`
 }
 
 // LicenseResult captures unified license creation outcome.
 type LicenseResult struct {
-	LicenseKey string `json:"license_key"`
-	ExpiresAt  string `json:"expires_at"`
-	Status     string `json:"status"`
-	Source     string `json:"source"`
+	LicenseKey string   `json:"license_key"`
+	ExpiresAt  string   `json:"expires_at"`
+	Status     string   `json:"status"`
+	Tier       string   `json:"tier,omitempty"`
+	Features   []string `json:"features,omitempty"`
+	Source     string   `json:"source"`
 }
 
 // Proxy coordinates calls between Google Apps Script, local memory engines, and cache.
@@ -69,6 +74,7 @@ type Proxy struct {
 	localLicense    *license.Manager
 	localDB         *db.Storage
 	localTenant     *tenant.TenantManager
+	featureManager  *feature.Manager
 	dispatcher      *webhook.Dispatcher
 	offlineMode     bool
 	cacheTTL        time.Duration
@@ -84,18 +90,19 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	}
 
 	p := &Proxy{
-		cache:        gas.NewCache(),
-		localAuth:    auth.NewManager(),
-		localLicense: license.NewManager(),
-		localDB:      db.NewStorage(),
-		localTenant:  tenant.NewTenantManager(),
+		cache:          gas.NewCache(),
+		localAuth:      auth.NewManager(),
+		localLicense:   license.NewManager(),
+		localDB:        db.NewStorage(),
+		localTenant:    tenant.NewTenantManager(),
+		featureManager: feature.NewManager(),
 		dispatcher: webhook.NewDispatcher(webhook.Config{
 			GlobalWebhookURL: cfg.GlobalWebhookURL,
 			GlobalSecret:     cfg.GlobalSecret,
 		}),
-		offlineMode: cfg.OfflineMode,
-		cacheTTL:    cacheTTL,
-		startTime:   time.Now(),
+		offlineMode:     cfg.OfflineMode,
+		cacheTTL:        cacheTTL,
+		startTime:       time.Now(),
 		discordAlertURL: strings.TrimSpace(cfg.DiscordAlertURL),
 		slackAlertURL:   strings.TrimSpace(cfg.SlackAlertURL),
 	}
@@ -238,11 +245,21 @@ func (p *Proxy) VerifyLicense(ctx context.Context, key, hwid string) (*VerifyRes
 		}
 		if err == nil && resp.Verified {
 			p.cache.SetLicense(key, resp, p.cacheTTL)
+			tier := resp.Tier
+			if tier == "" {
+				tier = "pro"
+			}
+			feats := resp.Features
+			if len(feats) == 0 {
+				_, feats = p.featureManager.GetEffectiveFeatures(key, feature.NormalizeTier(tier))
+			}
 			return &VerifyResult{
 				Valid:      true,
 				LicenseKey: key,
 				HWIDBound:  resp.HWIDBound,
 				ExpiresAt:  resp.ExpiresAt,
+				Tier:       tier,
+				Features:   feats,
 				Source:     "remote_gas",
 				Message:    resp.Message,
 			}, nil
@@ -255,11 +272,14 @@ func (p *Proxy) VerifyLicense(ctx context.Context, key, hwid string) (*VerifyRes
 			if expired {
 				source = "offline_cache_expired_grace"
 			}
+			tier, feats := p.featureManager.GetEffectiveFeatures(key, feature.TierPro)
 			return &VerifyResult{
 				Valid:      true,
 				LicenseKey: key,
 				HWIDBound:  lic.HWIDBound,
 				ExpiresAt:  lic.ExpiresAt,
+				Tier:       string(tier),
+				Features:   feats,
 				Source:     source,
 				Message:    "Served via offline grace cache during remote outage",
 			}, nil
@@ -272,11 +292,14 @@ func (p *Proxy) VerifyLicense(ctx context.Context, key, hwid string) (*VerifyRes
 		return nil, err
 	}
 
+	tier, feats := p.featureManager.GetEffectiveFeatures(lic.LicenseKey, feature.NormalizeTier(lic.Tier))
 	return &VerifyResult{
 		Valid:      true,
 		LicenseKey: lic.LicenseKey,
 		HWIDBound:  lic.BoundHWID,
 		ExpiresAt:  lic.ExpiresAt.Format(time.RFC3339),
+		Tier:       string(tier),
+		Features:   feats,
 		Source:     "local_fallback",
 		Message:    "Verified against local memory database",
 	}, nil
@@ -287,10 +310,20 @@ func (p *Proxy) CreateLicense(ctx context.Context, days, maxDevices int) (*Licen
 	if p.IsRemoteEnabled() {
 		resp, err := p.gasClient.CreateLicense(ctx, "", days, maxDevices)
 		if err == nil {
+			tier := resp.Tier
+			if tier == "" {
+				tier = "pro"
+			}
+			feats := resp.Features
+			if len(feats) == 0 {
+				_, feats = p.featureManager.GetEffectiveFeatures(resp.LicenseKey, feature.NormalizeTier(tier))
+			}
 			return &LicenseResult{
 				LicenseKey: resp.LicenseKey,
 				ExpiresAt:  resp.ExpiresAt,
 				Status:     resp.Status,
+				Tier:       tier,
+				Features:   feats,
 				Source:     "remote_gas",
 			}, nil
 		}
@@ -298,10 +331,13 @@ func (p *Proxy) CreateLicense(ctx context.Context, days, maxDevices int) (*Licen
 	}
 
 	lic := p.localLicense.CreateLicense(days, maxDevices)
+	tier, feats := p.featureManager.GetEffectiveFeatures(lic.LicenseKey, feature.NormalizeTier(lic.Tier))
 	return &LicenseResult{
 		LicenseKey: lic.LicenseKey,
 		ExpiresAt:  lic.ExpiresAt.Format(time.RFC3339),
 		Status:     lic.Status,
+		Tier:       string(tier),
+		Features:   feats,
 		Source:     "local_fallback",
 	}, nil
 }
