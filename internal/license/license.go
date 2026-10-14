@@ -16,6 +16,8 @@ type License struct {
 	BoundHWID  string    `json:"bound_hwid"`
 	MaxDevices int       `json:"max_devices"`
 	Status     string    `json:"status"`
+	Tier       string    `json:"tier"`
+	Features   []string  `json:"features,omitempty"`
 	ExpiresAt  time.Time `json:"expires_at"`
 	CreatedAt  time.Time `json:"created_at"`
 }
@@ -48,18 +50,28 @@ func GenerateKey() string {
 	return fmt.Sprintf("KEY-%s-%s-%s", hexStr[0:4], hexStr[4:8], hexStr[8:12])
 }
 
-// CreateLicense registers a new license key with expiration.
+// CreateLicense registers a new license key with expiration and default pro tier.
 func (m *Manager) CreateLicense(daysValid, maxDevices int) *License {
+	return m.CreateLicenseWithTier(daysValid, maxDevices, "pro", nil)
+}
+
+// CreateLicenseWithTier registers a new license key with custom tier and feature tags.
+func (m *Manager) CreateLicenseWithTier(daysValid, maxDevices int, tier string, features []string) *License {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	key := GenerateKey()
 	now := time.Now().UTC()
+	if tier == "" {
+		tier = "pro"
+	}
 	lic := &License{
 		LicenseKey: key,
 		BoundHWID:  "",
 		MaxDevices: maxDevices,
 		Status:     "ACTIVE",
+		Tier:       strings.ToLower(strings.TrimSpace(tier)),
+		Features:   features,
 		ExpiresAt:  now.Add(time.Duration(daysValid) * 24 * time.Hour),
 		CreatedAt:  now,
 	}

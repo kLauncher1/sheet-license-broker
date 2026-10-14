@@ -62,22 +62,26 @@ type LoginResponse struct {
 
 // LicenseResponse represents license generation response.
 type LicenseResponse struct {
-	Status     string `json:"status"`
-	LicenseKey string `json:"license_key,omitempty"`
-	ExpiresAt  string `json:"expires_at,omitempty"`
-	Message    string `json:"message,omitempty"`
+	Status     string   `json:"status"`
+	LicenseKey string   `json:"license_key,omitempty"`
+	ExpiresAt  string   `json:"expires_at,omitempty"`
+	Tier       string   `json:"tier,omitempty"`
+	Features   []string `json:"features,omitempty"`
+	Message    string   `json:"message,omitempty"`
 }
 
 // VerifyResponse represents license verification with HWID binding outcome.
 type VerifyResponse struct {
-	Status      string `json:"status"`
-	Verified    bool   `json:"verified,omitempty"`
-	HWIDBound   string `json:"hwid_bound,omitempty"`
-	ExpiresAt   string `json:"expires_at,omitempty"`
-	Message     string `json:"message,omitempty"`
-	LicenseKey  string `json:"license_key,omitempty"`
-	Blacklisted bool   `json:"blacklisted,omitempty"`
-	Revoked     bool   `json:"revoked,omitempty"`
+	Status      string   `json:"status"`
+	Verified    bool     `json:"verified,omitempty"`
+	HWIDBound   string   `json:"hwid_bound,omitempty"`
+	ExpiresAt   string   `json:"expires_at,omitempty"`
+	Tier        string   `json:"tier,omitempty"`
+	Features    []string `json:"features,omitempty"`
+	Message     string   `json:"message,omitempty"`
+	LicenseKey  string   `json:"license_key,omitempty"`
+	Blacklisted bool     `json:"blacklisted,omitempty"`
+	Revoked     bool     `json:"revoked,omitempty"`
 }
 
 // DocResponse represents NoSQL KV document operation result.

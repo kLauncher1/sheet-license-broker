@@ -11,6 +11,8 @@ const SHEET_DATABASE = 'KV_Database';
 const SHEET_BLACKLIST = 'Blacklist';
 const SHEET_AUDIT_LOGS = 'Audit_Logs';
 const SHEET_TENANTS = 'Tenants';
+const SHEET_USAGE = 'Usage_Metering';
+const SHEET_FEATURE_FLAGS = 'FeatureFlags';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -86,6 +88,15 @@ function handleRequest(e, method) {
       case 'db_get':
         return handleDBGet(output, payload);
 
+      case 'features_list':
+        return handleFeaturesList(output, payload);
+
+      case 'usage_record':
+        return handleUsageRecord(output, payload);
+
+      case 'usage_get':
+        return handleUsageGet(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -98,11 +109,13 @@ function initSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const defs = [
     { name: SHEET_USERS, cols: ['user_id', 'username', 'password_hash', 'salt', 'role', 'created_at'] },
-    { name: SHEET_LICENSES, cols: ['license_key', 'hwid_bound', 'max_devices', 'status', 'expires_at', 'created_at'] },
+    { name: SHEET_LICENSES, cols: ['license_key', 'hwid_bound', 'max_devices', 'status', 'expires_at', 'created_at', 'tier', 'features'] },
     { name: SHEET_DATABASE, cols: ['collection', 'doc_id', 'payload_json', 'updated_at'] },
     { name: SHEET_BLACKLIST, cols: ['type', 'target', 'reason', 'created_at'] },
     { name: SHEET_AUDIT_LOGS, cols: ['timestamp', 'action', 'actor', 'details', 'status'] },
-    { name: SHEET_TENANTS, cols: ['tenant_id', 'name', 'prefix', 'hmac_secret', 'max_licenses', 'webhook_url', 'is_active', 'created_at'] }
+    { name: SHEET_TENANTS, cols: ['tenant_id', 'name', 'prefix', 'hmac_secret', 'max_licenses', 'webhook_url', 'is_active', 'created_at'] },
+    { name: SHEET_USAGE, cols: ['key', 'metric', 'period', 'count', 'limit', 'updated_at'] },
+    { name: SHEET_FEATURE_FLAGS, cols: ['feature_key', 'name', 'default_tiers', 'description', 'created_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -178,12 +191,15 @@ function handleCreateLicense(output, payload) {
   const expDate = new Date();
   expDate.setDate(expDate.getDate() + Number(days));
 
+  const tier = (payload.tier || 'pro').toLowerCase().trim();
+  const features = Array.isArray(payload.features) ? payload.features.join(',') : (payload.features || '');
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_LICENSES);
-  sheet.appendRow([key, '', maxDevices, 'ACTIVE', expDate.toISOString(), new Date().toISOString()]);
+  sheet.appendRow([key, '', maxDevices, 'ACTIVE', expDate.toISOString(), new Date().toISOString(), tier, features]);
 
   logAudit('create_license', 'admin', 'Created license ' + key, 'SUCCESS');
-  return jsonResponse(output, { status: 'success', license_key: key, expires_at: expDate.toISOString() });
+  return jsonResponse(output, { status: 'success', license_key: key, expires_at: expDate.toISOString(), tier: tier, features: features ? features.split(',') : [] });
 }
 
 function handleVerifyLicense(output, payload) {
@@ -223,6 +239,9 @@ function handleVerifyLicense(output, payload) {
       const boundHWID = data[i][1];
       const status = data[i][3];
       const expiresAt = new Date(data[i][4]);
+      const tier = String(data[i][6] || 'pro').toLowerCase().trim();
+      const rawFeats = String(data[i][7] || '');
+      const feats = rawFeats ? rawFeats.split(',') : [];
 
       if (status !== 'ACTIVE') {
         logAudit('verify_license', hwid, 'Key status ' + status, 'REJECTED');
@@ -236,7 +255,7 @@ function handleVerifyLicense(output, payload) {
       if (!boundHWID && hwid) {
         sheet.getRange(i + 1, 2).setValue(hwid);
         logAudit('verify_license', hwid, 'Bound to machine for ' + key, 'SUCCESS');
-        return jsonResponse(output, { status: 'success', verified: true, hwid_bound: hwid, message: 'License activated and bound to device' });
+        return jsonResponse(output, { status: 'success', verified: true, hwid_bound: hwid, tier: tier, features: feats, message: 'License activated and bound to device' });
       }
 
       if (boundHWID && hwid && boundHWID !== hwid) {
@@ -245,7 +264,7 @@ function handleVerifyLicense(output, payload) {
       }
 
       logAudit('verify_license', hwid, 'Verified ' + key, 'SUCCESS');
-      return jsonResponse(output, { status: 'success', verified: true, hwid_bound: boundHWID, expires_at: expiresAt.toISOString() });
+      return jsonResponse(output, { status: 'success', verified: true, hwid_bound: boundHWID, expires_at: expiresAt.toISOString(), tier: tier, features: feats });
     }
   }
 
@@ -458,6 +477,92 @@ function handleDBGet(output, payload) {
   }
 
   return jsonResponse(output, { status: 'error', message: 'Document not found' });
+}
+
+function handleFeaturesList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_FEATURE_FLAGS);
+  const data = sheet ? sheet.getDataRange().getValues() : [];
+  const features = [];
+  for (let i = 1; i < data.length; i++) {
+    features.push({
+      key: data[i][0],
+      name: data[i][1],
+      default_tiers: String(data[i][2]).split(','),
+      description: data[i][3]
+    });
+  }
+  return jsonResponse(output, { status: 'success', features: features });
+}
+
+function handleUsageRecord(output, payload) {
+  const key = String(payload.key || payload.license_key || '').toUpperCase().trim();
+  const metric = String(payload.metric || '').toLowerCase().trim();
+  const period = String(payload.period || new Date().toISOString().substring(0, 10)).trim();
+  const units = Number(payload.units || 1);
+  const limit = Number(payload.limit || 0);
+
+  if (!key || !metric) {
+    return jsonResponse(output, { status: 'error', message: 'key and metric are required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_USAGE);
+  const data = sheet ? sheet.getDataRange().getValues() : [];
+  let rowIndex = -1;
+  let currentCount = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toUpperCase() === key && String(data[i][1]).toLowerCase() === metric && String(data[i][2]) === period) {
+      rowIndex = i + 1;
+      currentCount = Number(data[i][3]) || 0;
+      break;
+    }
+  }
+
+  currentCount += units;
+  const now = new Date().toISOString();
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 4).setValue(currentCount);
+    sheet.getRange(rowIndex, 6).setValue(now);
+    if (limit > 0) sheet.getRange(rowIndex, 5).setValue(limit);
+  } else if (sheet) {
+    sheet.appendRow([key, metric, period, currentCount, limit, now]);
+  }
+
+  const exceeded = limit > 0 && currentCount > limit;
+  return jsonResponse(output, {
+    status: 'success',
+    record: { key: key, metric: metric, period: period, count: currentCount, limit: limit, updated_at: now },
+    exceeded: exceeded
+  });
+}
+
+function handleUsageGet(output, payload) {
+  const key = String(payload.key || payload.license_key || '').toUpperCase().trim();
+  if (!key) {
+    return jsonResponse(output, { status: 'error', message: 'key is required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_USAGE);
+  const data = sheet ? sheet.getDataRange().getValues() : [];
+  const records = [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toUpperCase() === key) {
+      records.push({
+        key: data[i][0],
+        metric: data[i][1],
+        period: data[i][2],
+        count: Number(data[i][3]) || 0,
+        limit: Number(data[i][4]) || 0,
+        updated_at: data[i][5]
+      });
+    }
+  }
+
+  return jsonResponse(output, { status: 'success', license_key: key, records: records });
 }
 
 function jsonResponse(output, data) {

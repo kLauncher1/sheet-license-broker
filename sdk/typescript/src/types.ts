@@ -40,7 +40,32 @@ export interface LicenseValidationResponse {
   message?: string;
   error?: string;
   source?: 'memory' | 'gas';
+  tier?: string;
+  features?: string[];
   license?: LicenseRecord;
+}
+
+export interface UsageRecord {
+  key: string;
+  metric: string;
+  period: string;
+  count: number;
+  limit: number;
+  updated_at?: string;
+}
+
+export interface FeatureCheckResponse {
+  status: string;
+  license_key: string;
+  feature: string;
+  enabled: boolean;
+  tier: string;
+}
+
+export interface UsageRecordResponse {
+  status: string;
+  record: UsageRecord;
+  exceeded: boolean;
 }
 
 export interface UserAuthResponse {

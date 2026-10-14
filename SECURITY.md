@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.7.x   | :white_check_mark: |
 | 0.6.x   | :white_check_mark: |
 | 0.5.x   | :white_check_mark: |
 | 0.4.x   | :white_check_mark: |
@@ -58,6 +59,10 @@
 
 11. **Dual-Sheet High Availability & Reconciliation Invariants**:
     - During active-standby dataset reconciliation, revocations strictly supersede active states. Once revoked, a license key or banned hardware ID cannot be re-activated through dataset merges.
+
+12. **Dynamic Feature Flags & Usage Metering Isolation**:
+    - Usage quotas are incremented using thread-safe atomic counters with strict upper bound and negative value rejection.
+    - Feature check evaluation strictly enforces tier entitlements and custom overrides, preventing privilege escalation or entitlement spoofing.
 
 ## Reporting a Vulnerability
 

@@ -37,7 +37,7 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
 
         if (req.url === '/health' && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'healthy', version: '0.4.0' }));
+          res.end(JSON.stringify({ status: 'healthy', version: '0.7.0' }));
           return;
         }
 
@@ -56,6 +56,47 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
             res.writeHead(401, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ valid: false, error: 'License invalid or expired' }));
           }
+          return;
+        }
+
+        if (req.url === '/api/features/check' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            license_key: payload.license_key,
+            feature: payload.feature,
+            enabled: payload.feature === 'analytics',
+            tier: 'pro'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/usage/record' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            record: {
+              key: payload.license_key,
+              metric: payload.metric,
+              period: payload.period || '2026-10-14',
+              count: payload.units || 1,
+              limit: payload.limit || 0
+            },
+            exceeded: false
+          }));
+          return;
+        }
+
+        if (req.url?.startsWith('/api/usage/stats') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            records: [
+              { metric: 'api_calls', count: 120, limit: 1000 }
+            ]
+          }));
           return;
         }
 
@@ -97,7 +138,7 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const client = new SheetLicenseClient({ baseUrl });
     const health = await client.health();
     assert.strictEqual(health.status, 'healthy');
-    assert.strictEqual(health.version, '0.4.0');
+    assert.strictEqual(health.version, '0.7.0');
   });
 
   it('validates active license with HMAC request signing', async () => {
@@ -135,5 +176,22 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const res = await client.verifyLicense('VALID-KEY-TS');
     assert.strictEqual(res.valid, true);
     assert.strictEqual(res.tenant_id, 'tenant-ts-99');
+  });
+
+  it('checks feature flags and tracks usage consumption', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const isAnalytics = await client.isFeatureEnabled('VALID-KEY-TS', 'analytics');
+    assert.strictEqual(isAnalytics, true);
+
+    const isSSO = await client.isFeatureEnabled('VALID-KEY-TS', 'sso');
+    assert.strictEqual(isSSO, false);
+
+    const usageRes = await client.recordUsage('VALID-KEY-TS', 'api_calls', 50, 500);
+    assert.strictEqual(usageRes.status, 'success');
+    assert.strictEqual(usageRes.exceeded, false);
+
+    const records = await client.getUsage('VALID-KEY-TS');
+    assert.strictEqual(records.length, 1);
+    assert.strictEqual(records[0].metric, 'api_calls');
   });
 });

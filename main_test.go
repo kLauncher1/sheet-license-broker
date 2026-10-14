@@ -46,6 +46,7 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 	mux := http.NewServeMux()
 	mux.Handle("/api/", server.guard.Middleware(apiMux))
 	server.registerHARoutes(apiMux, mux)
+	server.registerFeatureRoutes(apiMux)
 
 	return server, mux
 }
@@ -67,8 +68,8 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "0.5.0" {
-		t.Fatalf("expected version 0.5.0, got: %v", res["version"])
+	if res["version"] != "0.7.0" {
+		t.Fatalf("expected version 0.7.0, got: %v", res["version"])
 	}
 }
 

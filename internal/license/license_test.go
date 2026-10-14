@@ -39,3 +39,23 @@ func TestLicenseLifecycle(t *testing.T) {
 		t.Errorf("expected hardware mismatch error on Machine B")
 	}
 }
+
+func TestLicenseWithTierAndFeatures(t *testing.T) {
+	mgr := NewManager()
+
+	lic := mgr.CreateLicenseWithTier(14, 2, "enterprise", []string{"analytics", "custom_branding"})
+	if lic.Tier != "enterprise" {
+		t.Errorf("expected enterprise tier, got %s", lic.Tier)
+	}
+	if len(lic.Features) != 2 || lic.Features[0] != "analytics" {
+		t.Errorf("unexpected features: %v", lic.Features)
+	}
+
+	bound, err := mgr.VerifyAndBind(lic.LicenseKey, "hwid_dev_1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bound.Tier != "enterprise" {
+		t.Errorf("expected tier enterprise preserved, got %s", bound.Tier)
+	}
+}

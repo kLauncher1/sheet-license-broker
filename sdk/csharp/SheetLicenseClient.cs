@@ -34,6 +34,7 @@ namespace SheetLicenseBroker
         public string Error { get; set; }
         public string Key { get; set; }
         public string ExpirationDate { get; set; }
+        public string Tier { get; set; }
         public string Source { get; set; }
         public string RawJson { get; set; }
     }
@@ -282,6 +283,44 @@ namespace SheetLicenseBroker
         public async Task<string> GetHealthAsync()
         {
             return await SendRequestAsync("GET", "/health").ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Checks whether a specific feature flag is permitted for a license key.
+        /// </summary>
+        public async Task<bool> IsFeatureEnabledAsync(string licenseKey, string feature)
+        {
+            string payload = string.Format("{{\"license_key\":\"{0}\",\"feature\":\"{1}\"}}",
+                EscapeJson(licenseKey), EscapeJson(feature));
+            string raw = await SendRequestAsync("POST", "/api/features/check", payload).ConfigureAwait(false);
+            return raw.IndexOf("\"enabled\":true", StringComparison.OrdinalIgnoreCase) != -1;
+        }
+
+        public bool IsFeatureEnabled(string licenseKey, string feature)
+        {
+            return Task.Run(() => IsFeatureEnabledAsync(licenseKey, feature)).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Reports resource consumption units for a license key with quota bounds checking.
+        /// </summary>
+        public async Task<string> RecordUsageAsync(string licenseKey, string metric, long units = 1, long limit = 0, string period = "")
+        {
+            string payload = string.Format("{{\"license_key\":\"{0}\",\"metric\":\"{1}\",\"units\":{2},\"limit\":{3}{4}}}",
+                EscapeJson(licenseKey),
+                EscapeJson(metric),
+                units,
+                limit,
+                string.IsNullOrEmpty(period) ? "" : string.Format(",\"period\":\"{0}\"", EscapeJson(period)));
+            return await SendRequestAsync("POST", "/api/usage/record", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Retrieves consumption records for all metered resources of a license key.
+        /// </summary>
+        public async Task<string> GetUsageAsync(string licenseKey)
+        {
+            return await SendRequestAsync("GET", "/api/usage/stats?license_key=" + Uri.EscapeDataString(licenseKey.Trim())).ConfigureAwait(false);
         }
 
         private static string EscapeJson(string str)

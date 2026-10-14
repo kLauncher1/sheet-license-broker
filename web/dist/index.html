@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v0.5.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v0.7.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -240,6 +240,7 @@
       <button class="tab-btn active" id="tab-btn-lic" onclick="switchTab('lic')">Licenses</button>
       <button class="tab-btn" id="tab-btn-tenants" onclick="switchTab('tenants')">Multi-Tenant Namespaces</button>
       <button class="tab-btn" id="tab-btn-bl" onclick="switchTab('bl')">Blacklist & Anti-Tamper</button>
+      <button class="tab-btn" id="tab-btn-features" onclick="switchTab('features')">Features & Metering</button>
       <button class="tab-btn" id="tab-btn-backup" onclick="switchTab('backup')">Backup & Restore</button>
       <button class="tab-btn" id="tab-btn-ha" onclick="switchTab('ha')">Replication & HA</button>
     </div>
@@ -376,6 +377,57 @@
       </div>
       <div id="ha-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 6: Dynamic Feature Flags & Usage-Based Tier Metering -->
+    <div id="panel-features" class="panel-box" style="display: none;">
+      <div class="panel-title">Dynamic Feature Flags & Usage-Based Tier Metering</div>
+      <div class="panel-desc">
+        Configure subscription tiers (Free, Pro, Enterprise), dynamic feature entitlement flags, and track real-time usage consumption with automated quota bounds.
+      </div>
+      <div class="action-bar">
+        <button class="btn-action" onclick="checkFeaturePrompt()">🔍 Check Entitlement</button>
+        <button class="btn-action btn-secondary" onclick="recordUsagePrompt()">📈 Record Usage (+Units)</button>
+        <button class="btn-action btn-secondary" onclick="viewUsagePrompt()">📊 View Usage Stats</button>
+        <button class="btn-action btn-secondary" onclick="refreshFeaturesTab()">🔄 Refresh Feature Catalog</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+        <div class="card">
+          <div class="card-title" style="color: #94a3b8;">Tier: Free</div>
+          <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <span class="pill pill-active">basic_license</span>
+            <span class="pill pill-active">community_support</span>
+          </div>
+          <div class="card-subtext" style="margin-top: 12px;">Standard device lock & forum support</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: #38bdf8;">Tier: Pro</div>
+          <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <span class="pill pill-active">basic_license</span>
+            <span class="pill pill-active">community_support</span>
+            <span class="pill pill-active">analytics</span>
+            <span class="pill pill-active">csv_export</span>
+            <span class="pill pill-active">extended_logs</span>
+          </div>
+          <div class="card-subtext" style="margin-top: 12px;">Commercial apps, telemetry & exports</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: #a855f7;">Tier: Enterprise</div>
+          <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <span class="pill pill-active">analytics</span>
+            <span class="pill pill-active">csv_export</span>
+            <span class="pill pill-active">extended_logs</span>
+            <span class="pill pill-active">sso</span>
+            <span class="pill pill-active">audit_export</span>
+            <span class="pill pill-active">unlimited_seats</span>
+            <span class="pill pill-active">priority_support</span>
+          </div>
+          <div class="card-subtext" style="margin-top: 12px;">Full capability suite, SSO & dedicated SLA</div>
+        </div>
+      </div>
+
+      <div id="features-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -383,7 +435,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'backup', 'ha'];
+      const tabs = ['lic', 'tenants', 'bl', 'backup', 'ha', 'features'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -394,6 +446,7 @@
       document.getElementById('table-blacklist').style.display = tab === 'bl' ? 'table' : 'none';
       document.getElementById('panel-backup').style.display = tab === 'backup' ? 'block' : 'none';
       document.getElementById('panel-ha').style.display = tab === 'ha' ? 'block' : 'none';
+      document.getElementById('panel-features').style.display = tab === 'features' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -402,6 +455,7 @@
       if (tab === 'bl') refreshBlacklist();
       if (tab === 'tenants') refreshTenants();
       if (tab === 'ha') refreshHA();
+      if (tab === 'features') refreshFeaturesTab();
     }
 
     async function refresh() {
@@ -766,6 +820,77 @@
         alert(res.message || 'Alert dispatched');
       } catch (e) {
         alert('Alert error: ' + e.message);
+      }
+    }
+
+    async function refreshFeaturesTab() {
+      const out = document.getElementById('features-output');
+      out.style.display = 'block';
+      out.textContent = 'Fetching feature catalog...';
+      try {
+        const res = await fetch('/api/features').then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Error fetching features: ' + e.message;
+      }
+    }
+
+    async function checkFeaturePrompt() {
+      const key = prompt('Enter License Key:');
+      if (!key) return;
+      const feat = prompt('Enter Feature Key to check (e.g. analytics, sso, csv_export):', 'analytics');
+      if (!feat) return;
+
+      const out = document.getElementById('features-output');
+      out.style.display = 'block';
+      out.textContent = 'Checking entitlement...';
+      try {
+        const res = await fetch('/api/features/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_key: key, feature: feat })
+        }).then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Check error: ' + e.message;
+      }
+    }
+
+    async function recordUsagePrompt() {
+      const key = prompt('Enter License Key:');
+      if (!key) return;
+      const metric = prompt('Enter Metric Name (e.g. api_calls, exports, storage_mb):', 'api_calls');
+      if (!metric) return;
+      const units = prompt('Enter units consumed:', '10');
+      if (!units) return;
+      const limit = prompt('Enter quota limit (0 for unlimited):', '1000') || '0';
+
+      const out = document.getElementById('features-output');
+      out.style.display = 'block';
+      out.textContent = 'Recording usage...';
+      try {
+        const res = await fetch('/api/usage/record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_key: key, metric: metric, units: Number(units), limit: Number(limit) })
+        }).then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Record error: ' + e.message;
+      }
+    }
+
+    async function viewUsagePrompt() {
+      const key = prompt('Enter License Key to inspect usage:');
+      if (!key) return;
+      const out = document.getElementById('features-output');
+      out.style.display = 'block';
+      out.textContent = 'Querying usage statistics...';
+      try {
+        const res = await fetch('/api/usage/stats?license_key=' + encodeURIComponent(key)).then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Stats error: ' + e.message;
       }
     }
 
