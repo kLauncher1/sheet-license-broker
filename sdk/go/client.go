@@ -324,3 +324,19 @@ func (c *Client) ReportTelemetry(ctx context.Context, licenseKey, hwid string, r
 	}
 	return res.TamperScore, res.Tampered, res.TrustLevel, nil
 }
+
+// ExportAuditToken requests an encrypted audit bundle for enterprise compliance auditing pipelines.
+func (c *Client) ExportAuditToken(ctx context.Context, secretKey string, limit int) (map[string]interface{}, error) {
+	req := map[string]interface{}{
+		"secret_key": secretKey,
+		"limit":      limit,
+	}
+	var res struct {
+		Status string                 `json:"status"`
+		Bundle map[string]interface{} `json:"bundle"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/security/audit/export", req, &res); err != nil {
+		return nil, err
+	}
+	return res.Bundle, nil
+}

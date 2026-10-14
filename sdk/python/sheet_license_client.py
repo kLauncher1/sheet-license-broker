@@ -45,6 +45,14 @@ class NetworkError(BrokerError):
     pass
 
 
+class RateLimitError(BrokerError):
+    """Raised when request rate limits or temporary reputation restrictions are exceeded."""
+
+    def __init__(self, message: str, status_code: int = 429, details: Optional[Dict[str, Any]] = None, retry_after: int = 0):
+        super().__init__(message, status_code, details)
+        self.retry_after = retry_after
+
+
 def get_machine_hwid() -> str:
     """
     Collects a stable, unique hardware identifier for the current machine.
@@ -198,6 +206,13 @@ class SheetLicenseClient:
                 if "signature" in err_msg.lower():
                     raise AuthenticationError(f"HMAC security error: {err_msg}", e.code, err_json)
                 raise LicenseValidationError(f"License authorization failed: {err_msg}", e.code, err_json)
+            if e.code == 429:
+                retry_after_hdr = e.headers.get("Retry-After", "0") if hasattr(e, "headers") else "0"
+                try:
+                    retry_after = int(retry_after_hdr)
+                except ValueError:
+                    retry_after = 0
+                raise RateLimitError(f"Rate limit exceeded: {err_msg}", e.code, err_json, retry_after)
             raise BrokerError(f"HTTP {e.code}: {err_msg}", e.code, err_json)
         except urllib.error.URLError as e:
             raise NetworkError(f"Connection to broker failed at {url}: {e.reason}")
@@ -332,6 +347,14 @@ class SheetLicenseClient:
             "hwid": target_hwid.strip(),
             "report": report,
         })
+
+    def export_audit_token(self, secret_key: Optional[str] = None, limit: int = 500) -> Dict[str, Any]:
+        """Requests an encrypted audit bundle for enterprise compliance auditing pipelines."""
+        payload: Dict[str, Any] = {"limit": limit}
+        if secret_key:
+            payload["secret_key"] = secret_key
+        res = self._request("POST", "/api/security/audit/export", payload)
+        return res.get("bundle", {})
 
 
 if __name__ == "__main__":

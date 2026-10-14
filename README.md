@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.8.0-emerald.svg" alt="Version: v0.8.0">
+  <img src="https://img.shields.io/badge/version-v0.9.0-emerald.svg" alt="Version: v0.9.0">
+  <img src="https://img.shields.io/badge/security-rate%20limits%20%26%20SIEM%20audit-blueviolet.svg" alt="Security & Rate Limiting">
   <img src="https://img.shields.io/badge/attestation-TPM%202.0%20%26%20Enclave-0284C7.svg" alt="Hardware Attestation">
   <img src="https://img.shields.io/badge/tiers-dynamic%20flags-8B5CF6.svg" alt="Feature Flags & Tier Metering">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
@@ -27,6 +28,9 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Enterprise Rate-Limiting & Progressive Backoff**: Thread-safe sliding-window throttling per IP and HWID with progressive penalty delays and standard `X-RateLimit-*` headers.
+- **Sliding-Window IP/HWID Reputation Cache**: Automatic temporary bans and high-priority incident webhook alerts upon repeated security infractions.
+- **Encrypted Audit Token Export for SIEM**: Compliant AES-256-GCM encrypted audit bundles sealed with HMAC signatures for Splunk, Datadog, and AWS CloudWatch ingest.
 - **Cryptographic Hardware Attestation & Enclave Binding**: TPM 2.0 PCR quote verification and Apple Secure Enclave / Windows Hello hardware key attestation preventing clone attacks.
 - **Client Anti-Debugging & Memory-Tamper Telemetry**: Continuous integrity scoring with instant kill-switch auto-banning devices exhibiting debugger attachment or code section modifications.
 - **Dynamic Feature Flags & Usage-Based Tier Metering**: Free, Pro, and Enterprise subscription tiers with runtime feature gating (`client.isFeatureEnabled("analytics")`) and atomic consumption quota tracking persisted directly in Google Sheets.
@@ -53,11 +57,13 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ```mermaid
 flowchart TD
-    Client["Desktop App / CLI / WebApp"] -->|HTTPS REST + HMAC-SHA256| Guard["Anti-Tamper Security Guard (Nonce Cache)"]
-    Guard --> Broker["sheet-license-broker (Go Gateway)"]
+    Client["Desktop App / CLI / WebApp"] -->|HTTPS REST + HMAC-SHA256| Guard["Anti-Tamper Security Guard & Nonce Cache"]
+    Guard --> Limiter["Rate Limiter & IP Reputation Gate"]
+    Limiter --> Broker["sheet-license-broker (Go Gateway)"]
     Broker -->|//go:embed| WebUI["Embedded Admin Console (Port 9082)"]
     Broker -->|Scrape| Prom["Prometheus Monitoring (/metrics)"]
     Broker -->|Encrypted Disk Journal| Spool["Local Disk Spool (AES-256-GCM)"]
+    Broker -->|SIEM Export| SIEM["Audit Export Pipeline (AES-256-GCM)"]
     Broker -->|Alerts| Alerts["Security Webhooks (Discord & Slack)"]
     Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
     Broker -->|Active Role| Primary["Primary GAS Web App (Code.gs)"]
@@ -69,8 +75,9 @@ flowchart TD
         Sheets1 --> Tab1["Tab: Users (Salted Hash Auth)"]
         Sheets1 --> Tab2["Tab: Licenses (HWID Lock & Expiry)"]
         Sheets1 --> Tab3["Tab: Blacklist (Revocations & Banned HWIDs)"]
-        Sheets1 --> Tab4["Tab: Audit_Logs (Security Audit Trail)"]
-        Sheets1 --> Tab5["Tab: KV_Database (NoSQL Store)"]
+        Sheets1 --> Tab4["Tab: Audit_Logs (Security Audit Trail & Bans)"]
+        Sheets1 --> Tab5["Tab: Attestations (TPM Quotes & Claims)"]
+        Sheets1 --> Tab6["Tab: KV_Database (NoSQL Store)"]
     end
 ```
 
@@ -503,6 +510,62 @@ Content-Type: application/json
     "process_checksum": "a1b2c3d4e5f6...",
     "execution_uptime_s": 3600
   }
+}
+```
+
+---
+
+### 🛡️ Enterprise Rate Limiting & SIEM Audit Export
+
+#### Rate Limiter & IP Reputation Telemetry
+```http
+GET /api/security/ratelimit/status
+GET /api/security/reputation
+```
+
+#### Impose / List Temporary Restrictions
+```http
+# List active temporary bans
+GET /api/security/bans
+
+# Impose temporary restriction
+POST /api/security/bans
+Content-Type: application/json
+
+{
+  "key": "198.51.100.24",
+  "reason": "Repeated failed validation attempts",
+  "duration_minutes": 15
+}
+
+# Lift temporary restriction
+POST /api/security/bans/unban
+Content-Type: application/json
+
+{
+  "key": "198.51.100.24"
+}
+```
+
+#### Export Encrypted Audit Bundle (for SIEM / SOC Ingestion)
+```http
+POST /api/security/audit/export
+Content-Type: application/json
+
+{
+  "secret_key": "enterprise-compliance-secret",
+  "limit": 500
+}
+```
+
+#### Verify & Decrypt Audit Bundle
+```http
+POST /api/security/audit/verify
+Content-Type: application/json
+
+{
+  "secret_key": "enterprise-compliance-secret",
+  "bundle": { ... }
 }
 ```
 

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-10-14
+
+### Added
+- Enterprise rate-limiting and progressive penalty subsystem (`internal/ratelimit/limiter.go`, `internal/ratelimit/limiter_test.go`) featuring thread-safe sliding-window request tracking, per-IP and per-HWID throttling, sensitive endpoint thresholds (auth, validation, attestation), and progressive exponential backoff penalties with standard `X-RateLimit-*` and `Retry-After` HTTP headers.
+- Sliding-window IP and HWID reputation tracker (`internal/ratelimit/reputation.go`) maintaining infraction score history across a configurable decay window, with automated security escalation: penalty point thresholds trigger instant temporary restrictions (HTTP 429), automated Discord/Slack incident alerts, and audit trail records.
+- Cryptographically sealed audit token export engine (`internal/audit/export.go`, `internal/audit/export_test.go`) utilizing AES-256-GCM authenticated encryption and HMAC-SHA256 integrity signatures for compliant, tamper-proof external SIEM and SOC pipeline ingestion (Splunk, Datadog, Elastic, AWS CloudWatch).
+- Dedicated modular security and rate limiting routes (`routes_security.go`, `routes_security_test.go`) exposing `GET /api/security/ratelimit/status`, `GET /api/security/reputation`, `GET/POST /api/security/bans`, `POST /api/security/bans/unban`, `GET /api/security/audit/records`, `POST /api/security/audit/export`, and `POST /api/security/audit/verify`.
+- Global security rate-limiting and ban enforcement middleware (`securityRateLimitMiddleware`) intercepting all incoming `/api/` traffic with sub-millisecond overhead and constant-time ban lookups.
+- Proxy layer integration (`internal/proxy/security.go`, `internal/proxy/security_test.go`) coordinating in-memory rate limiting, sliding-window reputation scoring, automated temporary restrictions, audit ring buffering, and incident dispatching across local memory and Google Sheets.
+- Google Apps Script backend update (`gas/Code.gs`) adding `audit_log_record` and `audit_log_list` actions to record and retrieve compliance audit events from the `Audit_Logs` sheet.
+- Multi-language client SDK extensions across Go (`sdk/go`), Python (`sdk/python`), TypeScript / Node.js (`sdk/typescript`), and C# (`sdk/csharp`) adding `ExportAuditToken` and dedicated `RateLimitError` exception handling with retry-after metadata.
+- Embedded administration dashboard update (`web/dist/index.html`) featuring an interactive "Incidents & Rate Limiting" tab with real-time bucket counters, active temporary restrictions table, live security audit trail, and in-browser encrypted SIEM export and verification tools.
+- Version bump to 0.9.0 across core binary, manifests, documentation, and client libraries.
+
 ## [0.8.0] - 2026-10-14
 
 ### Added

@@ -69,8 +69,8 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "0.8.0" {
-		t.Fatalf("expected version 0.8.0, got: %v", res["version"])
+	if res["version"] != "0.9.0" {
+		t.Fatalf("expected version 0.9.0, got: %v", res["version"])
 	}
 }
 

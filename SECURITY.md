@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.9.x   | :white_check_mark: |
 | 0.8.x   | :white_check_mark: |
 | 0.7.x   | :white_check_mark: |
 | 0.6.x   | :white_check_mark: |
@@ -70,6 +71,15 @@
     - Single-use challenge nonces expire after 5 minutes, preventing replay of valid hardware attestation statements.
     - Apple Secure Enclave and Windows Hello statements are verified against hardware public key fingerprints and monotonic counter monotonicity.
     - Anti-debugging and code section integrity telemetry reports are continuously analyzed; client instances triggering memory patch detection or active debugger attachment automatically result in immediate license revocation and hardware device blacklisting.
+
+14. **Sliding-Window IP Reputation & Progressive Rate Limiting**:
+    - Rate limits are enforced on a per-IP and per-HWID basis with separate conservative thresholds for sensitive operations (authentication, license verification, hardware attestation).
+    - Rate limit violations trigger progressive backoff penalties with standard `X-RateLimit-*` and `Retry-After` headers.
+    - Security infractions (replay attempts, HMAC signature mismatches, brute-force attempts) accrue violation points in a 15-minute sliding window; exceeding threshold values triggers automatic temporary bans and high-priority incident webhook alerts.
+
+15. **Encrypted Audit Token Export for Enterprise SIEM Compliance**:
+    - Compliance audit trails can be exported in an AES-256-GCM authenticated encrypted container with HMAC-SHA256 integrity validation.
+    - Export bundles protect audit records from transit inspection or tampering during ingestion into enterprise SIEM pipelines (Splunk, Datadog, Elastic, AWS CloudWatch).
 
 ## Reporting a Vulnerability
 

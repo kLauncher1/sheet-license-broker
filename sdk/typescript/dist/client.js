@@ -24,6 +24,14 @@ export class LicenseValidationError extends BrokerError {
   }
 }
 
+export class RateLimitError extends BrokerError {
+  constructor(message, statusCode, details, retryAfter = 0) {
+    super(message, statusCode, details);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
 export class SheetLicenseClient {
   constructor(options = {}) {
     this.baseUrl = (options.baseUrl || 'http://127.0.0.1:9082').replace(/\/+$/, '');
@@ -98,6 +106,11 @@ export class SheetLicenseClient {
             throw new AuthenticationError(`Security signature failed: ${errMsg}`, res.status, data);
           }
           throw new LicenseValidationError(`License authorization failed: ${errMsg}`, res.status, data);
+        }
+        if (res.status === 429) {
+          const retryHeader = res.headers.get('Retry-After') || '0';
+          const retryAfter = parseInt(retryHeader, 10) || 0;
+          throw new RateLimitError(`Rate limit exceeded: ${errMsg}`, res.status, data, retryAfter);
         }
         throw new BrokerError(`Broker error (${res.status}): ${errMsg}`, res.status, data);
       }
@@ -244,5 +257,14 @@ export class SheetLicenseClient {
       hwid: targetHwid.trim(),
       report,
     });
+  }
+
+  async exportAuditToken(secretKey, limit = 500) {
+    const payload = { limit };
+    if (secretKey) {
+      payload.secret_key = secretKey;
+    }
+    const res = await this.request('POST', '/api/security/audit/export', payload);
+    return res.bundle;
   }
 }

@@ -59,10 +59,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods for hardware attestation and telemetry reporting
 - [x] Embedded admin console Hardware Attestation interactive management tab (`web/dist/index.html`)
 
-## Phase 9: Enterprise Security Incident Dispatchers & Rate Limiting (v0.9.0)
-- [ ] IP and hardware ID brute-force rate-limiting with exponential backoff penalty
-- [ ] In-memory sliding-window reputation cache with automatic temporary bans
-- [ ] Encrypted token export pipeline for external SIEM integration
+## Phase 9: Enterprise Security Incident Dispatchers & Rate Limiting (v0.9.0) - Completed
+- [x] IP and hardware ID brute-force rate-limiting with progressive backoff penalties (`internal/ratelimit/limiter.go`)
+- [x] In-memory sliding-window IP/HWID reputation tracker with automatic temporary restrictions (`internal/ratelimit/reputation.go`)
+- [x] AES-256-GCM encrypted audit token export pipeline for external SIEM/SOC integration (`internal/audit/export.go`)
+- [x] Dedicated security router, rate-limiting middleware, and audit verification endpoints (`routes_security.go`)
+- [x] Google Apps Script backend audit log synchronization (`gas/Code.gs`)
+- [x] Multi-language client SDK extensions and interactive web console Incidents & Rate Limiting tab (`web/dist/index.html`)
 
 ## Phase 10: Distributed Consensus & Multi-Region Quorum Sync (v1.0.0)
 - [ ] Raft-inspired lightweight quorum consensus across distributed broker nodes
@@ -88,3 +91,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Module-Lattice-Based Digital Signature Algorithm (ML-DSA / Dilithium) verification
 - [ ] Quantum-resistant hybrid signature headers
 - [ ] Long-term cryptographic durability and key rotation mechanics
+
+## Phase 15: Behavioral Anomaly Detection & Adaptive Risk Scoring (v1.5.0)
+- [ ] Statistical drift analysis on client heartbeat and geographic origin patterns
+- [ ] Dynamic risk scoring with automated challenge escalation (re-attestation)
+- [ ] Real-time security incident graph exporter for enterprise SIEM ingestion
+
+## Phase 16: Confidential Computing & Hardware Enclave Attestation Bridge (v1.6.0)
+- [ ] Intel SGX / AMD SEV remote attestation quote validation
+- [ ] End-to-end encrypted payload tunnels between client enclaves and broker
+- [ ] Zero-plaintext memory guarantees during license key evaluation

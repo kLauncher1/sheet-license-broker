@@ -358,6 +358,16 @@ namespace SheetLicenseBroker
             return await SendRequestAsync("POST", "/api/attestation/telemetry", payload).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Requests an encrypted audit bundle for enterprise compliance auditing pipelines.
+        /// </summary>
+        public async Task<string> ExportAuditTokenAsync(string secretKey = null, int limit = 500)
+        {
+            string payload = string.Format("{{\"secret_key\":\"{0}\",\"limit\":{1}}}",
+                EscapeJson(secretKey ?? ""), limit);
+            return await SendRequestAsync("POST", "/api/security/audit/export", payload).ConfigureAwait(false);
+        }
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";
