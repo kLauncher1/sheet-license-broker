@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-10-14
+
+### Added
+- Cryptographic hardware attestation and anti-tamper subsystem (`internal/attestation/types.go`, `internal/attestation/verify.go`, `internal/attestation/manager.go`, `internal/attestation/attestation_test.go`) supporting TPM 2.0 endorsement key signing and PCR binding, Apple Secure Enclave / Windows Hello hardware key attestation, and client anti-debugging / memory-tamper heuristic telemetry evaluation.
+- Deterministic TPM 2.0 PCR composite calculation and ECDSA ASN.1/raw signature verification over platform configuration registers and single-use challenge nonces with 5-minute sliding-window replay defenses.
+- Continuous client integrity telemetry ingest scoring (0-100 threshold) with automated defense mitigations: active debugger attachment or memory patch detection immediately triggers automatic license revocation, hardware device blacklisting, and security incident alerts.
+- Dedicated modular attestation routes (`routes_attestation.go`, `routes_attestation_test.go`) wiring `POST /api/attestation/challenge`, `POST /api/attestation/verify`, `GET /api/attestation/status`, and `POST /api/attestation/telemetry`.
+- Proxy layer coordination (`internal/proxy/attestation.go`, `internal/proxy/attestation_test.go`) linking hardware attestation state, automatic device blacklisting, audit logs, and security incident dispatches across local memory and Google Sheets.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and logging for `Attestations` sheet, with actions `attestation_record` and `attestation_list`.
+- Multi-language client SDK extensions across Go (`sdk/go`), Python (`sdk/python`), TypeScript / Node.js (`sdk/typescript`), and C# (`sdk/csharp`) adding `RequestAttestationChallenge`, `VerifyTPMAttestation`, and `ReportTelemetry` methods.
+- Embedded administration dashboard update (`web/dist/index.html`) featuring an interactive "Hardware Attestation" tab with real-time trust tier status, live attestation registry, and challenge simulation tools.
+- Version bump to 0.8.0 across core binary, manifests, documentation, and client libraries.
+
 ## [0.7.0] - 2026-10-14
 
 ### Added

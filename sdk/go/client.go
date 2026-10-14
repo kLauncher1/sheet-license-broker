@@ -268,3 +268,59 @@ func (c *Client) GetUsage(ctx context.Context, licenseKey string) ([]UsageRecord
 	}
 	return res.Records, nil
 }
+
+// RequestAttestationChallenge obtains a fresh single-use random nonce challenge from the broker.
+func (c *Client) RequestAttestationChallenge(ctx context.Context, licenseKey, hwid string) (challengeID, nonce, expiresAt string, err error) {
+	req := map[string]string{
+		"license_key": strings.TrimSpace(licenseKey),
+		"hwid":        strings.TrimSpace(hwid),
+	}
+	var res struct {
+		Status      string `json:"status"`
+		ChallengeID string `json:"challenge_id"`
+		Nonce       string `json:"nonce"`
+		ExpiresAt   string `json:"expires_at"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/attestation/challenge", req, &res); err != nil {
+		return "", "", "", err
+	}
+	return res.ChallengeID, res.Nonce, res.ExpiresAt, nil
+}
+
+// VerifyTPMAttestation submits a signed TPM 2.0 PCR quote to attest hardware integrity.
+func (c *Client) VerifyTPMAttestation(ctx context.Context, licenseKey, hwid, challengeID string, quote interface{}) (map[string]interface{}, error) {
+	req := map[string]interface{}{
+		"license_key":      strings.TrimSpace(licenseKey),
+		"hwid":             strings.TrimSpace(hwid),
+		"challenge_id":     strings.TrimSpace(challengeID),
+		"attestation_type": "tpm2",
+		"tpm_quote":        quote,
+	}
+	var res struct {
+		Status string                 `json:"status"`
+		Record map[string]interface{} `json:"record"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/attestation/verify", req, &res); err != nil {
+		return nil, err
+	}
+	return res.Record, nil
+}
+
+// ReportTelemetry transmits anti-debug and memory integrity telemetry to the broker.
+func (c *Client) ReportTelemetry(ctx context.Context, licenseKey, hwid string, report interface{}) (int, bool, string, error) {
+	req := map[string]interface{}{
+		"license_key": strings.TrimSpace(licenseKey),
+		"hwid":        strings.TrimSpace(hwid),
+		"report":      report,
+	}
+	var res struct {
+		Status      string `json:"status"`
+		TamperScore int    `json:"tamper_score"`
+		Tampered    bool   `json:"tampered"`
+		TrustLevel  string `json:"trust_level"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/attestation/telemetry", req, &res); err != nil {
+		return 0, false, "", err
+	}
+	return res.TamperScore, res.Tampered, res.TrustLevel, nil
+}

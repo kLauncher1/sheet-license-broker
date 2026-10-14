@@ -109,6 +109,9 @@ func main() {
 	// Wire Dynamic Feature Flags & Usage-Based Tier Metering routes
 	server.registerFeatureRoutes(apiMux)
 
+	// Wire Cryptographic Hardware Attestation & Enclave Binding routes
+	server.registerAttestationRoutes(apiMux)
+
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
 		log.Fatalf("Failed to create sub filesystem: %v", err)
@@ -129,7 +132,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v0.7.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v0.8.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -141,7 +144,7 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "0.7.0",
+		"version":   "0.8.0",
 		"proxy":     s.proxy.Status(),
 		"security":  map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),

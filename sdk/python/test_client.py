@@ -146,6 +146,40 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/attestation/challenge":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "challenge_id": "py-ch-1234",
+                "nonce": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "expires_at": "2026-10-14T12:00:00Z"
+            }).encode())
+            return
+
+        if self.path == "/api/attestation/verify":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "record": {"trust_level": "attested_hardware"}
+            }).encode())
+            return
+
+        if self.path == "/api/attestation/telemetry":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "tamper_score": 0,
+                "tampered": False,
+                "trust_level": "software_grace"
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -227,6 +261,24 @@ class TestSheetLicenseClient(unittest.TestCase):
         stats = client.get_usage("VALID-KEY-123")
         self.assertEqual(len(stats), 1)
         self.assertEqual(stats[0]["metric"], "api_calls")
+
+    def test_attestation_and_telemetry(self):
+        client = SheetLicenseClient(self.base_url)
+
+        # 1. Challenge
+        ch = client.request_attestation_challenge("VALID-KEY-123")
+        self.assertEqual(ch.get("challenge_id"), "py-ch-1234")
+        self.assertEqual(len(ch.get("nonce", "")), 64)
+
+        # 2. Verify TPM
+        res = client.verify_tpm_attestation("VALID-KEY-123", "py-ch-1234", {"mock": True})
+        self.assertEqual(res.get("record", {}).get("trust_level"), "attested_hardware")
+
+        # 3. Telemetry
+        telem = client.report_telemetry("VALID-KEY-123", {"debugger_present": False})
+        self.assertEqual(telem.get("tamper_score"), 0)
+        self.assertFalse(telem.get("tampered"))
+        self.assertEqual(telem.get("trust_level"), "software_grace")
 
 
 if __name__ == "__main__":

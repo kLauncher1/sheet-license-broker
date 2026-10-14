@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kLauncher1/sheet-license-broker/internal/attestation"
 	"github.com/kLauncher1/sheet-license-broker/internal/auth"
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
@@ -74,11 +75,12 @@ type Proxy struct {
 	localLicense    *license.Manager
 	localDB         *db.Storage
 	localTenant     *tenant.TenantManager
-	featureManager  *feature.Manager
-	dispatcher      *webhook.Dispatcher
-	offlineMode     bool
-	cacheTTL        time.Duration
-	startTime       time.Time
+	featureManager     *feature.Manager
+	attestationManager *attestation.Manager
+	dispatcher         *webhook.Dispatcher
+	offlineMode        bool
+	cacheTTL           time.Duration
+	startTime          time.Time
 }
 
 // NewProxy creates a proxy orchestrator. If WebAppURL is empty or OfflineMode is true,
@@ -90,12 +92,13 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	}
 
 	p := &Proxy{
-		cache:          gas.NewCache(),
-		localAuth:      auth.NewManager(),
-		localLicense:   license.NewManager(),
-		localDB:        db.NewStorage(),
-		localTenant:    tenant.NewTenantManager(),
-		featureManager: feature.NewManager(),
+		cache:              gas.NewCache(),
+		localAuth:          auth.NewManager(),
+		localLicense:       license.NewManager(),
+		localDB:            db.NewStorage(),
+		localTenant:        tenant.NewTenantManager(),
+		featureManager:     feature.NewManager(),
+		attestationManager: attestation.NewManager(),
 		dispatcher: webhook.NewDispatcher(webhook.Config{
 			GlobalWebhookURL: cfg.GlobalWebhookURL,
 			GlobalSecret:     cfg.GlobalSecret,
