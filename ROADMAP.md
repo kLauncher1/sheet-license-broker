@@ -67,10 +67,12 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Google Apps Script backend audit log synchronization (`gas/Code.gs`)
 - [x] Multi-language client SDK extensions and interactive web console Incidents & Rate Limiting tab (`web/dist/index.html`)
 
-## Phase 10: Distributed Consensus & Multi-Region Quorum Sync (v1.0.0)
-- [ ] Raft-inspired lightweight quorum consensus across distributed broker nodes
-- [ ] Conflict-free Replicated Data Type (CRDT) document synchronization
-- [ ] Multi-region active-active mesh with automated network partition healing
+## Phase 10: Distributed Consensus & Multi-Region Quorum Sync (v1.0.0) - Completed
+- [x] Raft-inspired lightweight quorum consensus across distributed broker nodes (`internal/consensus/raft.go`, `internal/consensus/election.go`)
+- [x] Conflict-free Replicated Data Type (CRDT) document synchronization with LWW-Element-Set and Merkle digests (`internal/consensus/crdt.go`)
+- [x] Multi-region active-active mesh with automated network partition healing and anti-entropy sync (`internal/consensus/mesh.go`)
+- [x] Dedicated consensus HTTP routes, proxy coordination, and multi-language client SDK extensions (`routes_consensus.go`, `internal/proxy/consensus.go`, `sdk/`)
+- [x] Embedded admin console Distributed Cluster interactive management tab (`web/dist/index.html`)
 
 ## Phase 11: Real-Time WebSocket Streaming & Telemetry Push (v1.1.0)
 - [ ] Bidirectional WebSocket endpoint for instantaneous revocation push
@@ -101,3 +103,23 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Intel SGX / AMD SEV remote attestation quote validation
 - [ ] End-to-end encrypted payload tunnels between client enclaves and broker
 - [ ] Zero-plaintext memory guarantees during license key evaluation
+
+## Phase 17: Multi-Cloud Object Storage Archive & Continuous Ledger Auditing (v1.7.0)
+- [ ] Automated continuous cold-archive streaming to AWS S3, Cloudflare R2, and Google Cloud Storage
+- [ ] Immutable append-only cryptographic Merkle audit ledger with verifiable integrity proofs
+- [ ] Automated archival compaction and tamper-evident history verification
+
+## Phase 18: Zero-Trust Ephemeral Peer Mesh & Mutual TLS Enclave Mesh (v1.8.0)
+- [ ] Strict mutual TLS (mTLS) with automated X.509 certificate rotation for broker-to-broker RPC
+- [ ] Ephemeral WireGuard/Noise protocol encrypted overlay mesh across cloud providers
+- [ ] Hardware-enforced mTLS key storage in hardware security modules (HSM) and cloud KMS
+
+## Phase 19: High-Throughput Batch Issuance & Bulk Entitlement Sharding (v1.9.0)
+- [ ] High-throughput bulk license generation pipeline (>10,000 licenses/sec)
+- [ ] Consistent hashing key-space partitioning across broker nodes
+- [ ] Parallelized batch validation and aggregated HMAC verification endpoints
+
+## Phase 20: Global Anycast Routing & Autonomous Edge Auto-Healing (v2.0.0)
+- [ ] Global BGP Anycast and geo-distributed DNS routing integration
+- [ ] Autonomous split-brain detection and automatic cluster reconciliation
+- [ ] Self-healing multi-region mesh with zero-downtime rolling upgrades

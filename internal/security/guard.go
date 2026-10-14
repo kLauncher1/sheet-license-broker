@@ -78,6 +78,13 @@ func Sign(secret []byte, method, path string, timestamp int64, nonce string, bod
 
 // Verify validates timestamp drift, nonce uniqueness, and HMAC signature integrity.
 func (g *Guard) Verify(method, path, timestampStr, nonce, signatureHex string, body []byte) error {
+	return g.VerifyCandidatePaths(method, []string{path}, timestampStr, nonce, signatureHex, body)
+}
+
+// VerifyCandidatePaths validates that the HMAC signature matches any of the candidate paths,
+// checking timestamp drift, signature integrity, and nonce uniqueness.
+// Nonce is recorded only after cryptographic signature validity is confirmed to prevent cache poisoning.
+func (g *Guard) VerifyCandidatePaths(method string, paths []string, timestampStr, nonce, signatureHex string, body []byte) error {
 	if len(g.secret) == 0 {
 		return nil
 	}
@@ -98,23 +105,37 @@ func (g *Guard) Verify(method, path, timestampStr, nonce, signatureHex string, b
 	reqTime := time.Unix(ts, 0)
 	now := time.Now()
 
-	// Check and record nonce in sliding replay window
-	if err := g.nonceCache.CheckAndRecord(nonce, reqTime, now); err != nil {
-		return err
+	// 1. Verify timestamp drift against allowed window
+	diff := now.Sub(reqTime)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > g.nonceWindow {
+		return ErrTimestampExpired
 	}
 
-	expectedSig := Sign(g.secret, method, path, ts, nonce, body)
 	sigBytes, err := hex.DecodeString(strings.TrimSpace(signatureHex))
 	if err != nil {
 		return ErrInvalidSignature
 	}
-	expectedBytes, err := hex.DecodeString(expectedSig)
-	if err != nil {
+
+	// 2. Check HMAC signature across candidate paths
+	matched := false
+	for _, p := range paths {
+		expectedSig := Sign(g.secret, method, p, ts, nonce, body)
+		expectedBytes, err := hex.DecodeString(expectedSig)
+		if err == nil && hmac.Equal(sigBytes, expectedBytes) {
+			matched = true
+			break
+		}
+	}
+	if !matched {
 		return ErrInvalidSignature
 	}
 
-	if !hmac.Equal(sigBytes, expectedBytes) {
-		return ErrInvalidSignature
+	// 3. Record nonce in sliding replay window only after signature is cryptographically valid
+	if err := g.nonceCache.CheckAndRecord(nonce, reqTime, now); err != nil {
+		return err
 	}
 
 	return nil
@@ -156,7 +177,14 @@ func (g *Guard) Middleware(next http.Handler) http.Handler {
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
 
-		if err := g.Verify(r.Method, r.URL.Path, ts, nonce, sig, bodyBytes); err != nil {
+		// Verify against both RequestURI (includes query params as signed by client SDKs)
+		// and URL.Path (path-only normalization)
+		candidates := []string{r.URL.Path}
+		if reqURI := r.URL.RequestURI(); reqURI != "" && reqURI != r.URL.Path {
+			candidates = append([]string{reqURI}, candidates...)
+		}
+
+		if err := g.VerifyCandidatePaths(r.Method, candidates, ts, nonce, sig, bodyBytes); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]string{

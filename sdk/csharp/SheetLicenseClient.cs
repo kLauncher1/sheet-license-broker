@@ -328,7 +328,7 @@ namespace SheetLicenseBroker
         /// </summary>
         public async Task<string> RequestAttestationChallengeAsync(string licenseKey, string hwid = null)
         {
-            string targetHwid = string.IsNullOrEmpty(hwid) ? HWID : hwid;
+            string targetHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
             string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\"}}",
                 EscapeJson(licenseKey), EscapeJson(targetHwid));
             return await SendRequestAsync("POST", "/api/attestation/challenge", payload).ConfigureAwait(false);
@@ -339,9 +339,10 @@ namespace SheetLicenseBroker
         /// </summary>
         public async Task<string> VerifyTPMAttestationAsync(string licenseKey, string challengeId, string tpmQuoteJson, string hwid = null)
         {
-            string targetHwid = string.IsNullOrEmpty(hwid) ? HWID : hwid;
+            string targetHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string quote = string.IsNullOrWhiteSpace(tpmQuoteJson) ? "{}" : tpmQuoteJson.Trim();
             string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"challenge_id\":\"{2}\",\"attestation_type\":\"tpm2\",\"tpm_quote\":{3}}}",
-                EscapeJson(licenseKey), EscapeJson(targetHwid), EscapeJson(challengeId), tpmQuoteJson);
+                EscapeJson(licenseKey), EscapeJson(targetHwid), EscapeJson(challengeId), quote);
             return await SendRequestAsync("POST", "/api/attestation/verify", payload).ConfigureAwait(false);
         }
 
@@ -350,7 +351,7 @@ namespace SheetLicenseBroker
         /// </summary>
         public async Task<string> ReportTelemetryAsync(string licenseKey, bool debuggerPresent, bool memoryIntegrity, string hwid = null)
         {
-            string targetHwid = string.IsNullOrEmpty(hwid) ? HWID : hwid;
+            string targetHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
             string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"report\":{{\"debugger_present\":{2},\"memory_integrity\":{3}}}}}",
                 EscapeJson(licenseKey), EscapeJson(targetHwid),
                 debuggerPresent ? "true" : "false",
@@ -366,6 +367,14 @@ namespace SheetLicenseBroker
             string payload = string.Format("{{\"secret_key\":\"{0}\",\"limit\":{1}}}",
                 EscapeJson(secretKey ?? ""), limit);
             return await SendRequestAsync("POST", "/api/security/audit/export", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries the broker's distributed Raft role, quorum health, and cluster topology.
+        /// </summary>
+        public async Task<string> GetClusterStatusAsync()
+        {
+            return await SendRequestAsync("GET", "/api/consensus/status", null).ConfigureAwait(false);
         }
 
         private static string EscapeJson(string str)

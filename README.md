@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.9.0-emerald.svg" alt="Version: v0.9.0">
+  <img src="https://img.shields.io/badge/version-v1.0.0-emerald.svg" alt="Version: v1.0.0">
+  <img src="https://img.shields.io/badge/consensus-raft%20quorum%20%26%20CRDT-blue.svg" alt="Distributed Consensus">
   <img src="https://img.shields.io/badge/security-rate%20limits%20%26%20SIEM%20audit-blueviolet.svg" alt="Security & Rate Limiting">
   <img src="https://img.shields.io/badge/attestation-TPM%202.0%20%26%20Enclave-0284C7.svg" alt="Hardware Attestation">
   <img src="https://img.shields.io/badge/tiers-dynamic%20flags-8B5CF6.svg" alt="Feature Flags & Tier Metering">
@@ -24,10 +25,11 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Distributed Raft Quorum Consensus & CRDT Mesh**: Lightweight leader election, majority log quorum, conflict-free LWW-Element-Set state replication, and SHA-256 Merkle tree state digests for anti-entropy sync across distributed broker nodes.
 - **Enterprise Rate-Limiting & Progressive Backoff**: Thread-safe sliding-window throttling per IP and HWID with progressive penalty delays and standard `X-RateLimit-*` headers.
 - **Sliding-Window IP/HWID Reputation Cache**: Automatic temporary bans and high-priority incident webhook alerts upon repeated security infractions.
 - **Encrypted Audit Token Export for SIEM**: Compliant AES-256-GCM encrypted audit bundles sealed with HMAC signatures for Splunk, Datadog, and AWS CloudWatch ingest.
@@ -65,6 +67,7 @@ flowchart TD
     Broker -->|Encrypted Disk Journal| Spool["Local Disk Spool (AES-256-GCM)"]
     Broker -->|SIEM Export| SIEM["Audit Export Pipeline (AES-256-GCM)"]
     Broker -->|Alerts| Alerts["Security Webhooks (Discord & Slack)"]
+    Broker -->|Raft RPC & CRDT Sync| Peers["Cluster Peer Mesh (Anti-Entropy)"]
     Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
     Broker -->|Active Role| Primary["Primary GAS Web App (Code.gs)"]
     Broker -.->|Automatic Failover| Standby["Standby GAS Web App (Code.gs)"]
@@ -78,6 +81,7 @@ flowchart TD
         Sheets1 --> Tab4["Tab: Audit_Logs (Security Audit Trail & Bans)"]
         Sheets1 --> Tab5["Tab: Attestations (TPM Quotes & Claims)"]
         Sheets1 --> Tab6["Tab: KV_Database (NoSQL Store)"]
+        Sheets1 --> Tab7["Tab: ConsensusNodes (Peer Discovery & Heartbeats)"]
     end
 ```
 
@@ -567,6 +571,47 @@ Content-Type: application/json
   "secret_key": "enterprise-compliance-secret",
   "bundle": { ... }
 }
+```
+
+---
+
+### 🌐 Distributed Consensus & Multi-Region Quorum Sync
+
+#### Cluster Status & Peer Topology
+```http
+GET /api/consensus/status
+GET /api/consensus/peers
+```
+
+Response:
+```json
+{
+  "node_id": "node-1",
+  "role": "Leader",
+  "current_term": 1,
+  "commit_index": 4,
+  "peer_count": 2,
+  "healthy_peers": 2,
+  "has_quorum": true,
+  "merkle_digest": "4a7d1ed414474e4033ac29ccb8653d9b...",
+  "element_count": 128
+}
+```
+
+#### Join Cluster Peer
+```http
+POST /api/consensus/peers/join
+Content-Type: application/json
+
+{
+  "node_id": "node-2",
+  "address": "http://192.168.1.50:9082"
+}
+```
+
+#### Trigger Anti-Entropy State Synchronization
+```http
+POST /api/consensus/sync/trigger
 ```
 
 ---

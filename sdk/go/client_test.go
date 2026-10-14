@@ -249,3 +249,40 @@ func TestGoClientAuditExport(t *testing.T) {
 		t.Fatalf("expected bundle_id 'bundle_999', got %v", bundle["bundle_id"])
 	}
 }
+
+func TestGoClientClusterConsensus(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/consensus/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"node_id":      "node-cluster-test",
+			"role":         "leader",
+			"current_term": 3,
+			"has_quorum":   true,
+		})
+	})
+	mux.HandleFunc("/api/consensus/peers", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"peers": []map[string]interface{}{
+				{"id": "peer-london", "active": true},
+			},
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+	status, err := client.GetClusterStatus(context.Background())
+	if err != nil || status["node_id"] != "node-cluster-test" {
+		t.Fatalf("expected cluster status, got %v (err: %v)", status, err)
+	}
+
+	peers, err := client.GetClusterPeers(context.Background())
+	if err != nil || len(peers) != 1 || peers[0]["id"] != "peer-london" {
+		t.Fatalf("expected 1 peer, got %v (err: %v)", peers, err)
+	}
+}
+

@@ -141,4 +141,46 @@ func TestMiddlewareBehavior(t *testing.T) {
 	if receivedBody != "hello signed payload" {
 		t.Fatalf("expected preserved body 'hello signed payload', got: %s", receivedBody)
 	}
+
+	// 4. Signed GET request with query parameters passes when enforced
+	ts4 := time.Now().Unix()
+	nonce4 := "nonce-middleware-query-ok"
+	sig4 := Sign(secret, "GET", "/api/test?license_key=SLB-TEST-12345", ts4, nonce4, nil)
+
+	req4 := httptest.NewRequest("GET", "/api/test?license_key=SLB-TEST-12345", nil)
+	req4.Header.Set(HeaderSignature, sig4)
+	req4.Header.Set(HeaderTimestamp, fmt.Sprintf("%d", ts4))
+	req4.Header.Set(HeaderNonce, nonce4)
+
+	w4 := httptest.NewRecorder()
+	handler.ServeHTTP(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for signed GET request with query parameters, got: %d", w4.Code)
+	}
+
+	// 5. Tampered signature is rejected and does not poison nonce cache
+	nonce5 := "nonce-tamper-protect"
+	req5 := httptest.NewRequest("GET", "/api/test?license_key=SLB-TEST-12345", nil)
+	req5.Header.Set(HeaderSignature, "bad-hex-signature-12345678")
+	req5.Header.Set(HeaderTimestamp, fmt.Sprintf("%d", ts4))
+	req5.Header.Set(HeaderNonce, nonce5)
+
+	w5 := httptest.NewRecorder()
+	handler.ServeHTTP(w5, req5)
+	if w5.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized for tampered signature, got: %d", w5.Code)
+	}
+
+	// Valid retry with previously failed nonce succeeds because bad signature did not poison cache
+	sig5Valid := Sign(secret, "GET", "/api/test?license_key=SLB-TEST-12345", ts4, nonce5, nil)
+	req5Retry := httptest.NewRequest("GET", "/api/test?license_key=SLB-TEST-12345", nil)
+	req5Retry.Header.Set(HeaderSignature, sig5Valid)
+	req5Retry.Header.Set(HeaderTimestamp, fmt.Sprintf("%d", ts4))
+	req5Retry.Header.Set(HeaderNonce, nonce5)
+
+	w5Retry := httptest.NewRecorder()
+	handler.ServeHTTP(w5Retry, req5Retry)
+	if w5Retry.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for retry with unburned nonce, got: %d", w5Retry.Code)
+	}
 }

@@ -5,6 +5,9 @@ import type {
   AttestationVerifyResponse,
   AuditExportResponse,
   BrokerClientOptions,
+  ClusterPeer,
+  ClusterPeersResponse,
+  ClusterStatusResponse,
   DocumentResponse,
   EncryptedAuditBundle,
   FeatureCheckResponse,
@@ -358,5 +361,21 @@ export class SheetLicenseClient {
     const res = await this.request<AuditExportResponse>('POST', '/api/security/audit/export', payload);
     return res.bundle;
   }
+
+  /**
+   * Queries the broker's distributed Raft role, quorum health, and cluster topology.
+   */
+  public async getClusterStatus(): Promise<ClusterStatusResponse> {
+    return this.request<ClusterStatusResponse>('GET', '/api/consensus/status');
+  }
+
+  /**
+   * Retrieves active peer nodes in the consensus mesh.
+   */
+  public async getClusterPeers(): Promise<ClusterPeer[]> {
+    const res = await this.request<ClusterPeersResponse>('GET', '/api/consensus/peers');
+    return res.peers || [];
+  }
 }
+
 

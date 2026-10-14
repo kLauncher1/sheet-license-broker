@@ -53,15 +53,17 @@ func newAppServer() (*AppServer, error) {
 		SpoolSecret:      strings.TrimSpace(os.Getenv("SPOOL_SECRET")),
 		DiscordAlertURL:  strings.TrimSpace(os.Getenv("DISCORD_ALERT_WEBHOOK_URL")),
 		SlackAlertURL:    strings.TrimSpace(os.Getenv("SLACK_ALERT_WEBHOOK_URL")),
+		NodeID:           strings.TrimSpace(os.Getenv("NODE_ID")),
+		ClusterRegion:    strings.TrimSpace(os.Getenv("CLUSTER_REGION")),
+		ClusterAddress:   strings.TrimSpace(os.Getenv("CLUSTER_ADDRESS")),
+		ClusterPeers:     strings.Split(strings.TrimSpace(os.Getenv("CLUSTER_PEERS")), ","),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to init proxy: %w", err)
 	}
-
 	hmacSecret := strings.TrimSpace(os.Getenv("HMAC_SECRET"))
 	hmacEnforce := os.Getenv("HMAC_ENFORCE") == "1" || strings.ToLower(os.Getenv("HMAC_ENFORCE")) == "true"
 	secGuard := security.NewGuard([]byte(hmacSecret), 5*time.Minute, hmacEnforce)
-
 	return &AppServer{proxy: px, guard: secGuard}, nil
 }
 
@@ -108,6 +110,7 @@ func main() {
 	server.registerFeatureRoutes(apiMux)
 	server.registerAttestationRoutes(apiMux)
 	server.registerSecurityRoutes(apiMux)
+	server.registerConsensusRoutes(apiMux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
@@ -129,7 +132,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v0.9.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.0.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -141,8 +144,9 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "0.9.0",
+		"version":   "1.0.0",
 		"proxy":     s.proxy.Status(),
+		"consensus": s.proxy.ClusterStatus(),
 		"security":  map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
@@ -470,9 +474,7 @@ func (s *AppServer) handleTestWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		EventType string `json:"event_type"`
-		TargetURL string `json:"target_url"`
-		Secret    string `json:"secret"`
+		EventType string `json:"event_type"`; TargetURL string `json:"target_url"`; Secret string `json:"secret"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetURL == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "target_url is required"})
@@ -481,8 +483,7 @@ func (s *AppServer) handleTestWebhook(w http.ResponseWriter, r *http.Request) {
 	if req.EventType == "" { req.EventType = webhook.EventLicenseCreated }
 
 	evt := webhook.NewEvent(req.EventType, "test-tenant", map[string]string{"message": "Test webhook delivery probe"})
-	err := s.proxy.Dispatcher().DispatchSync(r.Context(), evt, req.TargetURL, req.Secret)
-	if err != nil {
+	if err := s.proxy.Dispatcher().DispatchSync(r.Context(), evt, req.TargetURL, req.Secret); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
