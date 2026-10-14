@@ -132,6 +132,17 @@ func (p *Proxy) VerifyLicense(ctx context.Context, key, hwid string) (*VerifyRes
 	key = strings.TrimSpace(key)
 	hwid = strings.TrimSpace(hwid)
 
+	// 0. Check local blacklist first
+	if err := p.localLicense.Blacklist().Check(key, hwid); err != nil {
+		p.cache.DeleteLicense(key)
+		return &VerifyResult{
+			Valid:      false,
+			LicenseKey: key,
+			Source:     "blacklist",
+			Message:    err.Error(),
+		}, err
+	}
+
 	// 1. Check local cache
 	if lic, found, expired := p.cache.GetLicense(key); found && !expired {
 		if lic.HWIDBound != "" && hwid != "" && lic.HWIDBound != hwid {
@@ -155,6 +166,16 @@ func (p *Proxy) VerifyLicense(ctx context.Context, key, hwid string) (*VerifyRes
 	// 2. Query remote Google Apps Script if enabled
 	if p.IsRemoteEnabled() {
 		resp, err := p.gasClient.VerifyLicense(ctx, key, hwid)
+		if resp != nil && (resp.Blacklisted || resp.Revoked) {
+			p.cache.DeleteLicense(key)
+			p.localLicense.Blacklist().Add(license.BlacklistTypeLicense, key, resp.Message)
+			return &VerifyResult{
+				Valid:      false,
+				LicenseKey: key,
+				Source:     "remote_blacklist",
+				Message:    resp.Message,
+			}, fmt.Errorf("license verification rejected: %s", resp.Message)
+		}
 		if err == nil && resp.Verified {
 			p.cache.SetLicense(key, resp, p.cacheTTL)
 			return &VerifyResult{

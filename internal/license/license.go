@@ -20,17 +20,24 @@ type License struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-// Manager orchestrates license issuance and device-locking checks.
+// Manager orchestrates license issuance, device-locking checks, and revocations.
 type Manager struct {
-	mu       sync.RWMutex
-	licenses map[string]*License
+	mu        sync.RWMutex
+	licenses  map[string]*License
+	blacklist *BlacklistManager
 }
 
 // NewManager initializes the license manager.
 func NewManager() *Manager {
 	return &Manager{
-		licenses: make(map[string]*License),
+		licenses:  make(map[string]*License),
+		blacklist: NewBlacklistManager(),
 	}
+}
+
+// Blacklist returns the attached blacklist manager.
+func (m *Manager) Blacklist() *BlacklistManager {
+	return m.blacklist
 }
 
 // GenerateKey produces formatted license strings (e.g., KEY-A1B2-C3D4-E5F6).
@@ -61,12 +68,35 @@ func (m *Manager) CreateLicense(daysValid, maxDevices int) *License {
 	return lic
 }
 
+// RevokeLicense marks a license as REVOKED and registers it in the blacklist.
+func (m *Manager) RevokeLicense(key, reason string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	normKey := strings.ToUpper(strings.TrimSpace(key))
+	lic, exists := m.licenses[normKey]
+	if exists {
+		lic.Status = "REVOKED"
+	}
+
+	m.blacklist.Add(BlacklistTypeLicense, normKey, reason)
+	return nil
+}
+
 // VerifyAndBind checks validity and locks the license to the machine's HWID.
 func (m *Manager) VerifyAndBind(key, hwid string) (*License, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	lic, exists := m.licenses[key]
+	normKey := strings.ToUpper(strings.TrimSpace(key))
+	normHWID := strings.TrimSpace(hwid)
+
+	// Check blacklist first
+	if err := m.blacklist.Check(normKey, normHWID); err != nil {
+		return nil, err
+	}
+
+	lic, exists := m.licenses[normKey]
 	if !exists {
 		return nil, errors.New("license key not found")
 	}
@@ -81,13 +111,13 @@ func (m *Manager) VerifyAndBind(key, hwid string) (*License, error) {
 	}
 
 	// First-time hardware lock
-	if lic.BoundHWID == "" && hwid != "" {
-		lic.BoundHWID = hwid
+	if lic.BoundHWID == "" && normHWID != "" {
+		lic.BoundHWID = normHWID
 		return lic, nil
 	}
 
 	// Device mismatch verification
-	if lic.BoundHWID != "" && hwid != "" && lic.BoundHWID != hwid {
+	if lic.BoundHWID != "" && normHWID != "" && lic.BoundHWID != normHWID {
 		return nil, errors.New("hardware mismatch: license is bound to another machine")
 	}
 

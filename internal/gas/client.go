@@ -70,12 +70,14 @@ type LicenseResponse struct {
 
 // VerifyResponse represents license verification with HWID binding outcome.
 type VerifyResponse struct {
-	Status     string `json:"status"`
-	Verified   bool   `json:"verified,omitempty"`
-	HWIDBound  string `json:"hwid_bound,omitempty"`
-	ExpiresAt  string `json:"expires_at,omitempty"`
-	Message    string `json:"message,omitempty"`
-	LicenseKey string `json:"license_key,omitempty"`
+	Status      string `json:"status"`
+	Verified    bool   `json:"verified,omitempty"`
+	HWIDBound   string `json:"hwid_bound,omitempty"`
+	ExpiresAt   string `json:"expires_at,omitempty"`
+	Message     string `json:"message,omitempty"`
+	LicenseKey  string `json:"license_key,omitempty"`
+	Blacklisted bool   `json:"blacklisted,omitempty"`
+	Revoked     bool   `json:"revoked,omitempty"`
 }
 
 // DocResponse represents NoSQL KV document operation result.
