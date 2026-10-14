@@ -47,6 +47,12 @@ func newAppServer() (*AppServer, error) {
 		CacheTTL:         cacheTTL,
 		GlobalWebhookURL: strings.TrimSpace(os.Getenv("GLOBAL_WEBHOOK_URL")),
 		GlobalSecret:     strings.TrimSpace(os.Getenv("GLOBAL_WEBHOOK_SECRET")),
+		StandbyWebAppURL: strings.TrimSpace(os.Getenv("GAS_STANDBY_WEBAPP_URL")),
+		AutoFailover:     os.Getenv("HA_AUTO_FAILOVER") == "1" || strings.ToLower(os.Getenv("HA_AUTO_FAILOVER")) == "true",
+		SpoolPath:        strings.TrimSpace(os.Getenv("SPOOL_PATH")),
+		SpoolSecret:      strings.TrimSpace(os.Getenv("SPOOL_SECRET")),
+		DiscordAlertURL:  strings.TrimSpace(os.Getenv("DISCORD_ALERT_WEBHOOK_URL")),
+		SlackAlertURL:    strings.TrimSpace(os.Getenv("SLACK_ALERT_WEBHOOK_URL")),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to init proxy: %w", err)
@@ -96,6 +102,9 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", server.guard.Middleware(apiMux))
+
+	// Wire High Availability, Prometheus metrics, and security incident routes
+	server.registerHARoutes(apiMux, mux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {

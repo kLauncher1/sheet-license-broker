@@ -34,6 +34,8 @@ scripts/
 tmp/
 temp/
 scratch/
+data/
+*.bin
 *.tmp
 *.bak
 *.orig

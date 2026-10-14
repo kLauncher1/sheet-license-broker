@@ -37,11 +37,11 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Automated Google Sheets backup snapshot exporter with AES-256-GCM encryption (`internal/backup/snapshot.go`)
 - [x] Real-time webhook notifications for license events and tamper attempts (`internal/webhook/dispatcher.go`)
 
-## Phase 6: Automated Reconciliation & High-Availability Sync (v0.6.0)
-- [ ] Dual-sheet active-standby replication with collision-free merge
-- [ ] Encrypted local disk fallback queue for zero-loss offline logging
-- [ ] Prometheus-compatible metrics endpoint for enterprise monitoring
-- [ ] Automated security incident webhooks for Slack and Discord alert channels
+## Phase 6: Automated Reconciliation & High-Availability Sync (v0.6.0) - Completed
+- [x] Dual-sheet active-standby replication with collision-free merge (`internal/replication/replication.go`, `internal/replication/merge.go`)
+- [x] Encrypted local disk fallback queue for zero-loss offline logging (`internal/queue/spool.go`)
+- [x] Prometheus-compatible metrics endpoint for enterprise monitoring (`internal/metrics/metrics.go`, `/metrics`)
+- [x] Automated security incident webhooks for Slack and Discord alert channels (`internal/webhook/alerts.go`)
 
 ## Phase 7: Dynamic Feature Flags & Usage-Based Tier Metering (v0.7.0)
 - [ ] Dynamic feature entitlement tags attached to license records
@@ -52,3 +52,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] TPM 2.0 endorsement key signing and platform configuration register (PCR) binding
 - [ ] Apple Secure Enclave / Windows Hello hardware key attestation
 - [ ] Anti-debugging and memory-tamper heuristic telemetry detection
+
+## Phase 9: Enterprise Security Incident Dispatchers & Rate Limiting (v0.9.0)
+- [ ] IP and hardware ID brute-force rate-limiting with exponential backoff penalty
+- [ ] In-memory sliding-window reputation cache with automatic temporary bans
+- [ ] Encrypted token export pipeline for external SIEM integration
+
+## Phase 10: Distributed Consensus & Multi-Region Quorum Sync (v1.0.0)
+- [ ] Raft-inspired lightweight quorum consensus across distributed broker nodes
+- [ ] Conflict-free Replicated Data Type (CRDT) document synchronization
+- [ ] Multi-region active-active mesh with automated network partition healing

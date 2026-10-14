@@ -12,6 +12,8 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
+	"github.com/kLauncher1/sheet-license-broker/internal/queue"
+	"github.com/kLauncher1/sheet-license-broker/internal/replication"
 	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 )
@@ -24,10 +26,16 @@ var (
 // ProxyConfig defines construction options for the proxy coordinator.
 type ProxyConfig struct {
 	WebAppURL        string
+	StandbyWebAppURL string
 	OfflineMode      bool
 	CacheTTL         time.Duration
 	GlobalWebhookURL string
 	GlobalSecret     string
+	SpoolPath        string
+	SpoolSecret      string
+	DiscordAlertURL  string
+	SlackAlertURL    string
+	AutoFailover     bool
 }
 
 // VerifyResult captures the unified result of a license check.
@@ -50,16 +58,21 @@ type LicenseResult struct {
 
 // Proxy coordinates calls between Google Apps Script, local memory engines, and cache.
 type Proxy struct {
-	gasClient    *gas.Client
-	cache        *gas.Cache
-	localAuth    *auth.Manager
-	localLicense *license.Manager
-	localDB      *db.Storage
-	localTenant  *tenant.TenantManager
-	dispatcher   *webhook.Dispatcher
-	offlineMode  bool
-	cacheTTL     time.Duration
-	startTime    time.Time
+	gasClient       *gas.Client
+	standbyClient   *gas.Client
+	haManager       *replication.HAManager
+	spoolQueue      *queue.DiskQueue
+	discordAlertURL string
+	slackAlertURL   string
+	cache           *gas.Cache
+	localAuth       *auth.Manager
+	localLicense    *license.Manager
+	localDB         *db.Storage
+	localTenant     *tenant.TenantManager
+	dispatcher      *webhook.Dispatcher
+	offlineMode     bool
+	cacheTTL        time.Duration
+	startTime       time.Time
 }
 
 // NewProxy creates a proxy orchestrator. If WebAppURL is empty or OfflineMode is true,
@@ -83,6 +96,8 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 		offlineMode: cfg.OfflineMode,
 		cacheTTL:    cacheTTL,
 		startTime:   time.Now(),
+		discordAlertURL: strings.TrimSpace(cfg.DiscordAlertURL),
+		slackAlertURL:   strings.TrimSpace(cfg.SlackAlertURL),
 	}
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
@@ -97,6 +112,40 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 			return nil, fmt.Errorf("failed to initialize gas client: %w", err)
 		}
 		p.gasClient = client
+	}
+
+	trimmedStandbyURL := strings.TrimSpace(cfg.StandbyWebAppURL)
+	if trimmedStandbyURL != "" && !cfg.OfflineMode {
+		standby, err := gas.NewClient(gas.ClientConfig{
+			WebAppURL:   trimmedStandbyURL,
+			Timeout:     10 * time.Second,
+			MaxRetries:  3,
+			BackoffBase: 200 * time.Millisecond,
+		})
+		if err == nil {
+			p.standbyClient = standby
+		}
+	}
+
+	if p.gasClient != nil || p.standbyClient != nil {
+		p.haManager = replication.NewHAManager(replication.HAConfig{
+			PrimaryClient: p.gasClient,
+			StandbyClient: p.standbyClient,
+			AutoFailover:  cfg.AutoFailover,
+		})
+	}
+
+	spoolSecret := []byte(cfg.SpoolSecret)
+	if len(spoolSecret) == 0 {
+		spoolSecret = []byte("default-sheet-license-broker-spool-key-32b")
+	}
+	spoolQ, err := queue.NewDiskQueue(queue.DiskQueueConfig{
+		FilePath:    cfg.SpoolPath,
+		SecretKey:   spoolSecret,
+		MaxCapacity: 5000,
+	})
+	if err == nil {
+		p.spoolQueue = spoolQ
 	}
 
 	return p, nil

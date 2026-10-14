@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-10-14
+
+### Added
+- Dual-sheet active-standby high-availability replication coordinator (`internal/replication/replication.go`, `internal/replication/replication_test.go`) supporting seamless automatic failover on Google Workspace quota or network errors, periodic health probing, and asynchronous mutation replication.
+- Deterministic, collision-free bidirectional dataset reconciliation engine (`internal/replication/merge.go`) implementing Last-Write-Wins (LWW) and security-preserving merge rules (revocations always supersede active licenses; device bans union-merge; latest timestamps resolve concurrent updates).
+- Encrypted local disk fallback spool queue (`internal/queue/spool.go`, `internal/queue/spool_test.go`) utilizing AES-256-GCM authenticated encryption for zero-loss offline logging and mutation buffering during network disruptions, with automatic drain workers on connection recovery.
+- Prometheus-compatible enterprise metrics endpoint (`internal/metrics/metrics.go`, `internal/metrics/metrics_test.go`, `/metrics`) exposing request rates, verification outcomes, backend health status, queue depth, and runtime memory telemetry in standard Prometheus exposition format.
+- Automated security incident webhook dispatchers for Discord and Slack alert channels (`internal/webhook/alerts.go`, `internal/webhook/alerts_test.go`) featuring rich embed formatting, severity tagging, and IP/HWID contextual data.
+- High-Availability, Replication, and Spool management tab in embedded administration dashboard (`web/dist/index.html`) with interactive reconciliation controls, spool drainage, and live telemetry widgets.
+- Dedicated modular HA routes (`routes_ha.go`, `routes_ha_test.go`) keeping root application routing below modular architectural ceilings.
+- New API endpoints: `GET /metrics`, `GET /api/ha/status`, `POST /api/ha/reconcile`, `POST /api/ha/spool/drain`, `POST /api/ha/failover`, and `POST /api/alerts/test`.
+
 ## [0.5.0] - 2026-10-14
 
 ### Added

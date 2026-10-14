@@ -198,6 +198,11 @@ func (c *Client) postAction(ctx context.Context, action string, payload map[stri
 	return nil, fmt.Errorf("request failed after %d retries: %w", c.maxRetries, lastErr)
 }
 
+// ExecuteAction posts a custom or generic action to the Google Apps Script Web App.
+func (c *Client) ExecuteAction(ctx context.Context, action string, payload map[string]interface{}) ([]byte, error) {
+	return c.postAction(ctx, action, payload)
+}
+
 // Ping verifies connectivity with the Google Apps Script Web App.
 func (c *Client) Ping(ctx context.Context) (*PingResponse, error) {
 	raw, err := c.postAction(ctx, "ping", nil)
