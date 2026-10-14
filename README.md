@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.0.0-emerald.svg" alt="Version: v1.0.0">
+  <img src="https://img.shields.io/badge/version-v1.1.0-emerald.svg" alt="Version: v1.1.0">
+  <img src="https://img.shields.io/badge/stream-websocket%20telemetry%20%26%20kill--switch-10B981.svg" alt="WebSocket Streaming & Kill-Switch">
   <img src="https://img.shields.io/badge/consensus-raft%20quorum%20%26%20CRDT-blue.svg" alt="Distributed Consensus">
   <img src="https://img.shields.io/badge/security-rate%20limits%20%26%20SIEM%20audit-blueviolet.svg" alt="Security & Rate Limiting">
   <img src="https://img.shields.io/badge/attestation-TPM%202.0%20%26%20Enclave-0284C7.svg" alt="Hardware Attestation">
@@ -613,6 +614,44 @@ Content-Type: application/json
 ```http
 POST /api/consensus/sync/trigger
 ```
+
+---
+
+### ⚡ Real-Time WebSocket Streaming & Telemetry Push
+
+#### Bidirectional WebSocket Telemetry Stream
+Connect persistent WebSocket clients to `/api/stream/ws` for real-time telemetry streaming and sub-second kill-switch pushes:
+
+```http
+GET /api/stream/ws?license_key=SLB-XXXX-XXXX&hwid=HWID-1234 HTTP/1.1
+Host: localhost:9082
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+Sec-WebSocket-Version: 13
+```
+
+#### Query Connected Streaming Clients & Telemetry
+```http
+# List active streaming sessions
+GET /api/stream/clients
+
+# Query streaming metrics and recent event audit log
+GET /api/stream/telemetry
+```
+
+#### Execute Instantaneous Remote Kill-Switch
+```http
+POST /api/stream/kill
+Content-Type: application/json
+
+{
+  "target": "SLB-XXXX-XXXX",
+  "reason": "Suspected device cloning or fraud",
+  "immediate": true
+}
+```
+*Note: Target can be a specific License Key, Device HWID, Client ID, or `"ALL"` for emergency broadcast kill-switch execution. Signals are pushed to matching client sockets with sub-second delivery.*
 
 ---
 

@@ -246,6 +246,7 @@
       <button class="tab-btn" id="tab-btn-backup" onclick="switchTab('backup')">Backup & Restore</button>
       <button class="tab-btn" id="tab-btn-ha" onclick="switchTab('ha')">Replication & HA</button>
       <button class="tab-btn" id="tab-btn-cluster" onclick="switchTab('cluster')">Distributed Cluster</button>
+      <button class="tab-btn" id="tab-btn-stream" onclick="switchTab('stream')">Real-Time Streams & Kill-Switch</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -604,6 +605,63 @@
 
       <div id="cluster-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 10: Real-Time Streams & Kill-Switch -->
+    <div id="panel-stream" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Live WebSocket Connections</div>
+          <div class="card-value" id="val-stream-active" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">Active bidirectional sockets</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Heartbeats Streamed</div>
+          <div class="card-value" id="val-stream-heartbeats" style="color: var(--accent-blue);">0</div>
+          <div class="card-subtext">Telemetry & ping/pong frames</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Revocation Signals Delivered</div>
+          <div class="card-value" id="val-stream-revocations" style="color: var(--accent-red);">0</div>
+          <div class="card-subtext">Instantaneous remote kill-switch</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Streaming Hub Uptime</div>
+          <div class="card-value" id="val-stream-uptime" style="color: #a78bfa;">--</div>
+          <div class="card-subtext">Zero-downtime streaming loop</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <button class="btn btn-secondary" onclick="refreshStreams()">🔄 Refresh Live Streams</button>
+        <button class="btn btn-primary" onclick="promptDirectKill()">🎯 Targeted Kill-Switch</button>
+        <button class="btn btn-danger" onclick="promptBroadcastKill()">⛔ Broadcast Kill-Switch</button>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Connected Client Sessions</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Client ID</th>
+            <th>License Key</th>
+            <th>HWID (Device)</th>
+            <th>Remote IP</th>
+            <th>Connected Duration</th>
+            <th>Latency (RTT)</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="stream-clients-body">
+          <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active streaming clients connected.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Live Stream Audit Feed</h3>
+      <div id="stream-events-feed" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px; max-height: 220px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted);">
+        <div>Stream audit feed active. Waiting for client events...</div>
+      </div>
+
+      <div id="stream-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -611,7 +669,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -626,6 +684,7 @@
       document.getElementById('panel-features').style.display = tab === 'features' ? 'block' : 'none';
       document.getElementById('panel-attestation').style.display = tab === 'attestation' ? 'block' : 'none';
       document.getElementById('panel-cluster').style.display = tab === 'cluster' ? 'block' : 'none';
+      document.getElementById('panel-stream').style.display = tab === 'stream' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -638,6 +697,7 @@
       if (tab === 'features') refreshFeaturesTab();
       if (tab === 'attestation') refreshAttestation();
       if (tab === 'cluster') refreshClusterTab();
+      if (tab === 'stream') refreshStreams();
     }
 
     async function refresh() {
@@ -1398,6 +1458,90 @@
         refreshClusterTab();
       } catch (e) {
         out.textContent = 'Sync error: ' + e.message;
+      }
+    }
+
+    async function refreshStreams() {
+      try {
+        const telRes = await fetch('/api/stream/telemetry').then(r => r.json());
+        if (telRes.status === 'success' && telRes.telemetry) {
+          const t = telRes.telemetry;
+          document.getElementById('val-stream-active').textContent = t.active_connections || 0;
+          document.getElementById('val-stream-heartbeats').textContent = t.total_heartbeats || 0;
+          document.getElementById('val-stream-revocations').textContent = t.total_revocations || 0;
+          document.getElementById('val-stream-uptime').textContent = (t.uptime_seconds || 0) + 's';
+
+          const feed = document.getElementById('stream-events-feed');
+          if (t.recent_events && t.recent_events.length > 0) {
+            feed.innerHTML = t.recent_events.slice().reverse().map(ev => {
+              const dt = new Date(ev.timestamp * 1000).toLocaleTimeString();
+              return `<div style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <span style="color: var(--accent-blue); font-weight: 600;">[${dt}]</span>
+                <span style="color: var(--accent-green); font-weight: 600;">[${ev.event}]</span>
+                <span style="color: #f1f5f9;">${ev.target || ''}</span>: ${ev.detail || ''}
+              </div>`;
+            }).join('');
+          } else {
+            feed.innerHTML = '<div>Stream audit feed active. Waiting for client events...</div>';
+          }
+        }
+
+        const clientsRes = await fetch('/api/stream/clients').then(r => r.json());
+        const tbody = document.getElementById('stream-clients-body');
+        if (clientsRes.status === 'success' && clientsRes.clients && clientsRes.clients.length > 0) {
+          tbody.innerHTML = clientsRes.clients.map(c => {
+            const connDate = c.connected_at ? new Date(c.connected_at).toLocaleTimeString() : '--';
+            const latency = c.latency_ms !== undefined ? c.latency_ms + 'ms' : '--';
+            return `<tr>
+              <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${c.id}</td>
+              <td style="font-family: 'JetBrains Mono', monospace;">${c.license_key || '<span style="color: var(--text-muted);">(unbound)</span>'}</td>
+              <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${c.hwid || '--'}</td>
+              <td>${c.remote_addr || '--'}</td>
+              <td>${connDate}</td>
+              <td><span class="pill pill-active">${latency}</span></td>
+              <td>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="killStreamTarget('${c.id}')">Kill</button>
+              </td>
+            </tr>`;
+          }).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active streaming clients connected.</td></tr>';
+        }
+      } catch (e) {
+        console.error('Failed to refresh streams:', e);
+      }
+    }
+
+    async function promptDirectKill() {
+      const target = prompt('Enter License Key, HWID, or Client ID to execute instant remote kill-switch:');
+      if (!target) return;
+      const reason = prompt('Enter termination reason:', 'Administrative security directive') || 'Administrative security directive';
+      killStreamTarget(target, reason);
+    }
+
+    async function promptBroadcastKill() {
+      if (!confirm('DANGER: This will immediately kill ALL active streaming client connections across the broker! Proceed?')) {
+        return;
+      }
+      killStreamTarget('ALL', 'Emergency broadcast kill-switch execution');
+    }
+
+    async function killStreamTarget(target, reason) {
+      reason = reason || 'Manual administrative kill-switch';
+      const out = document.getElementById('stream-output');
+      out.style.display = 'block';
+      out.textContent = 'Dispatching remote kill-switch to ' + target + '...';
+
+      try {
+        const res = await fetch('/api/stream/kill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target, reason, immediate: true })
+        }).then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+        refreshStreams();
+      } catch (e) {
+        out.textContent = 'Kill-switch error: ' + e.message;
       }
     }
 

@@ -365,6 +365,24 @@ class SheetLicenseClient:
         res = self._request("GET", "/api/consensus/peers")
         return res.get("peers", [])
 
+    def get_stream_clients(self) -> list:
+        """Queries active WebSocket telemetry client sessions."""
+        res = self._request("GET", "/api/stream/clients")
+        return res.get("clients", [])
+
+    def send_kill_switch(self, target: str, reason: str = "Administrative remote termination directive", immediate: bool = True) -> Dict[str, Any]:
+        """Dispatches an instantaneous remote kill-switch directive to targeted clients."""
+        return self._request("POST", "/api/stream/kill", {
+            "target": target,
+            "reason": reason,
+            "immediate": immediate,
+        })
+
+    def get_stream_telemetry(self) -> Dict[str, Any]:
+        """Queries aggregate streaming telemetry and active client metrics."""
+        res = self._request("GET", "/api/stream/telemetry")
+        return res.get("telemetry", {})
+
 
 
 if __name__ == "__main__":

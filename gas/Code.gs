@@ -15,6 +15,7 @@ const SHEET_USAGE = 'Usage_Metering';
 const SHEET_FEATURE_FLAGS = 'FeatureFlags';
 const SHEET_ATTESTATIONS = 'Attestations';
 const SHEET_CONSENSUS_NODES = 'ConsensusNodes';
+const SHEET_STREAM_EVENTS = 'StreamEvents';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -117,6 +118,12 @@ function handleRequest(e, method) {
       case 'consensus_node_list':
         return handleConsensusNodeList(output, payload);
 
+      case 'stream_event_record':
+        return handleStreamEventRecord(output, payload);
+
+      case 'stream_event_list':
+        return handleStreamEventList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -137,7 +144,8 @@ function initSheets() {
     { name: SHEET_USAGE, cols: ['key', 'metric', 'period', 'count', 'limit', 'updated_at'] },
     { name: SHEET_FEATURE_FLAGS, cols: ['feature_key', 'name', 'default_tiers', 'description', 'created_at'] },
     { name: SHEET_ATTESTATIONS, cols: ['timestamp', 'license_key', 'hwid', 'attestation_type', 'trust_level', 'pcr_digest', 'tamper_score', 'details'] },
-    { name: SHEET_CONSENSUS_NODES, cols: ['node_id', 'address', 'region', 'role', 'term', 'last_seen', 'has_quorum', 'merkle_digest'] }
+    { name: SHEET_CONSENSUS_NODES, cols: ['node_id', 'address', 'region', 'role', 'term', 'last_seen', 'has_quorum', 'merkle_digest'] },
+    { name: SHEET_STREAM_EVENTS, cols: ['timestamp', 'event_type', 'client_id', 'target', 'reason', 'latency_ms', 'details'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -733,6 +741,44 @@ function handleConsensusNodeList(output, payload) {
   }
 
   return jsonResponse(output, { status: 'success', nodes: nodes, count: nodes.length });
+}
+
+function handleStreamEventRecord(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_STREAM_EVENTS);
+  const now = new Date().toISOString();
+  sheet.appendRow([
+    now,
+    payload.event_type || 'stream:event',
+    payload.client_id || '',
+    payload.target || '',
+    payload.reason || '',
+    payload.latency_ms || 0,
+    typeof payload.details === 'object' ? JSON.stringify(payload.details) : (payload.details || '')
+  ]);
+  return jsonResponse(output, { status: 'success', message: 'Stream event recorded' });
+}
+
+function handleStreamEventList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_STREAM_EVENTS);
+  const data = sheet.getDataRange().getValues();
+  const events = [];
+  const limit = Math.min(Number(payload.limit) || 50, 200);
+
+  for (let i = data.length - 1; i >= 1 && events.length < limit; i--) {
+    events.push({
+      timestamp: data[i][0],
+      event_type: data[i][1],
+      client_id: data[i][2],
+      target: data[i][3],
+      reason: data[i][4],
+      latency_ms: data[i][5],
+      details: data[i][6]
+    });
+  }
+
+  return jsonResponse(output, { status: 'success', count: events.length, events: events });
 }
 
 function jsonResponse(output, data) {

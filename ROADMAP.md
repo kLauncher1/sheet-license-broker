@@ -74,10 +74,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Dedicated consensus HTTP routes, proxy coordination, and multi-language client SDK extensions (`routes_consensus.go`, `internal/proxy/consensus.go`, `sdk/`)
 - [x] Embedded admin console Distributed Cluster interactive management tab (`web/dist/index.html`)
 
-## Phase 11: Real-Time WebSocket Streaming & Telemetry Push (v1.1.0)
-- [ ] Bidirectional WebSocket endpoint for instantaneous revocation push
-- [ ] Live client heartbeat telemetry stream
-- [ ] Sub-second remote kill-switch execution
+## Phase 11: Real-Time WebSocket Streaming & Telemetry Push (v1.1.0) - Completed
+- [x] Full RFC 6455 standard library WebSocket implementation with zero external dependencies
+- [x] Bidirectional streaming hub with O(1) multi-index client lookup (by license key, device HWID, and tenant ID)
+- [x] Sub-second remote kill-switch execution with targeted and broadcast actions (`/api/stream/kill`)
+- [x] Real-time client heartbeat telemetry and round-trip ping/pong latency tracking
+- [x] Multi-language client SDK extensions (Go, TypeScript, Python, C#) for stream monitoring and kill-switch control
+- [x] Interactive web console Real-Time Streams tab with live connection counts, event feed, and kill-switch triggers
 
 ## Phase 12: Zero-Knowledge Proof (ZKP) Offline License Verification (v1.2.0)
 - [ ] Zero-knowledge cryptographic proof generation for air-gapped machine entitlement verification
@@ -123,3 +126,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Global BGP Anycast and geo-distributed DNS routing integration
 - [ ] Autonomous split-brain detection and automatic cluster reconciliation
 - [ ] Self-healing multi-region mesh with zero-downtime rolling upgrades
+
+## Phase 21: Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)
+- [ ] Real-time token bucket auto-scaling based on client stream telemetry load
+- [ ] Automated self-healing retry tunnels on intermittent network disconnects
+- [ ] Distributed quota borrowing between tenant namespaces and broker clusters
+
+## Phase 22: Hardware Security Module (HSM) PKCS#11 Vault Integration (v2.2.0)
+- [ ] Direct PKCS#11 hardware cryptoki engine binding
+- [ ] HSM-backed master key derivation for audit token and snapshot encryption
+- [ ] FIPS 140-3 Level 4 tamper-resistant storage certification bridge

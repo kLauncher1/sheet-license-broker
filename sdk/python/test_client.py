@@ -64,6 +64,28 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 "peers": [{"id": "peer-py-2", "active": True}]
             }).encode())
             return
+        if self.path == "/api/stream/clients":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "count": 1,
+                "clients": [{"id": "cl-py-1", "license_key": "LIC-STREAM-PY"}]
+            }).encode())
+            return
+        if self.path == "/api/stream/telemetry":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "telemetry": {
+                    "active_connections": 1,
+                    "total_heartbeats": 25
+                }
+            }).encode())
+            return
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -225,6 +247,18 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/stream/kill":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "target": "LIC-STREAM-PY",
+                "signaled_clients": 1,
+                "message": "Kill switch dispatched to 1 client(s)"
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -350,6 +384,21 @@ class TestSheetLicenseClient(unittest.TestCase):
         peers = client.get_cluster_peers()
         self.assertEqual(len(peers), 1)
         self.assertEqual(peers[0].get("id"), "peer-py-2")
+
+    def test_stream_clients_and_kill_switch(self):
+        client = SheetLicenseClient(self.base_url)
+        clients = client.get_stream_clients()
+        self.assertEqual(len(clients), 1)
+        self.assertEqual(clients[0].get("id"), "cl-py-1")
+        self.assertEqual(clients[0].get("license_key"), "LIC-STREAM-PY")
+
+        kill_res = client.send_kill_switch("LIC-STREAM-PY", "Test kill reason", True)
+        self.assertEqual(kill_res.get("status"), "success")
+        self.assertEqual(kill_res.get("signaled_clients"), 1)
+
+        telem = client.get_stream_telemetry()
+        self.assertEqual(telem.get("active_connections"), 1)
+        self.assertEqual(telem.get("total_heartbeats"), 25)
 
 
 if __name__ == "__main__":

@@ -126,6 +126,21 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"node_id\":\"node-cs-test\",\"role\":\"leader\",\"has_quorum\":true}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/stream/clients")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"count\":1,\"clients\":[{\"id\":\"cl-cs-1\",\"license_key\":\"LIC-STREAM-CS\"}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/stream/kill")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"target\":\"LIC-STREAM-CS\",\"signaled_clients\":1}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/stream/telemetry")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"telemetry\":{\"active_connections\":1,\"total_heartbeats\":99}}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -267,7 +282,28 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Cluster status query");
 
-                Console.WriteLine("=== All 13 C# Client Tests Passed Successfully! ===");
+                // 14. Test Stream clients, kill switch, and telemetry
+                string streamClientsRaw = client.GetStreamClientsAsync().GetAwaiter().GetResult();
+                if (!streamClientsRaw.Contains("LIC-STREAM-CS"))
+                {
+                    Console.Error.WriteLine("FAIL: Stream clients query failed: " + streamClientsRaw);
+                    return 1;
+                }
+                string killRaw = client.SendKillSwitchAsync("LIC-STREAM-CS", "Hardware violation", true).GetAwaiter().GetResult();
+                if (!killRaw.Contains("success"))
+                {
+                    Console.Error.WriteLine("FAIL: Stream kill switch failed: " + killRaw);
+                    return 1;
+                }
+                string telemRaw = client.GetStreamTelemetryAsync().GetAwaiter().GetResult();
+                if (!telemRaw.Contains("active_connections"))
+                {
+                    Console.Error.WriteLine("FAIL: Stream telemetry failed: " + telemRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Stream clients, kill switch, and telemetry");
+
+                Console.WriteLine("=== All 14 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

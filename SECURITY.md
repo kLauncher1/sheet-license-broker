@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.1.x   | :white_check_mark: |
 | 1.0.x   | :white_check_mark: |
 | 0.9.x   | :white_check_mark: |
 | 0.8.x   | :white_check_mark: |
@@ -86,6 +87,12 @@
     - Raft-like cluster communication mandates majority quorum confirmation across nodes before mutating cluster state or committing entries.
     - In CRDT LWW-Element-Sets, removals strictly take precedence over additions on equal timestamps (`removeTime >= addTime`). This mathematical invariant guarantees that a compromised or revoked license cannot be re-activated or un-revoked during concurrent network partitions or split-brain resolutions.
     - Anti-entropy state synchronizations exchange SHA-256 Merkle tree state digests to identify out-of-sync partitions without transmitting full datasets unless discrepancies are detected.
+
+17. **Real-Time WebSocket Streaming & Sub-Second Remote Kill-Switch Invariants**:
+    - RFC 6455 connections require standard HTTP upgrade handshake validation (`Sec-WebSocket-Key` / `Sec-WebSocket-Accept`).
+    - Incoming client frames must be properly masked; unmasked client frames or payloads exceeding the 1MB buffer ceiling are rejected immediately to eliminate denial-of-service and memory exhaustion vectors.
+    - Revocation and kill-switch directives (`EventRevocation` & `EventKillSwitch`) are pushed with sub-second latency across active connections indexed by license key, device HWID, or client ID.
+    - Kill-switch payloads instruct connected applications to terminate execution or lock functionality immediately upon trigger.
 
 ## Reporting a Vulnerability
 

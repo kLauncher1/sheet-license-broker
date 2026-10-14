@@ -362,3 +362,45 @@ func (c *Client) GetClusterPeers(ctx context.Context) ([]map[string]interface{},
 	return res.Peers, nil
 }
 
+// GetStreamClients queries active WebSocket telemetry client sessions.
+func (c *Client) GetStreamClients(ctx context.Context) ([]map[string]interface{}, error) {
+	var res struct {
+		Status  string                   `json:"status"`
+		Count   int                      `json:"count"`
+		Clients []map[string]interface{} `json:"clients"`
+	}
+	if err := c.request(ctx, http.MethodGet, "/api/stream/clients", nil, &res); err != nil {
+		return nil, err
+	}
+	return res.Clients, nil
+}
+
+// SendKillSwitch dispatches an instantaneous remote kill directive to matching clients.
+func (c *Client) SendKillSwitch(ctx context.Context, target, reason string, immediate bool) (int, error) {
+	req := map[string]interface{}{
+		"target":    target,
+		"reason":    reason,
+		"immediate": immediate,
+	}
+	var res struct {
+		Status          string `json:"status"`
+		SignaledClients int    `json:"signaled_clients"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/stream/kill", req, &res); err != nil {
+		return 0, err
+	}
+	return res.SignaledClients, nil
+}
+
+// GetStreamTelemetry queries aggregate streaming telemetry and active client metrics.
+func (c *Client) GetStreamTelemetry(ctx context.Context) (map[string]interface{}, error) {
+	var res struct {
+		Status    string                 `json:"status"`
+		Telemetry map[string]interface{} `json:"telemetry"`
+	}
+	if err := c.request(ctx, http.MethodGet, "/api/stream/telemetry", nil, &res); err != nil {
+		return nil, err
+	}
+	return res.Telemetry, nil
+}
+
