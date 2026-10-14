@@ -193,6 +193,43 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/stream/clients' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            count: 1,
+            clients: [{ id: 'cl-ts-1', license_key: 'LIC-STREAM-TS', latency_ms: 12 }]
+          }));
+          return;
+        }
+
+        if (req.url === '/api/stream/kill' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            target: 'LIC-STREAM-TS',
+            signaled_clients: 1,
+            message: 'Kill switch dispatched to 1 client(s)'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/stream/telemetry' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            telemetry: {
+              active_connections: 1,
+              unique_licenses: 1,
+              unique_devices: 1,
+              total_heartbeats: 15,
+              total_revocations: 1,
+              uptime_seconds: 3600
+            }
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -333,5 +370,21 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const peers = await client.getClusterPeers();
     assert.strictEqual(peers.length, 1);
     assert.strictEqual(peers[0].id, 'peer-ts-2');
+  });
+
+  it('queries stream clients, executes kill switch, and retrieves telemetry', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const clients = await client.getStreamClients();
+    assert.strictEqual(clients.length, 1);
+    assert.strictEqual(clients[0].id, 'cl-ts-1');
+    assert.strictEqual(clients[0].license_key, 'LIC-STREAM-TS');
+
+    const killRes = await client.sendKillSwitch('LIC-STREAM-TS', 'Violation detected', true);
+    assert.strictEqual(killRes.status, 'success');
+    assert.strictEqual(killRes.signaled_clients, 1);
+
+    const telem = await client.getStreamTelemetry();
+    assert.strictEqual(telem.active_connections, 1);
+    assert.strictEqual(telem.total_heartbeats, 15);
   });
 });

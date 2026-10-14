@@ -29,6 +29,7 @@ func (p *Proxy) RevokeLicense(ctx context.Context, licenseKey, reason string) er
 			log.Printf("[Proxy] Remote license revocation warning (%v), recorded locally", err)
 		}
 	}
+	p.PushRevocation(normKey, "", reason)
 	p.NotifyLicenseEvent(webhook.EventLicenseRevoked, normKey, "", reason)
 	return nil
 }
@@ -44,6 +45,7 @@ func (p *Proxy) BlacklistDevice(ctx context.Context, hwid, reason string) error 
 			log.Printf("[Proxy] Remote device blacklist warning (%v), recorded locally", err)
 		}
 	}
+	p.PushRevocation("", normHWID, reason)
 	p.NotifyLicenseEvent(webhook.EventDeviceBanned, "", normHWID, reason)
 	return nil
 }

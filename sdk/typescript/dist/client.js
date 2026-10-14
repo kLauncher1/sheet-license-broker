@@ -276,4 +276,22 @@ export class SheetLicenseClient {
     const res = await this.request('GET', '/api/consensus/peers');
     return res.peers || [];
   }
+
+  async getStreamClients() {
+    const res = await this.request('GET', '/api/stream/clients');
+    return res.clients || [];
+  }
+
+  async sendKillSwitch(target, reason = 'Administrative remote termination directive', immediate = true) {
+    return this.request('POST', '/api/stream/kill', {
+      target,
+      reason,
+      immediate,
+    });
+  }
+
+  async getStreamTelemetry() {
+    const res = await this.request('GET', '/api/stream/telemetry');
+    return res.telemetry;
+  }
 }

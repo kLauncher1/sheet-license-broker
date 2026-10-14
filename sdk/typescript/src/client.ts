@@ -14,6 +14,10 @@ import type {
   HealthResponse,
   LicenseRecord,
   LicenseValidationResponse,
+  StreamClientInfo,
+  StreamClientsResponse,
+  StreamKillResponse,
+  StreamTelemetryResponse,
   TelemetryReport,
   TelemetryResponse,
   UsageRecord,
@@ -375,6 +379,37 @@ export class SheetLicenseClient {
   public async getClusterPeers(): Promise<ClusterPeer[]> {
     const res = await this.request<ClusterPeersResponse>('GET', '/api/consensus/peers');
     return res.peers || [];
+  }
+
+  /**
+   * Queries active WebSocket telemetry client sessions.
+   */
+  public async getStreamClients(): Promise<StreamClientInfo[]> {
+    const res = await this.request<StreamClientsResponse>('GET', '/api/stream/clients');
+    return res.clients || [];
+  }
+
+  /**
+   * Dispatches an instantaneous remote kill-switch directive to targeted clients.
+   */
+  public async sendKillSwitch(
+    target: string,
+    reason: string = 'Administrative remote termination directive',
+    immediate: boolean = true
+  ): Promise<StreamKillResponse> {
+    return this.request<StreamKillResponse>('POST', '/api/stream/kill', {
+      target,
+      reason,
+      immediate,
+    });
+  }
+
+  /**
+   * Queries aggregate streaming telemetry and active client metrics.
+   */
+  public async getStreamTelemetry(): Promise<StreamTelemetryResponse['telemetry']> {
+    const res = await this.request<StreamTelemetryResponse>('GET', '/api/stream/telemetry');
+    return res.telemetry;
   }
 }
 

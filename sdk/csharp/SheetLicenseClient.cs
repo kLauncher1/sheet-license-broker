@@ -377,6 +377,32 @@ namespace SheetLicenseBroker
             return await SendRequestAsync("GET", "/api/consensus/status", null).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Queries active WebSocket telemetry client sessions.
+        /// </summary>
+        public async Task<string> GetStreamClientsAsync()
+        {
+            return await SendRequestAsync("GET", "/api/stream/clients", null).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Dispatches an instantaneous remote kill-switch directive to targeted clients.
+        /// </summary>
+        public async Task<string> SendKillSwitchAsync(string target, string reason = "Administrative remote termination directive", bool immediate = true)
+        {
+            string payload = string.Format("{{\"target\":\"{0}\",\"reason\":\"{1}\",\"immediate\":{2}}}",
+                EscapeJson(target), EscapeJson(reason), immediate ? "true" : "false");
+            return await SendRequestAsync("POST", "/api/stream/kill", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries aggregate streaming telemetry and active client metrics.
+        /// </summary>
+        public async Task<string> GetStreamTelemetryAsync()
+        {
+            return await SendRequestAsync("GET", "/api/stream/telemetry", null).ConfigureAwait(false);
+        }
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

@@ -183,4 +183,41 @@ export interface ClusterPeersResponse {
   peers: ClusterPeer[];
 }
 
+export interface StreamClientInfo {
+  id: string;
+  license_key?: string;
+  hwid?: string;
+  tenant_id?: string;
+  remote_addr?: string;
+  connected_at?: string;
+  last_heartbeat?: string;
+  latency_ms?: number;
+}
+
+export interface StreamClientsResponse {
+  status: string;
+  count: number;
+  clients: StreamClientInfo[];
+}
+
+export interface StreamKillResponse {
+  status: string;
+  target: string;
+  signaled_clients: number;
+  message: string;
+}
+
+export interface StreamTelemetryResponse {
+  status: string;
+  telemetry: {
+    active_connections: number;
+    unique_licenses: number;
+    unique_devices: number;
+    total_heartbeats: number;
+    total_revocations: number;
+    uptime_seconds: number;
+    clients?: StreamClientInfo[];
+  };
+}
+
 

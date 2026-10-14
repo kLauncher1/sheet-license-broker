@@ -111,6 +111,7 @@ func main() {
 	server.registerAttestationRoutes(apiMux)
 	server.registerSecurityRoutes(apiMux)
 	server.registerConsensusRoutes(apiMux)
+	server.registerStreamRoutes(apiMux, mux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {

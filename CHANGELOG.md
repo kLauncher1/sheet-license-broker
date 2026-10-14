@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-10-14
+
+### Added
+- Standard RFC 6455 WebSocket engine implemented in Go standard library (`internal/stream/websocket.go`, `internal/stream/client.go`, `internal/stream/types.go`) with zero external dependencies, supporting masked/unmasked frame parsing, payload length extension (126 uint16 / 127 uint64), connection hijacking, and concurrent write-safe framing.
+- Bidirectional streaming hub (`internal/stream/hub.go`, `internal/stream/stream_test.go`) featuring O(1) multi-index client lookup (by license key, device HWID, and tenant ID), concurrent pub/sub broadcasting, in-memory stream event audit logging, and aggregate telemetry compilation.
+- Sub-second remote kill-switch execution with targeted and broadcast directives (`routes_stream.go`, `internal/proxy/stream.go`), automatically pushing instantaneous revocation frames to active clients upon license invalidation or device blacklisting.
+- Live client heartbeat telemetry stream with continuous round-trip ping/pong latency tracking, client metadata indexing, and status telemetry reporting.
+- Dedicated modular streaming routes (`routes_stream.go`, `routes_stream_test.go`) exposing `GET /api/stream/ws` (WebSocket upgrade), `GET /api/stream/clients`, `POST /api/stream/kill`, `POST /api/stream/broadcast`, and `GET /api/stream/telemetry`.
+- Proxy layer streaming coordination (`internal/proxy/stream.go`, `internal/proxy/stream_test.go`) binding the WebSocket streaming hub and automatically piping `RevokeLicense` and `BlacklistDevice` events into real-time client push streams.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and persistent logging for the `StreamEvents` sheet, with `stream_event_record` and `stream_event_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go`), Python (`sdk/python`), TypeScript / Node.js (`sdk/typescript`), and C# (`sdk/csharp`) adding `GetStreamClients`, `SendKillSwitch`, and `GetStreamTelemetry` methods with comprehensive unit test coverage.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Real-Time Streams & Kill-Switch" tab with live connection counters, active socket session table, real-time stream audit feed, and targeted/broadcast remote kill-switch controls.
+- Version bump to 1.1.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.0.0] - 2026-10-14
 
 ### Added

@@ -286,3 +286,55 @@ func TestGoClientClusterConsensus(t *testing.T) {
 	}
 }
 
+func TestGoClientStreamTelemetryAndKillSwitch(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/stream/clients", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"count":  1,
+			"clients": []map[string]interface{}{
+				{"id": "cl-test-1", "license_key": "LIC-TEST-GO", "hwid": "HWID-TEST-GO"},
+			},
+		})
+	})
+	mux.HandleFunc("/api/stream/kill", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":           "success",
+			"signaled_clients": 1,
+			"message":          "Kill switch dispatched",
+		})
+	})
+	mux.HandleFunc("/api/stream/telemetry", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"telemetry": map[string]interface{}{
+				"active_connections": 1,
+				"total_heartbeats":   42,
+			},
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+
+	clients, err := client.GetStreamClients(context.Background())
+	if err != nil || len(clients) != 1 || clients[0]["license_key"] != "LIC-TEST-GO" {
+		t.Fatalf("expected stream clients, got %v (err: %v)", clients, err)
+	}
+
+	signaled, err := client.SendKillSwitch(context.Background(), "LIC-TEST-GO", "Test kill", true)
+	if err != nil || signaled != 1 {
+		t.Fatalf("expected 1 signaled client, got %d (err: %v)", signaled, err)
+	}
+
+	tel, err := client.GetStreamTelemetry(context.Background())
+	if err != nil || tel["active_connections"].(float64) != 1 {
+		t.Fatalf("expected telemetry metrics, got %v (err: %v)", tel, err)
+	}
+}
+
