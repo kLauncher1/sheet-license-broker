@@ -6,8 +6,10 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.5.0-emerald.svg" alt="Version: v0.5.0">
+  <img src="https://img.shields.io/badge/version-v0.6.0-emerald.svg" alt="Version: v0.6.0">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
+  <img src="https://img.shields.io/badge/high--availability-active--standby-059669.svg" alt="High Availability">
+  <img src="https://img.shields.io/badge/metrics-prometheus-E6522C.svg" alt="Prometheus Metrics">
   <img src="https://img.shields.io/badge/cloudflare-edge%20worker-F38020.svg" alt="Cloudflare Workers">
   <img src="https://img.shields.io/badge/google--apps--script-deployed-34A853.svg" alt="Google Apps Script">
   <img src="https://img.shields.io/badge/hosting-0%24%2Fmo-10B981.svg" alt="Hosting Cost">
@@ -19,10 +21,14 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, multi-tenant namespacing, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, multi-tenant namespacing, dual-sheet active-standby high availability, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Dual-Sheet Active-Standby Replication**: Automatic failover between primary and standby sheets with collision-free bidirectional reconciliation.
+- **Encrypted Local Disk Spool**: AES-256-GCM encrypted journal queue (`spool.bin`) guaranteeing zero data loss during network disruptions.
+- **Enterprise Prometheus Telemetry (`/metrics`)**: Built-in scraper endpoint exposing counters, gauges, and latencies in Prometheus format.
+- **Incident Alert Webhooks**: Immediate rich security incident notifications dispatched to Discord and Slack channels.
 - **Multi-Tenant Namespacing**: Isolate distinct products and tenants with custom prefixes (e.g., `ACME-LIC-XXXX-YYYY`) and independent policies.
 - **Cloudflare Edge Gateway**: Sub-millisecond edge license verification via Cloudflare Workers and Workers KV with Web Crypto API.
 - **Human-Readable Admin Panel**: Your Google Sheet is your database. View, edit, ban, or grant licenses directly in real-time.
@@ -45,16 +51,21 @@ flowchart TD
     Client["Desktop App / CLI / WebApp"] -->|HTTPS REST + HMAC-SHA256| Guard["Anti-Tamper Security Guard (Nonce Cache)"]
     Guard --> Broker["sheet-license-broker (Go Gateway)"]
     Broker -->|//go:embed| WebUI["Embedded Admin Console (Port 9082)"]
+    Broker -->|Scrape| Prom["Prometheus Monitoring (/metrics)"]
+    Broker -->|Encrypted Disk Journal| Spool["Local Disk Spool (AES-256-GCM)"]
+    Broker -->|Alerts| Alerts["Security Webhooks (Discord & Slack)"]
     Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
-    Broker -->|POST Action / JSON| GAS["Google Apps Script Web App (Code.gs)"]
-    GAS -->|SpreadsheetApp API| Sheets["Google Spreadsheet DB"]
+    Broker -->|Active Role| Primary["Primary GAS Web App (Code.gs)"]
+    Broker -.->|Automatic Failover| Standby["Standby GAS Web App (Code.gs)"]
+    Primary --> Sheets1["Primary Google Sheet DB"]
+    Standby -.-> Sheets2["Standby Google Sheet DB"]
 
     subgraph Google Sheets Database
-        Sheets --> Tab1["Tab: Users (Salted Hash Auth)"]
-        Sheets --> Tab2["Tab: Licenses (HWID Lock & Expiry)"]
-        Sheets --> Tab3["Tab: Blacklist (Revocations & Banned HWIDs)"]
-        Sheets --> Tab4["Tab: Audit_Logs (Security Audit Trail)"]
-        Sheets --> Tab5["Tab: KV_Database (NoSQL Store)"]
+        Sheets1 --> Tab1["Tab: Users (Salted Hash Auth)"]
+        Sheets1 --> Tab2["Tab: Licenses (HWID Lock & Expiry)"]
+        Sheets1 --> Tab3["Tab: Blacklist (Revocations & Banned HWIDs)"]
+        Sheets1 --> Tab4["Tab: Audit_Logs (Security Audit Trail)"]
+        Sheets1 --> Tab5["Tab: KV_Database (NoSQL Store)"]
     end
 ```
 

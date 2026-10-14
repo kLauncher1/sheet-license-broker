@@ -45,6 +45,7 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", server.guard.Middleware(apiMux))
+	server.registerHARoutes(apiMux, mux)
 
 	return server, mux
 }
