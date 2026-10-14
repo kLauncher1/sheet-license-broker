@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-10-14
+
+### Added
+- Multi-language client SDK suite supporting Python, C# / .NET, TypeScript / Node.js, and Go with automated hardware identifier (HWID) binding and cryptographic HMAC-SHA256 request signing.
+- Standalone zero-dependency Python client library (`sdk/python/sheet_license_client.py`) with cross-platform hardware fingerprinting, full API coverage, CLI tooling, and unit tests (`sdk/python/test_client.py`).
+- Single-file C# helper library (`sdk/csharp/SheetLicenseClient.cs`) tailored for Unity, WPF, and .NET desktop software protection with async/await and synchronous game-loop validation methods.
+- Lightweight TypeScript / Node.js client package (`sdk/typescript/`) with strong type definitions, native ESM distribution build, and test suite.
+- Native Go client package (`sdk/go/client.go`) with context-aware API methods and isolated unit tests.
+- Production-grade application integration examples (`examples/`):
+  - Python desktop application demonstrating startup licensing gate, offline grace period, and background heartbeat thread (`examples/python-desktop-app/main.py`).
+  - C# console / Unity pattern demonstrating machine HWID device lock and startup validation (`examples/csharp-wpf-unity/Program.cs`).
+  - Node.js SaaS API server with license verification middleware protecting premium endpoints (`examples/node-saas-backend/server.mjs`).
+
 ## [0.3.0] - 2026-10-14
 
 ### Added

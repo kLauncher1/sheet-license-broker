@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.3.0-emerald.svg" alt="Version: v0.3.0">
+  <img src="https://img.shields.io/badge/version-v0.4.0-emerald.svg" alt="Version: v0.4.0">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
   <img src="https://img.shields.io/badge/google--apps--script-deployed-34A853.svg" alt="Google Apps Script">
   <img src="https://img.shields.io/badge/hosting-0%24%2Fmo-10B981.svg" alt="Hosting Cost">
@@ -274,43 +274,82 @@ GET /api/docs
 
 ---
 
-## 💻 Client Integration Example (Go)
+---
+
+## 💻 Multi-Language Client SDKs
+
+`sheet-license-broker` includes production-ready client SDKs under `sdk/` supporting automatic hardware ID (HWID) device binding and cryptographic HMAC-SHA256 request signing.
+
+### 🐍 Python Client (`sdk/python/sheet_license_client.py`)
+
+Zero external dependencies (uses standard library `urllib` & `hashlib`):
+
+```python
+from sheet_license_client import SheetLicenseClient, get_machine_hwid
+
+client = SheetLicenseClient(base_url="http://localhost:9082", secret_key="your-hmac-secret")
+
+# Verify license key (automatically attaches local machine HWID)
+res = client.verify_license("SLB-XXXX-XXXX-XXXX")
+if res.get("valid"):
+    print("License verified:", res["license"])
+else:
+    print("Denied:", res.get("message"))
+```
+
+### ⚡ C# / .NET & Unity (`sdk/csharp/SheetLicenseClient.cs`)
+
+Single-file helper compatible with Unity Mono/IL2CPP, WPF, and .NET Desktop:
+
+```csharp
+using SheetLicenseBroker;
+
+var client = new SheetLicenseClient("http://localhost:9082", "your-hmac-secret");
+
+// Asynchronous or synchronous for game loops
+var result = client.VerifyLicense("SLB-XXXX-XXXX-XXXX");
+if (result.Valid) {
+    Console.WriteLine("Access granted! Expiry: " + result.ExpirationDate);
+}
+```
+
+### 🟩 TypeScript & Node.js (`@sheet-license/client`)
+
+Zero-dependency native ESM package for Node.js backends and Electron apps:
+
+```typescript
+import { SheetLicenseClient } from '@sheet-license/client';
+
+const client = new SheetLicenseClient({
+  baseUrl: 'http://localhost:9082',
+  secretKey: 'your-hmac-secret',
+});
+
+const result = await client.verifyLicense('SLB-XXXX-XXXX-XXXX');
+if (result.valid) {
+  console.log('License active for device:', result.license?.bound_devices);
+}
+```
+
+### 🔷 Go Client (`sdk/go/client.go`)
 
 ```go
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
+	"time"
+
+	"github.com/kLauncher1/sheet-license-broker/sdk/go"
 )
 
-func verifyLicense(key, hwid string) bool {
-	payload, _ := json.Marshal(map[string]string{
-		"license_key": key,
-		"hwid":        hwid,
-	})
-
-	resp, err := http.Post("http://localhost:9082/api/licenses/validate", "application/json", bytes.NewBuffer(payload))
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return false
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Valid  bool   `json:"valid"`
-		Source string `json:"source"`
-	}
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result.Valid
-}
-
 func main() {
-	if verifyLicense("KEY-7F2A-9C4B-E108", "WIN-B829-94AA-0123") {
+	client := sdk.NewClient("http://localhost:9082", []byte("your-hmac-secret"), 5*time.Second)
+
+	res, err := client.VerifyLicense(context.Background(), "SLB-XXXX-XXXX-XXXX", "")
+	if err == nil && res.Valid {
 		fmt.Println("License valid. Launching application...")
-	} else {
-		fmt.Println("Unauthorized or expired license key.")
 	}
 }
 ```

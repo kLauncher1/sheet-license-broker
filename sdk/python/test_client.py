@@ -1,0 +1,168 @@
+"""
+Unit tests for Sheet License Broker Python Client SDK.
+Verifies HWID generation, HMAC canonical signing, and client operations.
+"""
+
+import hashlib
+import hmac
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import unittest
+
+from sheet_license_client import (
+    AuthenticationError,
+    BrokerError,
+    LicenseValidationError,
+    SheetLicenseClient,
+    get_machine_hwid,
+)
+
+
+class MockBrokerHandler(BaseHTTPRequestHandler):
+    secret_key = b"test-secret-key-12345"
+
+    def log_message(self, format, *args):
+        # Suppress noisy standard HTTP server logging during test runs
+        pass
+
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "healthy", "version": "0.4.0"}).encode())
+            return
+        self.send_error(404, "Not Found")
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length > 0 else b""
+
+        # Verify HMAC if signature header is provided
+        sig = self.headers.get("X-Signature")
+        ts = self.headers.get("X-Timestamp")
+        nonce = self.headers.get("X-Nonce")
+
+        if sig and ts and nonce:
+            b_hash = hashlib.sha256(body).hexdigest()
+            canonical = f"POST\n{self.path}\n{ts}\n{nonce}\n{b_hash}"
+            expected_sig = hmac.new(self.secret_key, canonical.encode(), hashlib.sha256).hexdigest()
+            if sig != expected_sig:
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "invalid_signature", "message": "Signature mismatch"}).encode())
+                return
+
+        if self.path == "/api/licenses/validate":
+            data = json.loads(body.decode()) if body else {}
+            key = data.get("license_key", "")
+            hwid = data.get("hwid", "")
+
+            if key == "VALID-KEY-123":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "valid": True,
+                    "message": "License active and valid",
+                    "license": {"key": key, "hwid": hwid, "status": "active"},
+                }).encode())
+            elif key == "EXPIRED-KEY-999":
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"valid": False, "error": "License expired"}).encode())
+            else:
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"valid": False, "error": "License not found"}).encode())
+            return
+
+        if self.path == "/api/users/login":
+            data = json.loads(body.decode()) if body else {}
+            if data.get("username") == "admin" and data.get("password") == "correct":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"authenticated": True, "username": "admin"}).encode())
+            else:
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid credentials"}).encode())
+            return
+
+        if self.path == "/api/docs":
+            data = json.loads(body.decode()) if body else {}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "action": data.get("action")}).encode())
+            return
+
+        self.send_error(404, "Not Found")
+
+
+class TestSheetLicenseClient(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.server = HTTPServer(("127.0.0.1", 0), MockBrokerHandler)
+        cls.port = cls.server.server_address[1]
+        cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.server_thread.start()
+        cls.base_url = f"http://127.0.0.1:{cls.port}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def test_hwid_format(self):
+        hwid1 = get_machine_hwid()
+        hwid2 = get_machine_hwid()
+        self.assertTrue(hwid1.startswith("HWID-"))
+        parts = hwid1.split("-")
+        self.assertEqual(len(parts), 5)  # HWID, 4 hex chunks
+        self.assertEqual(hwid1, hwid2, "HWID should be deterministic within machine")
+
+    def test_health(self):
+        client = SheetLicenseClient(self.base_url)
+        res = client.health()
+        self.assertEqual(res.get("status"), "healthy")
+        self.assertEqual(res.get("version"), "0.4.0")
+
+    def test_validate_license_success_with_hmac(self):
+        client = SheetLicenseClient(self.base_url, secret_key="test-secret-key-12345")
+        res = client.verify_license("VALID-KEY-123")
+        self.assertTrue(res.get("valid"))
+        self.assertEqual(res["license"]["key"], "VALID-KEY-123")
+
+    def test_validate_license_invalid_key(self):
+        client = SheetLicenseClient(self.base_url, secret_key="test-secret-key-12345")
+        with self.assertRaises(LicenseValidationError):
+            client.verify_license("INVALID-KEY-000")
+
+    def test_hmac_signature_mismatch(self):
+        client = SheetLicenseClient(self.base_url, secret_key="wrong-secret-key")
+        with self.assertRaises(AuthenticationError):
+            client.verify_license("VALID-KEY-123")
+
+    def test_user_login(self):
+        client = SheetLicenseClient(self.base_url)
+        res = client.login_user("admin", "correct")
+        self.assertTrue(res.get("authenticated"))
+
+        with self.assertRaises(BrokerError):
+            client.login_user("admin", "wrong")
+
+    def test_doc_operations(self):
+        client = SheetLicenseClient(self.base_url)
+        res = client.put_doc("configs", "app_conf", {"theme": "dark"})
+        self.assertTrue(res.get("success"))
+
+
+if __name__ == "__main__":
+    unittest.main()
