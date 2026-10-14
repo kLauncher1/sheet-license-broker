@@ -47,6 +47,7 @@ type ValidationResult struct {
 type Client struct {
 	baseURL    string
 	secretKey  []byte
+	tenantID   string
 	httpClient *http.Client
 }
 
@@ -62,6 +63,12 @@ func NewClient(baseURL string, secretKey []byte, timeout time.Duration) *Client 
 			Timeout: timeout,
 		},
 	}
+}
+
+// WithTenant sets the tenant identifier for multi-tenant requests.
+func (c *Client) WithTenant(tenantID string) *Client {
+	c.tenantID = strings.TrimSpace(tenantID)
+	return c
 }
 
 // GetMachineHWID extracts a stable, unique hardware identifier for the current machine.
@@ -126,7 +133,10 @@ func (c *Client) request(ctx context.Context, method, path string, payload inter
 	}
 
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "SheetLicenseClient-Go/0.4.0")
+	req.Header.Set("User-Agent", "SheetLicenseClient-Go/0.5.0")
+	if c.tenantID != "" {
+		req.Header.Set("X-Tenant-ID", c.tenantID)
+	}
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

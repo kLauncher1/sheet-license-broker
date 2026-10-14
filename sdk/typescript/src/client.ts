@@ -38,11 +38,13 @@ export class LicenseValidationError extends BrokerError {
 export class SheetLicenseClient {
   private readonly baseUrl: string;
   private readonly secretKey?: string;
+  private readonly tenantId?: string;
   private readonly timeoutMs: number;
 
   constructor(options: BrokerClientOptions = {}) {
     this.baseUrl = (options.baseUrl || 'http://127.0.0.1:9082').replace(/\/+$/, '');
     this.secretKey = options.secretKey;
+    this.tenantId = options.tenantId;
     this.timeoutMs = options.timeoutMs || 10000;
   }
 
@@ -67,8 +69,12 @@ export class SheetLicenseClient {
 
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'User-Agent': 'SheetLicenseClient-TS/0.4.0',
+      'User-Agent': 'SheetLicenseClient-TS/0.5.0',
     };
+
+    if (this.tenantId) {
+      headers['X-Tenant-ID'] = this.tenantId;
+    }
 
     if (payload !== undefined) {
       headers['Content-Type'] = 'application/json';

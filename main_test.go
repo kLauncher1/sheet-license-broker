@@ -13,6 +13,7 @@ import (
 
 	"github.com/kLauncher1/sheet-license-broker/internal/proxy"
 	"github.com/kLauncher1/sheet-license-broker/internal/security"
+	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 )
 
 func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, http.Handler) {
@@ -36,6 +37,11 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 	apiMux.HandleFunc("/api/security/blacklist", server.handleBlacklist)
 	apiMux.HandleFunc("/api/security/blacklist/remove", server.handleBlacklistRemove)
 	apiMux.HandleFunc("/api/security/status", server.handleSecurityStatus)
+	apiMux.HandleFunc("/api/tenants", server.handleTenants)
+	apiMux.HandleFunc("/api/tenants/register", server.handleRegisterTenant)
+	apiMux.HandleFunc("/api/backup/export", server.handleBackupExport)
+	apiMux.HandleFunc("/api/backup/restore", server.handleBackupRestore)
+	apiMux.HandleFunc("/api/webhooks/test", server.handleTestWebhook)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", server.guard.Middleware(apiMux))
@@ -44,7 +50,8 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 }
 
 func TestHealthAndSecurityStatus(t *testing.T) {
-	_, handler := setupTestServer(t, "test-secret", false)
+	server, handler := setupTestServer(t, "test-secret", false)
+	defer server.proxy.Close()
 
 	req := httptest.NewRequest("GET", "/api/health", nil)
 	w := httptest.NewRecorder()
@@ -59,13 +66,14 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "0.4.0" {
-		t.Fatalf("expected version 0.4.0, got: %v", res["version"])
+	if res["version"] != "0.5.0" {
+		t.Fatalf("expected version 0.5.0, got: %v", res["version"])
 	}
 }
 
 func TestRevocationAndBlacklistEndpoints(t *testing.T) {
 	server, handler := setupTestServer(t, "test-secret", false)
+	defer server.proxy.Close()
 
 	// 1. Create a license
 	licRes, err := server.proxy.CreateLicense(context.Background(), 30, 1)
@@ -130,7 +138,8 @@ func TestRevocationAndBlacklistEndpoints(t *testing.T) {
 
 func TestHMACProtectionMiddleware(t *testing.T) {
 	secret := "production-hmac-secret-key-xyz"
-	_, handler := setupTestServer(t, secret, true)
+	server, handler := setupTestServer(t, secret, true)
+	defer server.proxy.Close()
 
 	// 1. Unsigned request when enforced -> must be 401
 	unReq := httptest.NewRequest("GET", "/api/security/status", nil)
@@ -175,5 +184,107 @@ func TestHMACProtectionMiddleware(t *testing.T) {
 	bodyResp, _ := io.ReadAll(replayW.Body)
 	if !bytes.Contains(bodyResp, []byte("replay attack detected")) {
 		t.Fatalf("expected replay attack error message, got: %s", string(bodyResp))
+	}
+}
+
+func TestTenantEndpoints(t *testing.T) {
+	server, handler := setupTestServer(t, "test-secret", false)
+	defer server.proxy.Close()
+
+	// 1. Register a tenant
+	tBody := `{"id":"tenant-apex","name":"Apex Studio","namespace_prefix":"APEX","max_licenses":25}`
+	req := httptest.NewRequest("POST", "/api/tenants/register", bytes.NewBufferString(tBody))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on tenant register, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 2. Query tenant by ID
+	getReq := httptest.NewRequest("GET", "/api/tenants?id=tenant-apex", nil)
+	getW := httptest.NewRecorder()
+	handler.ServeHTTP(getW, getReq)
+
+	if getW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on tenant query, got %d", getW.Code)
+	}
+
+	var tFound tenant.Tenant
+	_ = json.Unmarshal(getW.Body.Bytes(), &tFound)
+	if tFound.NamespacePrefix != "APEX" {
+		t.Errorf("expected prefix APEX, got %s", tFound.NamespacePrefix)
+	}
+
+	// 3. Create a tenant-namespaced license
+	licReqBody := `{"tenant_id":"tenant-apex","days":45,"max_devices":2}`
+	licReq := httptest.NewRequest("POST", "/api/licenses", bytes.NewBufferString(licReqBody))
+	licW := httptest.NewRecorder()
+	handler.ServeHTTP(licW, licReq)
+
+	if licW.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on license create, got %d: %s", licW.Code, licW.Body.String())
+	}
+
+	var licRes map[string]interface{}
+	_ = json.Unmarshal(licW.Body.Bytes(), &licRes)
+	key, _ := licRes["license_key"].(string)
+	if prefix, ok := tenant.ParseLicenseKey(key); !ok || prefix != "APEX" {
+		t.Errorf("expected APEX prefix on generated key, got %s", key)
+	}
+}
+
+func TestBackupExportAndRestoreEndpoints(t *testing.T) {
+	server, handler := setupTestServer(t, "test-secret", false)
+	defer server.proxy.Close()
+
+	// Export encrypted backup
+	expReq := httptest.NewRequest("POST", "/api/backup/export", bytes.NewBufferString(`{"secret_key":"test-backup-pw"}`))
+	expW := httptest.NewRecorder()
+	handler.ServeHTTP(expW, expReq)
+
+	if expW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on backup export, got %d: %s", expW.Code, expW.Body.String())
+	}
+
+	var expRes map[string]interface{}
+	_ = json.Unmarshal(expW.Body.Bytes(), &expRes)
+	payload, ok := expRes["encrypted_payload"].(string)
+	if !ok || len(payload) == 0 {
+		t.Fatalf("expected encrypted_payload in export response")
+	}
+
+	// Restore backup
+	restoreBody := fmt.Sprintf(`{"secret_key":"test-backup-pw","encrypted_payload":"%s"}`, payload)
+	restReq := httptest.NewRequest("POST", "/api/backup/restore", bytes.NewBufferString(restoreBody))
+	restW := httptest.NewRecorder()
+	handler.ServeHTTP(restW, restReq)
+
+	if restW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on backup restore, got %d: %s", restW.Code, restW.Body.String())
+	}
+}
+
+func TestWebhookTestEndpoint(t *testing.T) {
+	received := false
+	mockEndpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockEndpoint.Close()
+
+	server, handler := setupTestServer(t, "test-secret", false)
+	defer server.proxy.Close()
+
+	body := fmt.Sprintf(`{"event_type":"license.created","target_url":"%s","secret":"wh-secret"}`, mockEndpoint.URL)
+	req := httptest.NewRequest("POST", "/api/webhooks/test", bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on webhook probe test, got %d: %s", w.Code, w.Body.String())
+	}
+	if !received {
+		t.Errorf("expected mock webhook endpoint to receive probe event")
 	}
 }

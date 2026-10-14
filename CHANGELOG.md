@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-10-14
+
+### Added
+- Multi-tenant isolation engine (`internal/tenant/tenant.go`, `internal/tenant/tenant_test.go`) supporting application namespace prefixes (e.g. `PREFIX-LIC-XXXX-YYYY`), thread-safe tenant registry, policy limits, and automatic HTTP request resolution via `X-Tenant-ID` headers and query parameters.
+- Cloudflare Edge Gateway worker (`edge/cloudflare/worker.js`, `edge/cloudflare/wrangler.toml`, `edge/cloudflare/worker.test.mjs`) implementing sub-millisecond edge license verification, Web Crypto API HMAC-SHA256 signature verification, Cloudflare Workers KV caching with TTL, and sliding-window replay attack defense.
+- Point-in-time automated backup and disaster recovery subsystem (`internal/backup/snapshot.go`, `internal/backup/snapshot_test.go`) capturing complete state across tenants, users, licenses, blacklist entries, audit logs, and KV documents with SHA-256 integrity checksums and AES-256-GCM authenticated encryption.
+- Asynchronous webhook notification pipeline (`internal/webhook/dispatcher.go`, `internal/webhook/dispatcher_test.go`) delivering real-time lifecycle events (`license.created`, `license.verified`, `license.expired`, `license.revoked`, `device.banned`, `tamper.detected`) with HMAC-SHA256 signatures in `X-Broker-Signature`, exponential backoff retries, and tenant-level routing.
+- Google Apps Script backend update (`gas/Code.gs`) adding `Tenants` sheet initialization and native support for `tenant_register`, `tenant_list`, `backup_export`, and `backup_restore` actions.
+- Client SDK updates across Go, Python, TypeScript, and C# libraries adding `X-Tenant-ID` header injection for multi-tenant deployments.
+- Embedded administration dashboard updates (`web/dist/index.html`) featuring dedicated Multi-Tenant Namespaces and Backup & Restore management tabs.
+- New administrative REST API endpoints: `/api/tenants`, `/api/tenants/register`, `/api/backup/export`, `/api/backup/restore`, and `/api/webhooks/test`.
+
 ## [0.4.0] - 2026-10-14
 
 ### Added

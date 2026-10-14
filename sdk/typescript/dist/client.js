@@ -28,6 +28,7 @@ export class SheetLicenseClient {
   constructor(options = {}) {
     this.baseUrl = (options.baseUrl || 'http://127.0.0.1:9082').replace(/\/+$/, '');
     this.secretKey = options.secretKey;
+    this.tenantId = options.tenantId;
     this.timeoutMs = options.timeoutMs || 10000;
   }
 
@@ -52,8 +53,12 @@ export class SheetLicenseClient {
 
     const headers = {
       Accept: 'application/json',
-      'User-Agent': 'SheetLicenseClient-TS/0.4.0',
+      'User-Agent': 'SheetLicenseClient-TS/0.5.0',
     };
+
+    if (this.tenantId) {
+      headers['X-Tenant-ID'] = this.tenantId;
+    }
 
     if (payload !== undefined) {
       headers['Content-Type'] = 'application/json';

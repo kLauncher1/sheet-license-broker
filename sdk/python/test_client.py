@@ -68,6 +68,7 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                     "valid": True,
                     "message": "License active and valid",
                     "license": {"key": key, "hwid": hwid, "status": "active"},
+                    "tenant_id": self.headers.get("X-Tenant-ID", "")
                 }).encode())
             elif key == "EXPIRED-KEY-999":
                 self.send_response(401)
@@ -162,6 +163,12 @@ class TestSheetLicenseClient(unittest.TestCase):
         client = SheetLicenseClient(self.base_url)
         res = client.put_doc("configs", "app_conf", {"theme": "dark"})
         self.assertTrue(res.get("success"))
+
+    def test_tenant_header(self):
+        client = SheetLicenseClient(self.base_url, tenant_id="tenant-acme")
+        res = client.verify_license("VALID-KEY-123")
+        self.assertTrue(res.get("valid"))
+        self.assertEqual(res.get("tenant_id"), "tenant-acme")
 
 
 if __name__ == "__main__":

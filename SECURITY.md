@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.5.x   | :white_check_mark: |
 | 0.4.x   | :white_check_mark: |
 | 0.3.x   | :white_check_mark: |
 | 0.2.x   | :white_check_mark: |
@@ -16,25 +17,38 @@
 1. **HMAC-SHA256 Anti-Tamper Verification**:
    - For desktop and client applications, configure `HMAC_SECRET` and enable `HMAC_ENFORCE=true` in production environments.
    - All client requests must include valid `X-Signature`, `X-Timestamp`, and `X-Nonce` headers computed over the canonical request method, path, timestamp, nonce, and request body hash.
-   - Signatures are compared using constant-time evaluation (`hmac.Equal`) to mitigate timing side-channel attacks.
+   - Signatures are compared using constant-time evaluation (`hmac.Equal` in Go / `timingSafeEqual` in Edge Worker) to mitigate timing side-channel attacks.
 
 2. **Nonce Replay Attack Mitigation**:
    - The broker enforces a sliding 5-minute clock drift window. Requests older than 5 minutes or in the far future are discarded.
-   - Used nonces are cached in-memory and rejected if submitted a second time within the active time window.
+   - Used nonces are cached in-memory (or Cloudflare Edge KV) and rejected if submitted a second time within the active time window.
 
-3. **Remote Revocation & Device Blacklisting**:
+3. **Multi-Tenant Namespace Isolation**:
+   - Applications and customers can be sandboxed into distinct namespaces (`PREFIX-LIC-XXXX-YYYY`).
+   - Tenant boundaries prevent cross-tenant key enumeration and isolate webhook configurations and HMAC secrets.
+
+4. **AES-256-GCM Encrypted Backup & Integrity Checksums**:
+   - Point-in-time database snapshots are cryptographically sealed with authenticated AES-256-GCM encryption and unique 12-byte initialization vectors (IV).
+   - Tamper-evident SHA-256 digests ensure snapshot integrity before restoration.
+
+5. **Webhook Delivery Signatures**:
+   - Asynchronous lifecycle event dispatches (e.g. `license.created`, `license.revoked`, `device.banned`) include cryptographically signed `X-Broker-Signature` headers (`sha256=<hex>`).
+   - Receivers can verify signatures using constant-time evaluation (`VerifyPayloadSignature`).
+
+6. **Remote Revocation & Device Blacklisting**:
    - The `Blacklist` tab in Google Sheets acts as an instant remote kill switch.
    - Banned machine hardware IDs (HWID) and revoked license keys are blocked immediately across local memory cache and remote queries.
    - All verification failures and administrative actions are logged in the `Audit_Logs` sheet for forensics.
 
-4. **Google Apps Script Access Control**:
+7. **Google Apps Script Access Control**:
    - Always deploy your Google Apps Script Web App with execution set to `"Execute as: Me"` and access set to `"Who has access: Anyone"` if public client validation is required.
    - For administrative operations, configure an `ADMIN_TOKEN` secret in script properties.
 
-5. **Password & Credential Security**:
+8. **Password & Credential Security**:
    - Passwords are never stored in plaintext. They are salted with high-entropy unique salts and hashed using SHA-256 before being written to the `Users` tab.
+   - Hash comparisons use constant-time comparison to prevent side-channel timing leaks.
 
-6. **Secrets & Environment Variables**:
+9. **Secrets & Environment Variables**:
    - Never commit Google Sheet IDs, Apps Script deployment IDs, HMAC secrets, or GitHub tokens to public repositories.
 
 ## Reporting a Vulnerability

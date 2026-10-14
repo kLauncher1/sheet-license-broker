@@ -6,8 +6,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.4.0-emerald.svg" alt="Version: v0.4.0">
+  <img src="https://img.shields.io/badge/version-v0.5.0-emerald.svg" alt="Version: v0.5.0">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
+  <img src="https://img.shields.io/badge/cloudflare-edge%20worker-F38020.svg" alt="Cloudflare Workers">
   <img src="https://img.shields.io/badge/google--apps--script-deployed-34A853.svg" alt="Google Apps Script">
   <img src="https://img.shields.io/badge/hosting-0%24%2Fmo-10B981.svg" alt="Hosting Cost">
 </p>
@@ -18,15 +19,19 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, multi-tenant namespacing, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Multi-Tenant Namespacing**: Isolate distinct products and tenants with custom prefixes (e.g., `ACME-LIC-XXXX-YYYY`) and independent policies.
+- **Cloudflare Edge Gateway**: Sub-millisecond edge license verification via Cloudflare Workers and Workers KV with Web Crypto API.
 - **Human-Readable Admin Panel**: Your Google Sheet is your database. View, edit, ban, or grant licenses directly in real-time.
 - **Hardware-Locked Protection (HWID)**: Locks license keys to specific machine hardware IDs on first boot.
 - **Cryptographic HMAC-SHA256 Anti-Tamper**: Protects incoming client traffic against MITM inspection and reverse-engineered payload spoofing.
 - **Sliding-Window Nonce Replay Mitigation**: Prevents request replay attacks with a 5-minute time-drift tolerance window.
 - **Instant Remote Revocation & Device Blacklisting**: Kill licenses or ban compromised hardware IDs directly from the web console or Google Sheets tab.
+- **Automated Backup & Disaster Recovery**: Point-in-time state export and restore protected with SHA-256 data checksums and AES-256-GCM encryption.
+- **Real-Time Lifecycle Webhooks**: Event dispatchers with worker queues and HMAC-signed webhook delivery to tenant and global endpoints.
 - **Salted SHA-256 Authentication**: Passwords are cryptographically salted and hashed before persistence.
 - **Resilient Local Caching & Offline Grace**: Memory-cached licenses and KV documents protect against Google API rate limits (HTTP 429) and network blips.
 - **Embedded Web Dashboard**: Self-contained single binary (`sheet-license-broker.exe`) with an emerald-dark management console.
@@ -273,6 +278,75 @@ GET /api/docs
 ```
 
 ---
+
+### Multi-Tenant Namespaces
+
+#### Register Tenant
+```http
+POST /api/tenants/register
+Content-Type: application/json
+
+{
+  "id": "tenant-gamehub",
+  "name": "GameHub Studio",
+  "namespace_prefix": "GHUB",
+  "max_licenses": 100,
+  "webhook_url": "https://api.gamehub.com/webhooks"
+}
+```
+
+#### Issue Tenant-Namespaced License
+```http
+POST /api/licenses
+Content-Type: application/json
+X-Tenant-ID: tenant-gamehub
+
+{
+  "days": 60,
+  "max_devices": 2
+}
+```
+*Generates formatted keys conforming to `GHUB-LIC-XXXX-YYYY`.*
+
+---
+
+### Automated Backup & Disaster Recovery
+
+#### Export Encrypted Backup (AES-256-GCM + SHA-256 Integrity)
+```http
+POST /api/backup/export
+Content-Type: application/json
+
+{
+  "secret_key": "your-backup-master-passphrase"
+}
+```
+
+#### Restore From Snapshot
+```http
+POST /api/backup/restore
+Content-Type: application/json
+
+{
+  "secret_key": "your-backup-master-passphrase",
+  "encrypted_payload": "<hex-encoded-ciphertext>"
+}
+```
+
+---
+
+## ⚡ Cloudflare Edge Gateway
+
+For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
+
+```bash
+cd edge/cloudflare
+wrangler deploy
+```
+
+- **Sub-10ms POP Verification**: Checks valid licenses directly from Cloudflare Workers KV cache.
+- **Hardware Web Crypto**: Edge HMAC-SHA256 signature and replay prevention before hitting origin.
+- **Automated Origin Fallback**: Uncached queries, key binds, and revocations transparently proxy to the origin server.
 
 ---
 
