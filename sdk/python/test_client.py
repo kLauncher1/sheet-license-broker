@@ -44,6 +44,26 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 ]
             }).encode())
             return
+        if self.path == "/api/consensus/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "node_id": "py-node-1",
+                "role": "leader",
+                "current_term": 1,
+                "has_quorum": True
+            }).encode())
+            return
+        if self.path == "/api/consensus/peers":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "peers": [{"id": "peer-py-2", "active": True}]
+            }).encode())
+            return
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -319,6 +339,17 @@ class TestSheetLicenseClient(unittest.TestCase):
             client._request("POST", "/api/test/ratelimit")
         self.assertEqual(cm.exception.status_code, 429)
         self.assertEqual(cm.exception.retry_after, 15)
+
+    def test_cluster_consensus(self):
+        client = SheetLicenseClient(self.base_url)
+        status = client.get_cluster_status()
+        self.assertEqual(status.get("node_id"), "py-node-1")
+        self.assertEqual(status.get("role"), "leader")
+        self.assertTrue(status.get("has_quorum"))
+
+        peers = client.get_cluster_peers()
+        self.assertEqual(len(peers), 1)
+        self.assertEqual(peers[0].get("id"), "peer-py-2")
 
 
 if __name__ == "__main__":

@@ -267,4 +267,13 @@ export class SheetLicenseClient {
     const res = await this.request('POST', '/api/security/audit/export', payload);
     return res.bundle;
   }
+
+  async getClusterStatus() {
+    return this.request('GET', '/api/consensus/status');
+  }
+
+  async getClusterPeers() {
+    const res = await this.request('GET', '/api/consensus/peers');
+    return res.peers || [];
+  }
 }

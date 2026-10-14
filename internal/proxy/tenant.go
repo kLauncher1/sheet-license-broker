@@ -211,4 +211,10 @@ func (p *Proxy) Close() {
 	if p.dispatcher != nil {
 		p.dispatcher.Close()
 	}
+	if p.consensusEngine != nil {
+		p.consensusEngine.Close()
+	}
+	if p.p2pMesh != nil {
+		p.p2pMesh.Close()
+	}
 }

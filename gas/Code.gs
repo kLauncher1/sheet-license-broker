@@ -14,6 +14,7 @@ const SHEET_TENANTS = 'Tenants';
 const SHEET_USAGE = 'Usage_Metering';
 const SHEET_FEATURE_FLAGS = 'FeatureFlags';
 const SHEET_ATTESTATIONS = 'Attestations';
+const SHEET_CONSENSUS_NODES = 'ConsensusNodes';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -110,6 +111,12 @@ function handleRequest(e, method) {
       case 'audit_log_list':
         return handleAuditLogList(output, payload);
 
+      case 'consensus_node_heartbeat':
+        return handleConsensusNodeHeartbeat(output, payload);
+
+      case 'consensus_node_list':
+        return handleConsensusNodeList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -129,7 +136,8 @@ function initSheets() {
     { name: SHEET_TENANTS, cols: ['tenant_id', 'name', 'prefix', 'hmac_secret', 'max_licenses', 'webhook_url', 'is_active', 'created_at'] },
     { name: SHEET_USAGE, cols: ['key', 'metric', 'period', 'count', 'limit', 'updated_at'] },
     { name: SHEET_FEATURE_FLAGS, cols: ['feature_key', 'name', 'default_tiers', 'description', 'created_at'] },
-    { name: SHEET_ATTESTATIONS, cols: ['timestamp', 'license_key', 'hwid', 'attestation_type', 'trust_level', 'pcr_digest', 'tamper_score', 'details'] }
+    { name: SHEET_ATTESTATIONS, cols: ['timestamp', 'license_key', 'hwid', 'attestation_type', 'trust_level', 'pcr_digest', 'tamper_score', 'details'] },
+    { name: SHEET_CONSENSUS_NODES, cols: ['node_id', 'address', 'region', 'role', 'term', 'last_seen', 'has_quorum', 'merkle_digest'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -665,6 +673,66 @@ function handleAuditLogList(output, payload) {
   }
 
   return jsonResponse(output, { status: 'success', records: records, count: records.length });
+}
+
+function handleConsensusNodeHeartbeat(output, payload) {
+  const nodeId = String(payload.node_id || '').trim();
+  const address = String(payload.address || '').trim();
+  const region = String(payload.region || 'default').trim();
+  const role = String(payload.role || 'follower').trim();
+  const term = Number(payload.term || 0);
+  const hasQuorum = payload.has_quorum === true;
+  const digest = String(payload.merkle_digest || '').trim();
+  const now = new Date().toISOString();
+
+  if (!nodeId) {
+    return jsonResponse(output, { status: 'error', message: 'node_id is required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_CONSENSUS_NODES);
+  if (!sheet) {
+    return jsonResponse(output, { status: 'error', message: 'ConsensusNodes sheet not found' });
+  }
+
+  const data = sheet.getDataRange().getValues();
+  let foundRow = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === nodeId) {
+      foundRow = i + 1;
+      break;
+    }
+  }
+
+  if (foundRow > 0) {
+    sheet.getRange(foundRow, 2, 1, 7).setValues([[address, region, role, term, now, hasQuorum, digest]]);
+  } else {
+    sheet.appendRow([nodeId, address, region, role, term, now, hasQuorum, digest]);
+  }
+
+  return jsonResponse(output, { status: 'success', node_id: nodeId, updated_at: now });
+}
+
+function handleConsensusNodeList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_CONSENSUS_NODES);
+  const data = sheet ? sheet.getDataRange().getValues() : [];
+  const nodes = [];
+
+  for (let i = 1; i < data.length; i++) {
+    nodes.push({
+      node_id: data[i][0],
+      address: data[i][1],
+      region: data[i][2],
+      role: data[i][3],
+      term: data[i][4],
+      last_seen: data[i][5],
+      has_quorum: data[i][6],
+      merkle_digest: data[i][7]
+    });
+  }
+
+  return jsonResponse(output, { status: 'success', nodes: nodes, count: nodes.length });
 }
 
 function jsonResponse(output, data) {

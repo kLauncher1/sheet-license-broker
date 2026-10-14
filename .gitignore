@@ -17,6 +17,7 @@ node_modules/
 vendor/
 
 # Internal development files & logs
+.agents/
 dev_logs/
 logs/
 *.log

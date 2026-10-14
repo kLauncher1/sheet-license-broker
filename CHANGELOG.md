@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-10-14
+
+### Added
+- Raft-like distributed quorum consensus engine (`internal/consensus/types.go`, `internal/consensus/raft.go`, `internal/consensus/election.go`, `internal/consensus/consensus_test.go`) supporting candidate, follower, and leader roles, term management, randomized election backoffs, majority quorum voting, and cryptographically chained append-entries log replication with SHA-256 integrity verification.
+- Conflict-free Replicated Data Type (CRDT) document synchronization engine (`internal/consensus/crdt.go`) featuring Last-Write-Wins Element Sets (LWW-Element-Set) with a strict revocation-wins invariant on equal timestamps (`removeTime >= addTime`), Positive-Negative Counters (PN-Counters), and deterministic SHA-256 Merkle tree state digests for anti-entropy sync.
+- Peer-to-peer gossip heartbeat mesh (`internal/consensus/mesh.go`) enabling dynamic peer discovery, node health probing, periodic gossip state exchange, automated partition healing, and HTTP RPC transport.
+- Dedicated consensus HTTP routing layer (`routes_consensus.go`, `routes_consensus_test.go`) exposing `GET /api/consensus/status`, `GET /api/consensus/peers`, `POST /api/consensus/peers/join`, `POST /api/consensus/raft/vote`, `POST /api/consensus/raft/append`, `POST /api/consensus/crdt/sync`, and `POST /api/consensus/sync/trigger`.
+- Proxy layer consensus coordination (`internal/proxy/consensus.go`, `internal/proxy/consensus_test.go`) binding the distributed consensus cluster, routing cluster state telemetry, and automating CRDT-driven cache invalidation across broker nodes.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and heartbeat synchronization for the `ConsensusNodes` sheet, with `consensus_node_heartbeat` and `consensus_node_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go`), Python (`sdk/python`), TypeScript / Node.js (`sdk/typescript`), and C# (`sdk/csharp`) adding `GetClusterStatus` and `GetClusterPeers` methods with end-to-end unit test verification.
+- Embedded administration dashboard update (`web/dist/index.html`) featuring an interactive "Distributed Cluster" tab with real-time cluster quorum metrics, peer node topology table, SHA-256 Merkle tree state digest monitor, peer join dialog, and manual anti-entropy sync triggers.
+- Version bump to 1.0.0 across core binary, manifests, documentation, and client libraries.
+
 ## [0.9.0] - 2026-10-14
 
 ### Added

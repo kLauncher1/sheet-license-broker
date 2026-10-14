@@ -11,6 +11,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/attestation"
 	"github.com/kLauncher1/sheet-license-broker/internal/audit"
 	"github.com/kLauncher1/sheet-license-broker/internal/auth"
+	"github.com/kLauncher1/sheet-license-broker/internal/consensus"
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
@@ -40,6 +41,10 @@ type ProxyConfig struct {
 	DiscordAlertURL  string
 	SlackAlertURL    string
 	AutoFailover     bool
+	NodeID           string
+	ClusterRegion    string
+	ClusterAddress   string
+	ClusterPeers     []string
 }
 
 // VerifyResult captures the unified result of a license check.
@@ -83,6 +88,9 @@ type Proxy struct {
 	rateLimiter        *ratelimit.Limiter
 	reputationTracker  *ratelimit.ReputationTracker
 	auditCollector     *audit.Collector
+	crdtStore          *consensus.CRDTStore
+	consensusEngine    *consensus.ConsensusEngine
+	p2pMesh            *consensus.P2PMesh
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -117,6 +125,8 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 		discordAlertURL:   strings.TrimSpace(cfg.DiscordAlertURL),
 		slackAlertURL:     strings.TrimSpace(cfg.SlackAlertURL),
 	}
+
+	p.initConsensus(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

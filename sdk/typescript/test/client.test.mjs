@@ -173,6 +173,26 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/consensus/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            node_id: 'ts-node-1',
+            role: 'leader',
+            current_term: 2,
+            has_quorum: true
+          }));
+          return;
+        }
+
+        if (req.url === '/api/consensus/peers' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            peers: [{ id: 'peer-ts-2', active: true }]
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -301,5 +321,17 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
         return true;
       }
     );
+  });
+
+  it('queries cluster consensus status and active peers', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const status = await client.getClusterStatus();
+    assert.strictEqual(status.node_id, 'ts-node-1');
+    assert.strictEqual(status.role, 'leader');
+    assert.strictEqual(status.has_quorum, true);
+
+    const peers = await client.getClusterPeers();
+    assert.strictEqual(peers.length, 1);
+    assert.strictEqual(peers[0].id, 'peer-ts-2');
   });
 });

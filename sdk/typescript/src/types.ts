@@ -156,3 +156,31 @@ export interface AuditExportResponse {
   bundle: EncryptedAuditBundle;
 }
 
+export interface ClusterPeer {
+  id: string;
+  address: string;
+  region?: string;
+  role?: string;
+  active: boolean;
+  latency_ms?: number;
+}
+
+export interface ClusterStatusResponse {
+  node_id: string;
+  region: string;
+  role: string;
+  current_term: number;
+  leader_id: string;
+  has_quorum: boolean;
+  quorum_size: number;
+  active_peers: number;
+  merkle_digest: string;
+  peers?: ClusterPeer[];
+}
+
+export interface ClusterPeersResponse {
+  status: string;
+  peers: ClusterPeer[];
+}
+
+

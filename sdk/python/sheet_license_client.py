@@ -356,6 +356,16 @@ class SheetLicenseClient:
         res = self._request("POST", "/api/security/audit/export", payload)
         return res.get("bundle", {})
 
+    def get_cluster_status(self) -> Dict[str, Any]:
+        """Queries the broker's distributed Raft role, quorum health, and cluster topology."""
+        return self._request("GET", "/api/consensus/status")
+
+    def get_cluster_peers(self) -> list:
+        """Retrieves active peer nodes in the consensus mesh."""
+        res = self._request("GET", "/api/consensus/peers")
+        return res.get("peers", [])
+
+
 
 if __name__ == "__main__":
     import sys

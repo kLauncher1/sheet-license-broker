@@ -340,3 +340,25 @@ func (c *Client) ExportAuditToken(ctx context.Context, secretKey string, limit i
 	}
 	return res.Bundle, nil
 }
+
+// GetClusterStatus queries the broker's distributed Raft role and quorum health.
+func (c *Client) GetClusterStatus(ctx context.Context) (map[string]interface{}, error) {
+	var status map[string]interface{}
+	if err := c.request(ctx, http.MethodGet, "/api/consensus/status", nil, &status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
+// GetClusterPeers returns the list of active peer nodes in the consensus mesh.
+func (c *Client) GetClusterPeers(ctx context.Context) ([]map[string]interface{}, error) {
+	var res struct {
+		Status string                   `json:"status"`
+		Peers  []map[string]interface{} `json:"peers"`
+	}
+	if err := c.request(ctx, http.MethodGet, "/api/consensus/peers", nil, &res); err != nil {
+		return nil, err
+	}
+	return res.Peers, nil
+}
+

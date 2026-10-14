@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
 | 0.9.x   | :white_check_mark: |
 | 0.8.x   | :white_check_mark: |
 | 0.7.x   | :white_check_mark: |
@@ -80,6 +81,11 @@
 15. **Encrypted Audit Token Export for Enterprise SIEM Compliance**:
     - Compliance audit trails can be exported in an AES-256-GCM authenticated encrypted container with HMAC-SHA256 integrity validation.
     - Export bundles protect audit records from transit inspection or tampering during ingestion into enterprise SIEM pipelines (Splunk, Datadog, Elastic, AWS CloudWatch).
+
+16. **Distributed Quorum Consensus & CRDT Revocation Invariants**:
+    - Raft-like cluster communication mandates majority quorum confirmation across nodes before mutating cluster state or committing entries.
+    - In CRDT LWW-Element-Sets, removals strictly take precedence over additions on equal timestamps (`removeTime >= addTime`). This mathematical invariant guarantees that a compromised or revoked license cannot be re-activated or un-revoked during concurrent network partitions or split-brain resolutions.
+    - Anti-entropy state synchronizations exchange SHA-256 Merkle tree state digests to identify out-of-sync partitions without transmitting full datasets unless discrepancies are detected.
 
 ## Reporting a Vulnerability
 
