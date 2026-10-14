@@ -8,6 +8,8 @@
 const SHEET_USERS = 'Users';
 const SHEET_LICENSES = 'Licenses';
 const SHEET_DATABASE = 'KV_Database';
+const SHEET_BLACKLIST = 'Blacklist';
+const SHEET_AUDIT_LOGS = 'Audit_Logs';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -53,6 +55,18 @@ function handleRequest(e, method) {
       case 'verify_license':
         return handleVerifyLicense(output, payload);
 
+      case 'revoke_license':
+        return handleRevokeLicense(output, payload);
+
+      case 'blacklist_add':
+        return handleBlacklistAdd(output, payload);
+
+      case 'blacklist_remove':
+        return handleBlacklistRemove(output, payload);
+
+      case 'blacklist_list':
+        return handleBlacklistList(output, payload);
+
       case 'db_put':
         return handleDBPut(output, payload);
 
@@ -86,6 +100,18 @@ function initSheets() {
     const s = ss.insertSheet(SHEET_DATABASE);
     s.appendRow(['collection', 'doc_id', 'payload_json', 'updated_at']);
     s.getRange(1, 1, 1, 4).setFontWeight('bold');
+  }
+
+  if (!ss.getSheetByName(SHEET_BLACKLIST)) {
+    const s = ss.insertSheet(SHEET_BLACKLIST);
+    s.appendRow(['type', 'target', 'reason', 'created_at']);
+    s.getRange(1, 1, 1, 4).setFontWeight('bold');
+  }
+
+  if (!ss.getSheetByName(SHEET_AUDIT_LOGS)) {
+    const s = ss.insertSheet(SHEET_AUDIT_LOGS);
+    s.appendRow(['timestamp', 'action', 'actor', 'details', 'status']);
+    s.getRange(1, 1, 1, 5).setFontWeight('bold');
   }
 }
 
@@ -156,46 +182,173 @@ function handleCreateLicense(output, payload) {
 }
 
 function handleVerifyLicense(output, payload) {
-  const key = payload.license_key;
-  const hwid = payload.hwid || '';
+  const key = (payload.license_key || '').trim().toUpperCase();
+  const hwid = (payload.hwid || '').trim();
 
   if (!key) {
+    logAudit('verify_license', hwid, 'Missing license key', 'ERROR');
     return jsonResponse(output, { status: 'error', message: 'License key required' });
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. Check Blacklist Sheet
+  const blSheet = ss.getSheetByName(SHEET_BLACKLIST);
+  if (blSheet) {
+    const blData = blSheet.getDataRange().getValues();
+    for (let b = 1; b < blData.length; b++) {
+      const bType = String(blData[b][0]).toLowerCase().trim();
+      const bTarget = String(blData[b][1]).toUpperCase().trim();
+      const bReason = blData[b][2] || 'Blacklisted';
+
+      if (bType === 'license' && bTarget === key) {
+        logAudit('verify_license', hwid, 'Key blacklisted: ' + key, 'REJECTED');
+        return jsonResponse(output, { status: 'error', message: 'License revoked: ' + bReason, blacklisted: true });
+      }
+      if (bType === 'device' && hwid && bTarget === hwid.toUpperCase()) {
+        logAudit('verify_license', hwid, 'Device blacklisted: ' + hwid, 'REJECTED');
+        return jsonResponse(output, { status: 'error', message: 'Device blacklisted: ' + bReason, blacklisted: true });
+      }
+    }
+  }
+
   const sheet = ss.getSheetByName(SHEET_LICENSES);
   const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === key) {
+    if (String(data[i][0]).toUpperCase() === key) {
       const boundHWID = data[i][1];
       const status = data[i][3];
       const expiresAt = new Date(data[i][4]);
 
       if (status !== 'ACTIVE') {
+        logAudit('verify_license', hwid, 'Key status ' + status, 'REJECTED');
         return jsonResponse(output, { status: 'error', message: 'License is ' + status });
       }
       if (new Date() > expiresAt) {
+        logAudit('verify_license', hwid, 'Expired on ' + expiresAt.toISOString(), 'EXPIRED');
         return jsonResponse(output, { status: 'error', message: 'License expired on ' + expiresAt.toISOString() });
       }
 
       // First-time machine bind
       if (!boundHWID && hwid) {
         sheet.getRange(i + 1, 2).setValue(hwid);
+        logAudit('verify_license', hwid, 'Bound to machine for ' + key, 'SUCCESS');
         return jsonResponse(output, { status: 'success', verified: true, hwid_bound: hwid, message: 'License activated and bound to device' });
       }
 
       // Check device match
       if (boundHWID && hwid && boundHWID !== hwid) {
+        logAudit('verify_license', hwid, 'Device mismatch: bound=' + boundHWID, 'REJECTED');
         return jsonResponse(output, { status: 'error', message: 'Device mismatch: bound to another HWID' });
       }
 
+      logAudit('verify_license', hwid, 'Verified ' + key, 'SUCCESS');
       return jsonResponse(output, { status: 'success', verified: true, hwid_bound: boundHWID, expires_at: expiresAt.toISOString() });
     }
   }
 
+  logAudit('verify_license', hwid, 'Invalid key ' + key, 'ERROR');
   return jsonResponse(output, { status: 'error', message: 'Invalid license key' });
+}
+
+function handleRevokeLicense(output, payload) {
+  const key = (payload.license_key || '').toUpperCase().trim();
+  const reason = (payload.reason || 'Revoked by administrator').trim();
+
+  if (!key) {
+    return jsonResponse(output, { status: 'error', message: 'License key required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const licSheet = ss.getSheetByName(SHEET_LICENSES);
+  const data = licSheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toUpperCase() === key) {
+      licSheet.getRange(i + 1, 4).setValue('REVOKED');
+      break;
+    }
+  }
+
+  const blSheet = ss.getSheetByName(SHEET_BLACKLIST);
+  blSheet.appendRow(['license', key, reason, new Date().toISOString()]);
+
+  logAudit('revoke_license', key, reason, 'REVOKED');
+  return jsonResponse(output, { status: 'success', message: 'License successfully revoked', license_key: key });
+}
+
+function handleBlacklistAdd(output, payload) {
+  const type = (payload.type || 'device').toLowerCase().trim();
+  const target = (payload.target || '').trim();
+  const reason = (payload.reason || 'Banned').trim();
+
+  if (!target) {
+    return jsonResponse(output, { status: 'error', message: 'Target identifier required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_BLACKLIST);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === type && String(data[i][1]).toUpperCase() === target.toUpperCase()) {
+      sheet.getRange(i + 1, 3).setValue(reason);
+      logAudit('blacklist_add', target, 'Updated reason: ' + reason, 'SUCCESS');
+      return jsonResponse(output, { status: 'success', message: 'Blacklist entry updated', type: type, target: target });
+    }
+  }
+
+  sheet.appendRow([type, target.toUpperCase(), reason, new Date().toISOString()]);
+  logAudit('blacklist_add', target, 'Added: ' + reason, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', message: 'Target blacklisted', type: type, target: target });
+}
+
+function handleBlacklistRemove(output, payload) {
+  const type = (payload.type || 'device').toLowerCase().trim();
+  const target = (payload.target || '').toUpperCase().trim();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_BLACKLIST);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === type && String(data[i][1]).toUpperCase() === target) {
+      sheet.deleteRow(i + 1);
+      logAudit('blacklist_remove', target, 'Removed from blacklist', 'SUCCESS');
+      return jsonResponse(output, { status: 'success', message: 'Target unblacklisted' });
+    }
+  }
+  return jsonResponse(output, { status: 'error', message: 'Target not found in blacklist' });
+}
+
+function handleBlacklistList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_BLACKLIST);
+  const data = sheet.getDataRange().getValues();
+  const entries = [];
+
+  for (let i = 1; i < data.length; i++) {
+    entries.push({
+      type: data[i][0],
+      target: data[i][1],
+      reason: data[i][2],
+      created_at: data[i][3]
+    });
+  }
+  return jsonResponse(output, { status: 'success', entries: entries });
+}
+
+function logAudit(action, actor, details, status) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_AUDIT_LOGS);
+    if (sheet) {
+      sheet.appendRow([new Date().toISOString(), action, actor || 'system', details || '', status || 'OK']);
+    }
+  } catch (e) {
+    // Non-fatal audit log failure
+  }
 }
 
 function handleDBPut(output, payload) {

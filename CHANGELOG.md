@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-10-14
+
+### Added
+- Cryptographic HMAC-SHA256 request signature verification engine to defeat MITM tampering and reverse-engineered proxy spoofing (`internal/security/guard.go`).
+- Sliding-window nonce replay protection cache with configurable timestamp drift tolerance (default 5 minutes) and capacity bounds (`internal/security/nonce.go`).
+- Remote revocation and device blacklisting subsystem in Google Apps Script and Go core (`internal/license/blacklist.go`, `gas/Code.gs`).
+- Dedicated `Blacklist` and `Audit_Logs` tabs in Google Sheets backend for instant kill-switch propagation and administrative compliance logging.
+- Blacklist synchronization and instant cache invalidation in the unified proxy layer (`internal/proxy/blacklist.go`, `internal/gas/blacklist.go`).
+- New administrative endpoints: `POST /api/licenses/revoke`, `GET/POST /api/security/blacklist`, `POST /api/security/blacklist/remove`, and `GET /api/security/status`.
+- Revocation controls, real-time blacklist management view, and HMAC security indicator in the embedded administration dashboard (`web/dist/index.html`).
+- End-to-end integration test suite verifying health telemetry, signature enforcement, and replay attack rejection (`main_test.go`).
+
 ## [0.2.0] - 2026-10-13
 
 ### Added

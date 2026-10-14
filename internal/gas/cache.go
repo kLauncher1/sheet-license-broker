@@ -129,6 +129,12 @@ func (c *Cache) GetLicense(key string) (*VerifyResponse, bool, bool) {
 	return lic, ok, expired
 }
 
+// DeleteLicense removes a cached license entry immediately.
+func (c *Cache) DeleteLicense(key string) {
+	cacheKey := fmt.Sprintf("lic:%s", key)
+	c.Delete(cacheKey)
+}
+
 // SetDoc caches a KV document.
 func (c *Cache) SetDoc(collection, docID string, doc *DocResponse, ttl time.Duration) {
 	cacheKey := fmt.Sprintf("doc:%s:%s", collection, docID)

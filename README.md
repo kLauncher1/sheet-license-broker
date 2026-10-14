@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.2.0-emerald.svg" alt="Version: v0.2.0">
+  <img src="https://img.shields.io/badge/version-v0.3.0-emerald.svg" alt="Version: v0.3.0">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
   <img src="https://img.shields.io/badge/google--apps--script-deployed-34A853.svg" alt="Google Apps Script">
   <img src="https://img.shields.io/badge/hosting-0%24%2Fmo-10B981.svg" alt="Hosting Cost">
@@ -18,12 +18,15 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
 - **Human-Readable Admin Panel**: Your Google Sheet is your database. View, edit, ban, or grant licenses directly in real-time.
 - **Hardware-Locked Protection (HWID)**: Locks license keys to specific machine hardware IDs on first boot.
+- **Cryptographic HMAC-SHA256 Anti-Tamper**: Protects incoming client traffic against MITM inspection and reverse-engineered payload spoofing.
+- **Sliding-Window Nonce Replay Mitigation**: Prevents request replay attacks with a 5-minute time-drift tolerance window.
+- **Instant Remote Revocation & Device Blacklisting**: Kill licenses or ban compromised hardware IDs directly from the web console or Google Sheets tab.
 - **Salted SHA-256 Authentication**: Passwords are cryptographically salted and hashed before persistence.
 - **Resilient Local Caching & Offline Grace**: Memory-cached licenses and KV documents protect against Google API rate limits (HTTP 429) and network blips.
 - **Embedded Web Dashboard**: Self-contained single binary (`sheet-license-broker.exe`) with an emerald-dark management console.
@@ -34,7 +37,8 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ```mermaid
 flowchart TD
-    Client["Desktop App / CLI / WebApp"] -->|HTTPS REST| Broker["sheet-license-broker (Go Gateway)"]
+    Client["Desktop App / CLI / WebApp"] -->|HTTPS REST + HMAC-SHA256| Guard["Anti-Tamper Security Guard (Nonce Cache)"]
+    Guard --> Broker["sheet-license-broker (Go Gateway)"]
     Broker -->|//go:embed| WebUI["Embedded Admin Console (Port 9082)"]
     Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
     Broker -->|POST Action / JSON| GAS["Google Apps Script Web App (Code.gs)"]
@@ -43,7 +47,9 @@ flowchart TD
     subgraph Google Sheets Database
         Sheets --> Tab1["Tab: Users (Salted Hash Auth)"]
         Sheets --> Tab2["Tab: Licenses (HWID Lock & Expiry)"]
-        Sheets --> Tab3["Tab: KV_Database (NoSQL Store)"]
+        Sheets --> Tab3["Tab: Blacklist (Revocations & Banned HWIDs)"]
+        Sheets --> Tab4["Tab: Audit_Logs (Security Audit Trail)"]
+        Sheets --> Tab5["Tab: KV_Database (NoSQL Store)"]
     end
 ```
 
@@ -206,6 +212,44 @@ Content-Type: application/json
 ```
 
 *Note: If the license is active and unbound, it locks to the submitted `hwid`. Subsequent calls from matching hardware succeed; calls from mismatched hardware are rejected. Responses also indicate whether the result was served from `cache`, `remote_gas`, or `offline_cache`.*
+
+---
+
+### Anti-Tamper & Security
+
+#### HMAC-SHA256 Request Signing
+When `HMAC_ENFORCE=true` (or when `HMAC_SECRET` is configured), clients protect requests from MITM interception using standard headers:
+- `X-Signature`: Hex-encoded HMAC-SHA256 signature calculated over `METHOD\nPATH\nTIMESTAMP\nNONCE\nSHA256(BODY)`.
+- `X-Timestamp`: Current Unix timestamp in seconds (enforces a sliding 5-minute clock drift window).
+- `X-Nonce`: Unique cryptographic nonce string per request (prevents replay attacks).
+
+#### Revoke License Key
+```http
+POST /api/licenses/revoke
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "reason": "Payment refunded"
+}
+```
+
+#### Blacklist Device Hardware ID (HWID)
+```http
+POST /api/security/blacklist
+Content-Type: application/json
+
+{
+  "type": "device",
+  "target": "WIN-B829-94AA-0123",
+  "reason": "Fraudulent key sharing"
+}
+```
+
+#### List Blacklist & Revocation Entries
+```http
+GET /api/security/blacklist
+```
 
 ---
 
