@@ -240,6 +240,7 @@
       <button class="tab-btn active" id="tab-btn-lic" onclick="switchTab('lic')">Licenses</button>
       <button class="tab-btn" id="tab-btn-tenants" onclick="switchTab('tenants')">Multi-Tenant Namespaces</button>
       <button class="tab-btn" id="tab-btn-bl" onclick="switchTab('bl')">Blacklist & Anti-Tamper</button>
+      <button class="tab-btn" id="tab-btn-security" onclick="switchTab('security')">Incidents & Rate Limiting</button>
       <button class="tab-btn" id="tab-btn-features" onclick="switchTab('features')">Features & Metering</button>
       <button class="tab-btn" id="tab-btn-attestation" onclick="switchTab('attestation')">Hardware Attestation</button>
       <button class="tab-btn" id="tab-btn-backup" onclick="switchTab('backup')">Backup & Restore</button>
@@ -480,6 +481,82 @@
 
       <div id="attestation-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab: Incidents & Rate Limiting (M09) -->
+    <div id="panel-security" style="display: none;">
+      <div class="action-bar" style="margin-bottom: 16px;">
+        <button class="btn-action" onclick="imposeBanPrompt()">+ Impose Temporary Ban</button>
+        <button class="btn-action btn-secondary" onclick="exportAuditPrompt()">📦 Export Encrypted Audit Bundle (SIEM)</button>
+        <button class="btn-action btn-secondary" onclick="verifyAuditPrompt()">🔍 Verify & Decrypt Audit Bundle</button>
+        <button class="btn-action btn-secondary" onclick="refreshSecurityTab()">🔄 Refresh Incident Data</button>
+      </div>
+
+      <div class="grid-stats" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Tracked Clients & IPs</div>
+          <div class="card-value" id="val-sec-tracked" style="font-size: 20px; color: var(--accent-blue);">0</div>
+          <div class="card-subtext">Active rate-limit buckets</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Temporary Bans</div>
+          <div class="card-value" id="val-sec-bans" style="font-size: 20px; color: var(--accent-red);">0</div>
+          <div class="card-subtext">Automated threshold restricts</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Reputation Ban Gate</div>
+          <div class="card-value" id="val-sec-threshold" style="font-size: 20px; color: var(--accent-amber);">50 pts</div>
+          <div class="card-subtext">Auto-escalates to kill-switch</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sliding Window</div>
+          <div class="card-value" id="val-sec-window" style="font-size: 20px; color: #10b981;">15 min</div>
+          <div class="card-subtext">Violation decay window</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 14px; font-weight: 600; color: #f8fafc; margin-bottom: 10px;">Active Temporary Restrictions (Banned IPs & HWIDs)</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Target Key</th>
+            <th>Reason & Score</th>
+            <th>Banned At</th>
+            <th>Expires At</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="bans-body">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              No active temporary bans. All clients within rate limits.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="font-size: 14px; font-weight: 600; color: #f8fafc; margin-bottom: 10px;">Live Security Audit Trail (Recent Events)</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Event Type</th>
+            <th>Severity</th>
+            <th>Actor IP</th>
+            <th>Resource / HWID</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="audit-records-body">
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              No security audit events recorded.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div id="security-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -487,7 +564,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'backup', 'ha', 'features', 'attestation'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -496,6 +573,7 @@
       document.getElementById('table-licenses').style.display = tab === 'lic' ? 'table' : 'none';
       document.getElementById('table-tenants').style.display = tab === 'tenants' ? 'table' : 'none';
       document.getElementById('table-blacklist').style.display = tab === 'bl' ? 'table' : 'none';
+      document.getElementById('panel-security').style.display = tab === 'security' ? 'block' : 'none';
       document.getElementById('panel-backup').style.display = tab === 'backup' ? 'block' : 'none';
       document.getElementById('panel-ha').style.display = tab === 'ha' ? 'block' : 'none';
       document.getElementById('panel-features').style.display = tab === 'features' ? 'block' : 'none';
@@ -507,6 +585,7 @@
 
       if (tab === 'bl') refreshBlacklist();
       if (tab === 'tenants') refreshTenants();
+      if (tab === 'security') refreshSecurityTab();
       if (tab === 'ha') refreshHA();
       if (tab === 'features') refreshFeaturesTab();
       if (tab === 'attestation') refreshAttestation();
@@ -1073,6 +1152,131 @@
         refresh();
       } catch (e) {
         out.textContent = 'Telemetry error: ' + e.message;
+      }
+    }
+
+    async function refreshSecurityTab() {
+      try {
+        const [rlRes, repRes, bansRes, auditRes] = await Promise.all([
+          fetch('/api/security/ratelimit/status').then(r => r.json()).catch(() => ({ stats: {} })),
+          fetch('/api/security/reputation').then(r => r.json()).catch(() => ({ summary: {} })),
+          fetch('/api/security/bans').then(r => r.json()).catch(() => ({ bans: [] })),
+          fetch('/api/security/audit/records?limit=50').then(r => r.json()).catch(() => ({ records: [] }))
+        ]);
+
+        const stats = rlRes.stats || {};
+        document.getElementById('val-sec-tracked').textContent = stats.active_tracked_keys || 0;
+        document.getElementById('val-sec-bans').textContent = (bansRes.bans || []).length;
+        document.getElementById('val-sec-threshold').textContent = (repRes.summary?.ban_threshold || 50) + ' pts';
+        document.getElementById('val-sec-window').textContent = (repRes.summary?.window_minutes || 15) + ' min';
+
+        const bansTbody = document.getElementById('bans-body');
+        const bans = bansRes.bans || [];
+        if (bans.length === 0) {
+          bansTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No active temporary bans. All clients within rate limits.</td></tr>';
+        } else {
+          bansTbody.innerHTML = bans.map(b => `
+            <tr>
+              <td style="font-family: monospace; font-weight: 700; color: #f87171;">${b.key}</td>
+              <td style="color: #cbd5e1;">${b.reason} (score: ${b.score})</td>
+              <td style="font-size: 12px; color: #94a3b8;">${new Date(b.banned_at).toLocaleTimeString()}</td>
+              <td style="font-size: 12px; color: #f59e0b;">${new Date(b.expires_at).toLocaleTimeString()}</td>
+              <td>
+                <button class="btn-action btn-secondary btn-sm" onclick="unbanDirect('${b.key}')">Unban</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        const auditTbody = document.getElementById('audit-records-body');
+        const records = auditRes.records || [];
+        if (records.length === 0) {
+          auditTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No security audit events recorded.</td></tr>';
+        } else {
+          auditTbody.innerHTML = records.map(r => {
+            let pillClass = 'pill pill-active';
+            if (r.severity === 'CRITICAL') pillClass = 'pill pill-revoked';
+            else if (r.severity === 'WARNING') pillClass = 'pill pill-banned';
+            return `
+              <tr>
+                <td style="font-size: 12px; color: #94a3b8;">${new Date(r.timestamp).toLocaleTimeString()}</td>
+                <td style="font-family: monospace; font-weight: 600; color: #f8fafc;">${r.event_type}</td>
+                <td><span class="${pillClass}">${r.severity}</span></td>
+                <td style="font-family: monospace; color: #38bdf8;">${r.actor_ip || '-'}</td>
+                <td style="font-family: monospace; color: #94a3b8;">${r.hwid || r.resource || '-'}</td>
+                <td style="color: #cbd5e1; font-size: 12px;">${r.details || '-'}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        console.error('Failed to load security tab data:', e);
+      }
+    }
+
+    async function imposeBanPrompt() {
+      const key = prompt('Enter IP address or HWID to temporarily ban:');
+      if (!key) return;
+      const reason = prompt('Enter restriction reason:', 'Manual rate limit ban') || 'Manual restriction';
+      const mins = parseInt(prompt('Duration in minutes:', '15'), 10) || 15;
+
+      await fetch('/api/security/bans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, reason, duration_minutes: mins })
+      });
+      refreshSecurityTab();
+    }
+
+    async function unbanDirect(key) {
+      if (!confirm(`Lift temporary ban on ${key}?`)) return;
+      await fetch('/api/security/bans/unban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key })
+      });
+      refreshSecurityTab();
+    }
+
+    async function exportAuditPrompt() {
+      const secret = prompt('Enter secret key for AES-256-GCM audit export (leave blank for default):') || '';
+      const limit = parseInt(prompt('Record count limit:', '200'), 10) || 200;
+      const out = document.getElementById('security-output');
+      out.style.display = 'block';
+      out.textContent = 'Generating encrypted audit export bundle...';
+
+      try {
+        const res = await fetch('/api/security/audit/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret_key: secret, limit })
+        }).then(r => r.json());
+
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Export error: ' + e.message;
+      }
+    }
+
+    async function verifyAuditPrompt() {
+      const bundleJson = prompt('Paste encrypted audit bundle JSON:');
+      if (!bundleJson) return;
+      const secret = prompt('Enter secret key used during export (leave blank if default):') || '';
+      const out = document.getElementById('security-output');
+      out.style.display = 'block';
+      out.textContent = 'Decrypting and verifying audit bundle...';
+
+      try {
+        const bundle = JSON.parse(bundleJson.data ? JSON.stringify(bundleJson.data) : bundleJson);
+        const res = await fetch('/api/security/audit/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bundle: bundle.bundle || bundle, secret_key: secret })
+        }).then(r => r.json());
+
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Verification error: ' + e.message;
       }
     }
 

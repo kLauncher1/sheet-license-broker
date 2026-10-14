@@ -180,6 +180,31 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/security/audit/export":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "bundle": {
+                    "bundle_id": "bundle_py_123",
+                    "record_count": 5,
+                    "ciphertext_hex": "11223344"
+                }
+            }).encode())
+            return
+
+        if self.path == "/api/test/ratelimit":
+            self.send_response(429)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Retry-After", "15")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "error": "rate_limit_exceeded",
+                "retry_after": 15
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -279,6 +304,21 @@ class TestSheetLicenseClient(unittest.TestCase):
         self.assertEqual(telem.get("tamper_score"), 0)
         self.assertFalse(telem.get("tampered"))
         self.assertEqual(telem.get("trust_level"), "software_grace")
+
+    def test_audit_export_and_rate_limit(self):
+        client = SheetLicenseClient(self.base_url)
+
+        # 1. Audit export
+        bundle = client.export_audit_token("secret", limit=10)
+        self.assertEqual(bundle.get("bundle_id"), "bundle_py_123")
+        self.assertEqual(bundle.get("record_count"), 5)
+
+        # 2. RateLimitError on 429
+        from sheet_license_client import RateLimitError
+        with self.assertRaises(RateLimitError) as cm:
+            client._request("POST", "/api/test/ratelimit")
+        self.assertEqual(cm.exception.status_code, 429)
+        self.assertEqual(cm.exception.retry_after, 15)
 
 
 if __name__ == "__main__":

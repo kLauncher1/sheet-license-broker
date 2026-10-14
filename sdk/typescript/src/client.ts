@@ -3,8 +3,10 @@ import { getMachineHwid } from './hwid.ts';
 import type {
   AttestationChallengeResponse,
   AttestationVerifyResponse,
+  AuditExportResponse,
   BrokerClientOptions,
   DocumentResponse,
+  EncryptedAuditBundle,
   FeatureCheckResponse,
   HealthResponse,
   LicenseRecord,
@@ -340,6 +342,21 @@ export class SheetLicenseClient {
       hwid: targetHwid.trim(),
       report,
     });
+  }
+
+  /**
+   * Requests an encrypted audit bundle for enterprise compliance auditing pipelines.
+   */
+  public async exportAuditToken(
+    secretKey?: string,
+    limit: number = 500
+  ): Promise<EncryptedAuditBundle> {
+    const payload: Record<string, unknown> = { limit };
+    if (secretKey) {
+      payload.secret_key = secretKey;
+    }
+    const res = await this.request<AuditExportResponse>('POST', '/api/security/audit/export', payload);
+    return res.bundle;
   }
 }
 

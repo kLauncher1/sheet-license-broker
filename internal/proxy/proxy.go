@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/kLauncher1/sheet-license-broker/internal/attestation"
+	"github.com/kLauncher1/sheet-license-broker/internal/audit"
 	"github.com/kLauncher1/sheet-license-broker/internal/auth"
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
+	"github.com/kLauncher1/sheet-license-broker/internal/ratelimit"
 	"github.com/kLauncher1/sheet-license-broker/internal/replication"
 	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
@@ -78,6 +80,9 @@ type Proxy struct {
 	featureManager     *feature.Manager
 	attestationManager *attestation.Manager
 	dispatcher         *webhook.Dispatcher
+	rateLimiter        *ratelimit.Limiter
+	reputationTracker  *ratelimit.ReputationTracker
+	auditCollector     *audit.Collector
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -103,11 +108,14 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 			GlobalWebhookURL: cfg.GlobalWebhookURL,
 			GlobalSecret:     cfg.GlobalSecret,
 		}),
-		offlineMode:     cfg.OfflineMode,
-		cacheTTL:        cacheTTL,
-		startTime:       time.Now(),
-		discordAlertURL: strings.TrimSpace(cfg.DiscordAlertURL),
-		slackAlertURL:   strings.TrimSpace(cfg.SlackAlertURL),
+		rateLimiter:       ratelimit.NewLimiter(ratelimit.DefaultConfig()),
+		reputationTracker: ratelimit.NewReputationTracker(ratelimit.DefaultReputationConfig()),
+		auditCollector:    audit.NewCollector(5000),
+		offlineMode:       cfg.OfflineMode,
+		cacheTTL:          cacheTTL,
+		startTime:         time.Now(),
+		discordAlertURL:   strings.TrimSpace(cfg.DiscordAlertURL),
+		slackAlertURL:     strings.TrimSpace(cfg.SlackAlertURL),
 	}
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)

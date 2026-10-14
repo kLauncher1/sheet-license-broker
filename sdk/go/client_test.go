@@ -222,3 +222,30 @@ func TestGoClientAttestationAndTelemetry(t *testing.T) {
 		t.Fatalf("telemetry report failed: score=%d, tampered=%v, trust=%s, err=%v", score, tampered, trust, err)
 	}
 }
+
+func TestGoClientAuditExport(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/security/audit/export", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"bundle": map[string]interface{}{
+				"bundle_id":      "bundle_999",
+				"record_count":   15,
+				"ciphertext_hex": "abcdef123456",
+			},
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+	bundle, err := client.ExportAuditToken(context.Background(), "test-key", 50)
+	if err != nil {
+		t.Fatalf("expected export to succeed: %v", err)
+	}
+	if bundle["bundle_id"] != "bundle_999" {
+		t.Fatalf("expected bundle_id 'bundle_999', got %v", bundle["bundle_id"])
+	}
+}

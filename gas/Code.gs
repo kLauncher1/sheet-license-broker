@@ -104,6 +104,12 @@ function handleRequest(e, method) {
       case 'attestation_list':
         return handleAttestationList(output, payload);
 
+      case 'audit_log_record':
+        return handleAuditLogRecord(output, payload);
+
+      case 'audit_log_list':
+        return handleAuditLogList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -622,6 +628,39 @@ function handleAttestationList(output, payload) {
       pcr_digest: data[i][5],
       tamper_score: Number(data[i][6]) || 0,
       details: data[i][7]
+    });
+  }
+
+  return jsonResponse(output, { status: 'success', records: records, count: records.length });
+}
+
+function handleAuditLogRecord(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_AUDIT_LOGS);
+  const ts = new Date().toISOString();
+  const action = String(payload.log_action || 'audit_event').trim();
+  const actor = String(payload.actor || 'system').trim();
+  const details = String(payload.details || '').trim();
+  const status = String(payload.log_status || 'INFO').trim().toUpperCase();
+
+  sheet.appendRow([ts, action, actor, details, status]);
+  return jsonResponse(output, { status: 'success', message: 'Audit event recorded', timestamp: ts });
+}
+
+function handleAuditLogList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_AUDIT_LOGS);
+  const data = sheet.getDataRange().getValues();
+  const limit = Math.min(Number(payload.limit) || 100, 500);
+  const records = [];
+
+  for (let i = data.length - 1; i >= 1 && records.length < limit; i--) {
+    records.push({
+      timestamp: data[i][0],
+      action: data[i][1],
+      actor: data[i][2],
+      details: data[i][3],
+      status: data[i][4]
     });
   }
 

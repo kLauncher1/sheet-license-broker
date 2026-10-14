@@ -139,3 +139,20 @@ export interface TelemetryResponse {
   details?: string;
 }
 
+export interface EncryptedAuditBundle {
+  bundle_id: string;
+  version: string;
+  created_at: string;
+  record_count: number;
+  algorithm: string;
+  key_fingerprint: string;
+  nonce_hex: string;
+  ciphertext_hex: string;
+  hmac_signature: string;
+}
+
+export interface AuditExportResponse {
+  status: string;
+  bundle: EncryptedAuditBundle;
+}
+

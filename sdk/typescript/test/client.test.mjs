@@ -7,6 +7,7 @@ import {
   SheetLicenseClient,
   AuthenticationError,
   LicenseValidationError,
+  RateLimitError,
 } from '../dist/index.js';
 
 describe('Sheet License Broker TypeScript Client Tests', () => {
@@ -147,6 +148,31 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/security/audit/export' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            bundle: {
+              bundle_id: 'bundle_ts_123',
+              record_count: 8,
+              ciphertext_hex: 'aabbccdd'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/test/ratelimit' && req.method === 'POST') {
+          res.writeHead(429, {
+            'Content-Type': 'application/json',
+            'Retry-After': '30'
+          });
+          res.end(JSON.stringify({
+            error: 'rate_limit_exceeded',
+            retry_after: 30
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -253,5 +279,27 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     assert.strictEqual(telemRes.tamper_score, 0);
     assert.strictEqual(telemRes.tampered, false);
     assert.strictEqual(telemRes.trust_level, 'software_grace');
+  });
+
+  it('exports encrypted audit token and handles RateLimitError on 429', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    // 1. Audit export
+    const bundle = await client.exportAuditToken('secret-ts-key', 20);
+    assert.strictEqual(bundle.bundle_id, 'bundle_ts_123');
+    assert.strictEqual(bundle.record_count, 8);
+
+    // 2. RateLimitError on 429
+    await assert.rejects(
+      async () => {
+        await client.request('POST', '/api/test/ratelimit');
+      },
+      (err) => {
+        assert.ok(err instanceof RateLimitError);
+        assert.strictEqual(err.statusCode, 429);
+        assert.strictEqual(err.retryAfter, 30);
+        return true;
+      }
+    );
   });
 });

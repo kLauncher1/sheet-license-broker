@@ -6,6 +6,7 @@ export {
   AuthenticationError,
   BrokerError,
   LicenseValidationError,
+  RateLimitError,
   SheetLicenseClient,
 } from './client.js';
 
