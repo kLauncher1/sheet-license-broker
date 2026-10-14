@@ -68,6 +68,16 @@ func (m *Manager) CreateLicense(daysValid, maxDevices int) *License {
 	return lic
 }
 
+// PutLicense registers or updates an existing license record.
+func (m *Manager) PutLicense(lic *License) {
+	if lic == nil || lic.LicenseKey == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.licenses[strings.ToUpper(strings.TrimSpace(lic.LicenseKey))] = lic
+}
+
 // RevokeLicense marks a license as REVOKED and registers it in the blacklist.
 func (m *Manager) RevokeLicense(key, reason string) error {
 	m.mu.Lock()

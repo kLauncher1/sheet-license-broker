@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sheet-License-Broker · Google Sheets Serverless Auth & License Gateway</title>
+  <title>Sheet-License-Broker Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #06110d;
-      --bg-surface: #0c1f17;
-      --bg-surface-elevated: #132e23;
+      --bg-base: #090d16;
+      --bg-surface: #111827;
+      --bg-surface-elevated: #1f2937;
       --border-subtle: rgba(255, 255, 255, 0.08);
       --border-sheets: #10b981;
       --text-main: #f8fafc;
@@ -41,12 +41,13 @@
     }
     .logo-area { display: flex; align-items: center; gap: 12px; }
     .logo-badge {
-      background: linear-gradient(135deg, #059669, #10b981);
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       color: #fff;
+      font-family: 'JetBrains Mono', monospace;
       font-weight: 700;
-      font-size: 13px;
-      padding: 6px 14px;
-      border-radius: 8px;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
       letter-spacing: 0.5px;
     }
     .logo-title { font-size: 20px; font-weight: 700; }
@@ -60,7 +61,7 @@
     }
     .grid-stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px;
       margin-bottom: 28px;
     }
@@ -130,21 +131,30 @@
     .pill-revoked { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
     .pill-banned { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
 
-    .action-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+    .action-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
     .btn-action {
-      background: linear-gradient(135deg, #059669, #10b981);
-      color: #fff;
+      background: var(--accent-green);
+      color: #042f2e;
       border: none;
-      padding: 8px 16px;
+      padding: 9px 18px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
-      border-radius: 8px;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
+    .btn-action:hover { opacity: 0.9; }
     .btn-secondary {
       background: var(--bg-surface-elevated);
-      border: 1px solid rgba(255,255,255,0.1);
       color: var(--text-main);
+      border: 1px solid var(--border-subtle);
     }
     .btn-danger {
       background: rgba(239, 68, 68, 0.2);
@@ -157,13 +167,35 @@
       border-radius: 6px;
       cursor: pointer;
     }
+    .panel-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 28px;
+    }
+    .panel-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: var(--accent-green); }
+    .panel-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; }
+    .output-pre {
+      background: #090d16;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #a7f3d0;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 250px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER</div>
-      <div class="logo-title">Serverless License & Auth Gateway</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v0.5.0</div>
+      <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
       <span class="pulse-dot"></span>
@@ -183,6 +215,11 @@
         <div class="card-subtext">Google Sheets: Licenses Tab</div>
       </div>
       <div class="card">
+        <div class="card-title">Tenants (Namespaces)</div>
+        <div class="card-value" id="val-tenants" style="color: var(--accent-blue);">--</div>
+        <div class="card-subtext">Multi-Tenant Isolation</div>
+      </div>
+      <div class="card">
         <div class="card-title">Blacklist & Revocations</div>
         <div class="card-value" id="val-blacklist" style="color: var(--accent-red);">--</div>
         <div class="card-subtext">Google Sheets: Blacklist Tab</div>
@@ -195,25 +232,23 @@
       <div class="card">
         <div class="card-title">Local Cache Entries</div>
         <div class="card-value" id="val-cache">--</div>
-        <div class="card-subtext">Offline Fallback & Quota Protection</div>
+        <div class="card-subtext">Edge & Quota Protection</div>
       </div>
     </section>
 
     <div class="nav-tabs">
       <button class="tab-btn active" id="tab-btn-lic" onclick="switchTab('lic')">Licenses</button>
+      <button class="tab-btn" id="tab-btn-tenants" onclick="switchTab('tenants')">Multi-Tenant Namespaces</button>
       <button class="tab-btn" id="tab-btn-bl" onclick="switchTab('bl')">Blacklist & Anti-Tamper</button>
+      <button class="tab-btn" id="tab-btn-backup" onclick="switchTab('backup')">Backup & Restore</button>
     </div>
 
+    <!-- Tab 1: Licenses -->
     <div class="action-bar" id="actions-lic">
       <button class="btn-action" onclick="createLicense()">+ Generate License Key</button>
       <button class="btn-action btn-danger" onclick="revokeLicensePrompt()">🚫 Revoke License</button>
       <button class="btn-action btn-secondary" onclick="registerUser()">+ Register New User</button>
       <button class="btn-action btn-secondary" onclick="pingBackend()">⚡ Ping Backend</button>
-    </div>
-
-    <div class="action-bar" id="actions-bl" style="display: none;">
-      <button class="btn-action btn-danger" onclick="blacklistDevicePrompt()">⛔ Blacklist Device HWID</button>
-      <button class="btn-action btn-secondary" onclick="refreshBlacklist()">🔄 Refresh Blacklist</button>
     </div>
 
     <table class="table-box" id="table-licenses">
@@ -236,6 +271,40 @@
       </tbody>
     </table>
 
+    <!-- Tab 2: Multi-Tenant Namespaces -->
+    <div class="action-bar" id="actions-tenants" style="display: none;">
+      <button class="btn-action" onclick="registerTenantPrompt()">+ Register New Tenant</button>
+      <button class="btn-action btn-secondary" onclick="createTenantLicensePrompt()">🔑 Issue Tenant License</button>
+      <button class="btn-action btn-secondary" onclick="refreshTenants()">🔄 Refresh Tenants</button>
+    </div>
+
+    <table class="table-box" id="table-tenants" style="display: none;">
+      <thead>
+        <tr>
+          <th>Tenant ID</th>
+          <th>Name</th>
+          <th>Prefix</th>
+          <th>Max Licenses</th>
+          <th>Webhook Endpoint</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="tenants-body">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+            Loading tenants...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Tab 3: Blacklist -->
+    <div class="action-bar" id="actions-bl" style="display: none;">
+      <button class="btn-action btn-danger" onclick="blacklistDevicePrompt()">⛔ Blacklist Device HWID</button>
+      <button class="btn-action btn-secondary" onclick="refreshBlacklist()">🔄 Refresh Blacklist</button>
+    </div>
+
     <table class="table-box" id="table-blacklist" style="display: none;">
       <thead>
         <tr>
@@ -254,6 +323,20 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Tab 4: Backup & Restore -->
+    <div id="panel-backup" class="panel-box" style="display: none;">
+      <div class="panel-title">Automated Backup & Authenticated Snapshot Engine</div>
+      <div class="panel-desc">
+        Export complete database state (Tenants, Users, Licenses, Blacklist, Documents) protected with SHA-256 data checksums and optional AES-256-GCM authenticated encryption.
+      </div>
+      <div class="action-bar">
+        <button class="btn-action" onclick="exportBackup(true)">🔒 Export Encrypted Snapshot (AES-256-GCM)</button>
+        <button class="btn-action btn-secondary" onclick="exportBackup(false)">📄 Export Plain JSON Snapshot</button>
+        <button class="btn-action btn-danger" onclick="restoreBackupPrompt()">📥 Restore From Snapshot</button>
+      </div>
+      <div id="backup-output" class="output-pre" style="display: none;"></div>
+    </div>
   </main>
 
   <script>
@@ -261,27 +344,39 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      document.getElementById('tab-btn-lic').classList.toggle('active', tab === 'lic');
-      document.getElementById('tab-btn-bl').classList.toggle('active', tab === 'bl');
+      const tabs = ['lic', 'tenants', 'bl', 'backup'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('tab-btn-' + t);
+        if (btn) btn.classList.toggle('active', t === tab);
+      });
+
       document.getElementById('table-licenses').style.display = tab === 'lic' ? 'table' : 'none';
+      document.getElementById('table-tenants').style.display = tab === 'tenants' ? 'table' : 'none';
       document.getElementById('table-blacklist').style.display = tab === 'bl' ? 'table' : 'none';
+      document.getElementById('panel-backup').style.display = tab === 'backup' ? 'block' : 'none';
+
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
+      document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
       document.getElementById('actions-bl').style.display = tab === 'bl' ? 'flex' : 'none';
+
       if (tab === 'bl') refreshBlacklist();
+      if (tab === 'tenants') refreshTenants();
     }
 
     async function refresh() {
       try {
-        const [lics, users, health, blEntries] = await Promise.all([
+        const [lics, users, health, blEntries, tenants] = await Promise.all([
           fetch('/api/licenses').then(r => r.json()),
           fetch('/api/users').then(r => r.json()),
           fetch('/api/health').then(r => r.json()),
-          fetch('/api/security/blacklist').then(r => r.json()).catch(() => [])
+          fetch('/api/security/blacklist').then(r => r.json()).catch(() => []),
+          fetch('/api/tenants').then(r => r.json()).catch(() => [])
         ]);
 
-        document.getElementById('val-licenses').textContent = lics.length;
-        document.getElementById('val-users').textContent = users.length;
+        document.getElementById('val-licenses').textContent = Array.isArray(lics) ? lics.length : 0;
+        document.getElementById('val-users').textContent = Array.isArray(users) ? users.length : 0;
         document.getElementById('val-blacklist').textContent = Array.isArray(blEntries) ? blEntries.length : 0;
+        document.getElementById('val-tenants').textContent = Array.isArray(tenants) ? tenants.length : 0;
 
         if (health && health.proxy) {
           const p = health.proxy;
@@ -295,7 +390,7 @@
         }
 
         const tbody = document.getElementById('licenses-body');
-        if (lics.length === 0) {
+        if (!Array.isArray(lics) || lics.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#94a3b8;">No licenses found. Click "+ Generate License Key" to issue one.</td></tr>';
         } else {
           tbody.innerHTML = lics.map(l => {
@@ -317,8 +412,134 @@
         }
 
         if (currentTab === 'bl') renderBlacklist(blEntries);
+        if (currentTab === 'tenants') renderTenants(tenants);
       } catch (err) {
         console.error('Failed to load telemetry:', err);
+      }
+    }
+
+    async function refreshTenants() {
+      try {
+        const tenants = await fetch('/api/tenants').then(r => r.json());
+        renderTenants(tenants);
+      } catch (e) {
+        console.error('Failed to load tenants:', e);
+      }
+    }
+
+    function renderTenants(tenants) {
+      const tbody = document.getElementById('tenants-body');
+      if (!Array.isArray(tenants) || tenants.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#94a3b8;">No tenants registered.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = tenants.map(t => `
+        <tr>
+          <td style="font-family: monospace; font-weight:700; color:#38bdf8;">${t.id}</td>
+          <td>${t.name}</td>
+          <td><span class="pill pill-active" style="font-family: monospace;">${t.namespace_prefix}</span></td>
+          <td>${t.max_licenses > 0 ? t.max_licenses : 'Unlimited'}</td>
+          <td style="font-size:12px; color:#94a3b8;">${t.webhook_url || '<None>'}</td>
+          <td><span class="pill ${t.is_active ? 'pill-active' : 'pill-revoked'}">${t.is_active ? 'ACTIVE' : 'INACTIVE'}</span></td>
+          <td>
+            <button class="btn-action btn-secondary btn-sm" onclick="createTenantLicenseDirect('${t.id}')">Issue Key</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function registerTenantPrompt() {
+      const id = prompt('Enter unique Tenant ID (e.g., tenant-acme):');
+      if (!id) return;
+      const name = prompt('Enter Tenant Name:', 'Acme Corp') || id;
+      const prefix = prompt('Enter 2-8 char Namespace Prefix (e.g., ACME):', 'ACME');
+      if (!prefix) return;
+      const webhook = prompt('Enter Webhook URL (optional):', '') || '';
+
+      await fetch('/api/tenants/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, namespace_prefix: prefix, webhook_url: webhook, is_active: true })
+      });
+      refresh();
+    }
+
+    async function createTenantLicenseDirect(tenantId) {
+      const days = prompt(`Issue license for tenant ${tenantId}. Enter duration in days:`, '30');
+      if (!days) return;
+      await fetch('/api/licenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: tenantId, days: Number(days), max_devices: 1 })
+      });
+      refresh();
+    }
+
+    async function createTenantLicensePrompt() {
+      const tenantId = prompt('Enter Tenant ID:');
+      if (!tenantId) return;
+      createTenantLicenseDirect(tenantId);
+    }
+
+    async function exportBackup(encrypt) {
+      const out = document.getElementById('backup-output');
+      out.style.display = 'block';
+      out.textContent = 'Generating backup snapshot...';
+
+      let secretKey = '';
+      if (encrypt) {
+        secretKey = prompt('Enter secret passphrase for AES-256-GCM encryption:', 'master-secret-key') || '';
+        if (!secretKey) {
+          out.textContent = 'Export cancelled: Secret passphrase required for encrypted export.';
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch('/api/backup/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret_key: secretKey })
+        }).then(r => r.json());
+
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Export error: ' + e.message;
+      }
+    }
+
+    async function restoreBackupPrompt() {
+      const payloadStr = prompt('Paste snapshot JSON or encrypted hex payload:');
+      if (!payloadStr) return;
+      const secret = prompt('Enter decryption secret key (leave blank if plain JSON):') || '';
+
+      const out = document.getElementById('backup-output');
+      out.style.display = 'block';
+      out.textContent = 'Restoring snapshot...';
+
+      let bodyObj = { secret_key: secret };
+      try {
+        const parsed = JSON.parse(payloadStr);
+        if (parsed.data) {
+          bodyObj.snapshot = parsed;
+        } else if (parsed.encrypted_payload) {
+          bodyObj.encrypted_payload = parsed.encrypted_payload;
+        }
+      } catch (e) {
+        bodyObj.encrypted_payload = payloadStr.trim();
+      }
+
+      try {
+        const res = await fetch('/api/backup/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyObj)
+        }).then(r => r.json());
+
+        out.textContent = JSON.stringify(res, null, 2);
+        refresh();
+      } catch (e) {
+        out.textContent = 'Restore error: ' + e.message;
       }
     }
 

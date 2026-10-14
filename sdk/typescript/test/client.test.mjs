@@ -49,7 +49,8 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
               valid: true,
               message: 'License active',
               source: 'memory',
-              license: { key: payload.license_key, hwid: payload.hwid, status: 'active' }
+              license: { key: payload.license_key, hwid: payload.hwid, status: 'active' },
+              tenant_id: req.headers['x-tenant-id']
             }));
           } else {
             res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -127,5 +128,12 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const res = await client.loginUser('admin', 'pass');
     assert.strictEqual(res.authenticated, true);
     assert.strictEqual(res.username, 'admin');
+  });
+
+  it('sends X-Tenant-ID header when tenantId option is configured', async () => {
+    const client = new SheetLicenseClient({ baseUrl, tenantId: 'tenant-ts-99' });
+    const res = await client.verifyLicense('VALID-KEY-TS');
+    assert.strictEqual(res.valid, true);
+    assert.strictEqual(res.tenant_id, 'tenant-ts-99');
   });
 });

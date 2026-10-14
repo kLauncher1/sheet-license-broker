@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
+	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 )
 
 // BlacklistManager provides access to the underlying local blacklist registry.
@@ -28,6 +29,7 @@ func (p *Proxy) RevokeLicense(ctx context.Context, licenseKey, reason string) er
 			log.Printf("[Proxy] Remote license revocation warning (%v), recorded locally", err)
 		}
 	}
+	p.NotifyLicenseEvent(webhook.EventLicenseRevoked, normKey, "", reason)
 	return nil
 }
 
@@ -42,6 +44,7 @@ func (p *Proxy) BlacklistDevice(ctx context.Context, hwid, reason string) error 
 			log.Printf("[Proxy] Remote device blacklist warning (%v), recorded locally", err)
 		}
 	}
+	p.NotifyLicenseEvent(webhook.EventDeviceBanned, "", normHWID, reason)
 	return nil
 }
 

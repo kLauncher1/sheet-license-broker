@@ -15,6 +15,11 @@ export interface BrokerClientOptions {
   secretKey?: string;
 
   /**
+   * Optional tenant identifier attached via X-Tenant-ID header.
+   */
+  tenantId?: string;
+
+  /**
    * Request timeout in milliseconds. Defaults to 10000 (10 seconds).
    */
   timeoutMs?: number;

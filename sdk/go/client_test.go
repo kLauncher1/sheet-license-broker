@@ -84,3 +84,22 @@ func TestGoClientVerifyLicenseWithHMAC(t *testing.T) {
 		t.Fatalf("expected error for invalid key, got nil")
 	}
 }
+
+func TestGoClientWithTenantHeader(t *testing.T) {
+	var capturedTenant string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTenant = r.Header.Get("X-Tenant-ID")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(ValidationResult{Valid: true})
+	}))
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second).WithTenant("tenant-corp")
+	_, err := client.VerifyLicense(context.Background(), "CORP-LIC-1111-2222", "HWID-1234")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedTenant != "tenant-corp" {
+		t.Errorf("expected X-Tenant-ID header 'tenant-corp', got '%s'", capturedTenant)
+	}
+}

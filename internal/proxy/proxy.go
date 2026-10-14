@@ -12,6 +12,8 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
+	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
+	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 )
 
 var (
@@ -21,9 +23,11 @@ var (
 
 // ProxyConfig defines construction options for the proxy coordinator.
 type ProxyConfig struct {
-	WebAppURL   string
-	OfflineMode bool
-	CacheTTL    time.Duration
+	WebAppURL        string
+	OfflineMode      bool
+	CacheTTL         time.Duration
+	GlobalWebhookURL string
+	GlobalSecret     string
 }
 
 // VerifyResult captures the unified result of a license check.
@@ -51,6 +55,8 @@ type Proxy struct {
 	localAuth    *auth.Manager
 	localLicense *license.Manager
 	localDB      *db.Storage
+	localTenant  *tenant.TenantManager
+	dispatcher   *webhook.Dispatcher
 	offlineMode  bool
 	cacheTTL     time.Duration
 	startTime    time.Time
@@ -69,9 +75,14 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 		localAuth:    auth.NewManager(),
 		localLicense: license.NewManager(),
 		localDB:      db.NewStorage(),
-		offlineMode:  cfg.OfflineMode,
-		cacheTTL:     cacheTTL,
-		startTime:    time.Now(),
+		localTenant:  tenant.NewTenantManager(),
+		dispatcher: webhook.NewDispatcher(webhook.Config{
+			GlobalWebhookURL: cfg.GlobalWebhookURL,
+			GlobalSecret:     cfg.GlobalSecret,
+		}),
+		offlineMode: cfg.OfflineMode,
+		cacheTTL:    cacheTTL,
+		startTime:   time.Now(),
 	}
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)

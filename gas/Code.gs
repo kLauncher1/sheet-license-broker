@@ -1,8 +1,8 @@
 /**
  * Sheet-License-Broker (Google Apps Script Backend)
  * 
- * Provides serverless user authentication, license validation with HWID binding,
- * and key-value database storage using Google Sheets as a free backend.
+ * Provides serverless multi-tenant authentication, license validation with HWID binding,
+ * device blacklisting, automated backup snapshots, and NoSQL key-value storage.
  */
 
 const SHEET_USERS = 'Users';
@@ -10,6 +10,7 @@ const SHEET_LICENSES = 'Licenses';
 const SHEET_DATABASE = 'KV_Database';
 const SHEET_BLACKLIST = 'Blacklist';
 const SHEET_AUDIT_LOGS = 'Audit_Logs';
+const SHEET_TENANTS = 'Tenants';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -58,6 +59,18 @@ function handleRequest(e, method) {
       case 'revoke_license':
         return handleRevokeLicense(output, payload);
 
+      case 'tenant_register':
+        return handleTenantRegister(output, payload);
+
+      case 'tenant_list':
+        return handleTenantList(output, payload);
+
+      case 'backup_export':
+        return handleBackupExport(output, payload);
+
+      case 'backup_restore':
+        return handleBackupRestore(output, payload);
+
       case 'blacklist_add':
         return handleBlacklistAdd(output, payload);
 
@@ -83,36 +96,21 @@ function handleRequest(e, method) {
 
 function initSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  if (!ss.getSheetByName(SHEET_USERS)) {
-    const s = ss.insertSheet(SHEET_USERS);
-    s.appendRow(['user_id', 'username', 'password_hash', 'salt', 'role', 'created_at']);
-    s.getRange(1, 1, 1, 6).setFontWeight('bold');
-  }
-
-  if (!ss.getSheetByName(SHEET_LICENSES)) {
-    const s = ss.insertSheet(SHEET_LICENSES);
-    s.appendRow(['license_key', 'hwid_bound', 'max_devices', 'status', 'expires_at', 'created_at']);
-    s.getRange(1, 1, 1, 6).setFontWeight('bold');
-  }
-
-  if (!ss.getSheetByName(SHEET_DATABASE)) {
-    const s = ss.insertSheet(SHEET_DATABASE);
-    s.appendRow(['collection', 'doc_id', 'payload_json', 'updated_at']);
-    s.getRange(1, 1, 1, 4).setFontWeight('bold');
-  }
-
-  if (!ss.getSheetByName(SHEET_BLACKLIST)) {
-    const s = ss.insertSheet(SHEET_BLACKLIST);
-    s.appendRow(['type', 'target', 'reason', 'created_at']);
-    s.getRange(1, 1, 1, 4).setFontWeight('bold');
-  }
-
-  if (!ss.getSheetByName(SHEET_AUDIT_LOGS)) {
-    const s = ss.insertSheet(SHEET_AUDIT_LOGS);
-    s.appendRow(['timestamp', 'action', 'actor', 'details', 'status']);
-    s.getRange(1, 1, 1, 5).setFontWeight('bold');
-  }
+  const defs = [
+    { name: SHEET_USERS, cols: ['user_id', 'username', 'password_hash', 'salt', 'role', 'created_at'] },
+    { name: SHEET_LICENSES, cols: ['license_key', 'hwid_bound', 'max_devices', 'status', 'expires_at', 'created_at'] },
+    { name: SHEET_DATABASE, cols: ['collection', 'doc_id', 'payload_json', 'updated_at'] },
+    { name: SHEET_BLACKLIST, cols: ['type', 'target', 'reason', 'created_at'] },
+    { name: SHEET_AUDIT_LOGS, cols: ['timestamp', 'action', 'actor', 'details', 'status'] },
+    { name: SHEET_TENANTS, cols: ['tenant_id', 'name', 'prefix', 'hmac_secret', 'max_licenses', 'webhook_url', 'is_active', 'created_at'] }
+  ];
+  defs.forEach(d => {
+    if (!ss.getSheetByName(d.name)) {
+      const s = ss.insertSheet(d.name);
+      s.appendRow(d.cols);
+      s.getRange(1, 1, 1, d.cols.length).setFontWeight('bold');
+    }
+  });
 }
 
 function handleRegister(output, payload) {
@@ -138,12 +136,16 @@ function handleRegister(output, payload) {
   const now = new Date().toISOString();
 
   sheet.appendRow([userId, username, hash, salt, 'user', now]);
+  logAudit('register', username, 'Registered new user ' + username, 'SUCCESS');
   return jsonResponse(output, { status: 'success', user_id: userId, username: username });
 }
 
 function handleLogin(output, payload) {
   const username = payload.username;
   const password = payload.password;
+  if (!username || !password) {
+    return jsonResponse(output, { status: 'error', message: 'Username and password required' });
+  }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_USERS);
@@ -151,23 +153,25 @@ function handleLogin(output, payload) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] === username) {
-      const salt = data[i][3];
       const storedHash = data[i][2];
-      const computedHash = hashString(password + salt);
-
-      if (storedHash === computedHash) {
-        return jsonResponse(output, { status: 'success', user_id: data[i][0], username: username, role: data[i][4] });
-      } else {
-        return jsonResponse(output, { status: 'error', message: 'Invalid credentials' });
+      const salt = data[i][3];
+      if (constantTimeEquals(hashString(password + salt), storedHash)) {
+        logAudit('login', username, 'User logged in', 'SUCCESS');
+        return jsonResponse(output, { status: 'success', authenticated: true, user_id: data[i][0], username: username, role: data[i][4] });
       }
+      logAudit('login', username, 'Failed login password mismatch', 'REJECTED');
+      return jsonResponse(output, { status: 'error', message: 'Invalid credentials' });
     }
   }
 
+  logAudit('login', username, 'Failed login user not found', 'ERROR');
   return jsonResponse(output, { status: 'error', message: 'User not found' });
 }
 
 function handleCreateLicense(output, payload) {
-  const key = payload.license_key || ('KEY-' + Utilities.getUuid().substring(0, 8).toUpperCase());
+  const prefix = (payload.prefix || payload.tenant_prefix || '').trim().toUpperCase();
+  const defaultKey = prefix ? (prefix + '-LIC-' + Utilities.getUuid().substring(0, 8).toUpperCase()) : ('KEY-' + Utilities.getUuid().substring(0, 8).toUpperCase());
+  const key = payload.license_key || defaultKey;
   const maxDevices = payload.max_devices || 1;
   const days = payload.days || 30;
 
@@ -178,6 +182,7 @@ function handleCreateLicense(output, payload) {
   const sheet = ss.getSheetByName(SHEET_LICENSES);
   sheet.appendRow([key, '', maxDevices, 'ACTIVE', expDate.toISOString(), new Date().toISOString()]);
 
+  logAudit('create_license', 'admin', 'Created license ' + key, 'SUCCESS');
   return jsonResponse(output, { status: 'success', license_key: key, expires_at: expDate.toISOString() });
 }
 
@@ -191,8 +196,6 @@ function handleVerifyLicense(output, payload) {
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // 1. Check Blacklist Sheet
   const blSheet = ss.getSheetByName(SHEET_BLACKLIST);
   if (blSheet) {
     const blData = blSheet.getDataRange().getValues();
@@ -230,14 +233,12 @@ function handleVerifyLicense(output, payload) {
         return jsonResponse(output, { status: 'error', message: 'License expired on ' + expiresAt.toISOString() });
       }
 
-      // First-time machine bind
       if (!boundHWID && hwid) {
         sheet.getRange(i + 1, 2).setValue(hwid);
         logAudit('verify_license', hwid, 'Bound to machine for ' + key, 'SUCCESS');
         return jsonResponse(output, { status: 'success', verified: true, hwid_bound: hwid, message: 'License activated and bound to device' });
       }
 
-      // Check device match
       if (boundHWID && hwid && boundHWID !== hwid) {
         logAudit('verify_license', hwid, 'Device mismatch: bound=' + boundHWID, 'REJECTED');
         return jsonResponse(output, { status: 'error', message: 'Device mismatch: bound to another HWID' });
@@ -273,9 +274,88 @@ function handleRevokeLicense(output, payload) {
 
   const blSheet = ss.getSheetByName(SHEET_BLACKLIST);
   blSheet.appendRow(['license', key, reason, new Date().toISOString()]);
-
   logAudit('revoke_license', key, reason, 'REVOKED');
   return jsonResponse(output, { status: 'success', message: 'License successfully revoked', license_key: key });
+}
+
+function handleTenantRegister(output, payload) {
+  const tenantId = (payload.tenant_id || payload.id || '').trim();
+  const prefix = (payload.prefix || payload.namespace_prefix || '').trim().toUpperCase();
+  const name = (payload.name || tenantId).trim();
+  if (!tenantId || !prefix) {
+    return jsonResponse(output, { status: 'error', message: 'tenant_id and prefix required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_TENANTS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === tenantId || data[i][2] === prefix) {
+      return jsonResponse(output, { status: 'error', message: 'Tenant ID or prefix already exists' });
+    }
+  }
+
+  sheet.appendRow([tenantId, name, prefix, payload.hmac_secret || '', payload.max_licenses || 0, payload.webhook_url || '', payload.is_active !== false, new Date().toISOString()]);
+  logAudit('tenant_register', tenantId, 'Registered tenant ' + prefix, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', tenant_id: tenantId, prefix: prefix, name: name });
+}
+
+function handleTenantList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_TENANTS);
+  const data = sheet.getDataRange().getValues();
+  const tenants = [];
+  for (let i = 1; i < data.length; i++) {
+    tenants.push({ id: data[i][0], name: data[i][1], namespace_prefix: data[i][2], hmac_secret: data[i][3], max_licenses: Number(data[i][4]) || 0, webhook_url: data[i][5], is_active: data[i][6] === true, created_at: data[i][7] });
+  }
+  return jsonResponse(output, { status: 'success', tenants: tenants });
+}
+
+function handleBackupExport(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const getData = (name) => {
+    const s = ss.getSheetByName(name);
+    return s ? s.getDataRange().getValues() : [];
+  };
+
+  const parseRows = (name, mapper) => {
+    const rows = getData(name);
+    const res = [];
+    for (let i = 1; i < rows.length; i++) res.push(mapper(rows[i]));
+    return res;
+  };
+
+  const users = parseRows(SHEET_USERS, r => ({ user_id: r[0], username: r[1], role: r[4], created_at: r[5] }));
+  const licenses = parseRows(SHEET_LICENSES, r => ({ license_key: r[0], bound_hwid: r[1], max_devices: Number(r[2]) || 1, status: r[3], expires_at: r[4], created_at: r[5] }));
+  const tenants = parseRows(SHEET_TENANTS, r => ({ id: r[0], name: r[1], namespace_prefix: r[2], max_licenses: Number(r[4]) || 0, webhook_url: r[5], is_active: r[6] === true, created_at: r[7] }));
+  const blacklist = parseRows(SHEET_BLACKLIST, r => ({ type: r[0], target: r[1], reason: r[2], created_at: r[3] }));
+  const documents = parseRows(SHEET_DATABASE, r => ({ collection: r[0], doc_id: r[1], payload: String(r[2]), updated_at: r[3] }));
+
+  const data = { users, licenses, tenants, blacklist, documents };
+  const checksum = hashString(JSON.stringify(data));
+  logAudit('backup_export', 'system', 'Exported snapshot ' + checksum.substring(0, 8), 'SUCCESS');
+  return jsonResponse(output, { status: 'success', version: '1.0', timestamp: new Date().toISOString(), checksum: checksum, data: data });
+}
+
+function handleBackupRestore(output, payload) {
+  const snapshot = payload.snapshot || payload;
+  if (!snapshot || !snapshot.data) {
+    return jsonResponse(output, { status: 'error', message: 'Invalid snapshot data' });
+  }
+  const data = snapshot.data;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (Array.isArray(data.tenants)) {
+    const s = ss.getSheetByName(SHEET_TENANTS);
+    if (s) data.tenants.forEach(t => s.appendRow([t.id, t.name, t.namespace_prefix, t.hmac_secret || '', t.max_licenses || 0, t.webhook_url || '', t.is_active !== false, t.created_at || new Date().toISOString()]));
+  }
+  if (Array.isArray(data.licenses)) {
+    const s = ss.getSheetByName(SHEET_LICENSES);
+    if (s) data.licenses.forEach(l => s.appendRow([l.license_key, l.bound_hwid || '', l.max_devices || 1, l.status || 'ACTIVE', l.expires_at || '', l.created_at || new Date().toISOString()]));
+  }
+  logAudit('backup_restore', 'system', 'Restored snapshot', 'SUCCESS');
+  return jsonResponse(output, { status: 'success', message: 'Backup restored successfully' });
 }
 
 function handleBlacklistAdd(output, payload) {
@@ -283,9 +363,7 @@ function handleBlacklistAdd(output, payload) {
   const target = (payload.target || '').trim();
   const reason = (payload.reason || 'Banned').trim();
 
-  if (!target) {
-    return jsonResponse(output, { status: 'error', message: 'Target identifier required' });
-  }
+  if (!target) return jsonResponse(output, { status: 'error', message: 'Target identifier required' });
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_BLACKLIST);
@@ -329,12 +407,7 @@ function handleBlacklistList(output, payload) {
   const entries = [];
 
   for (let i = 1; i < data.length; i++) {
-    entries.push({
-      type: data[i][0],
-      target: data[i][1],
-      reason: data[i][2],
-      created_at: data[i][3]
-    });
+    entries.push({ type: data[i][0], target: data[i][1], reason: data[i][2], created_at: data[i][3] });
   }
   return jsonResponse(output, { status: 'success', entries: entries });
 }
@@ -343,12 +416,8 @@ function logAudit(action, actor, details, status) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEET_AUDIT_LOGS);
-    if (sheet) {
-      sheet.appendRow([new Date().toISOString(), action, actor || 'system', details || '', status || 'OK']);
-    }
-  } catch (e) {
-    // Non-fatal audit log failure
-  }
+    if (sheet) sheet.appendRow([new Date().toISOString(), action, actor || 'system', details || '', status || 'OK']);
+  } catch (e) {}
 }
 
 function handleDBPut(output, payload) {
@@ -407,4 +476,15 @@ function hashString(input) {
     txtHash += byteStr;
   }
   return txtHash;
+}
+
+function constantTimeEquals(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) {
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }

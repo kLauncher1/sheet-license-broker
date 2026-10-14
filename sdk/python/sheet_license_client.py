@@ -134,10 +134,12 @@ class SheetLicenseClient:
         self,
         base_url: str = "http://127.0.0.1:9082",
         secret_key: Optional[str] = None,
+        tenant_id: Optional[str] = None,
         timeout: float = 10.0,
     ):
         self.base_url = base_url.rstrip("/")
         self.secret_key = secret_key.encode("utf-8") if secret_key else None
+        self.tenant_id = tenant_id.strip() if tenant_id else None
         self.timeout = timeout
 
     def _compute_body_hash(self, body_bytes: bytes) -> str:
@@ -159,8 +161,11 @@ class SheetLicenseClient:
 
         headers: Dict[str, str] = {
             "Accept": "application/json",
-            "User-Agent": "SheetLicenseClient-Python/0.4.0",
+            "User-Agent": "SheetLicenseClient-Python/0.5.0",
         }
+
+        if self.tenant_id:
+            headers["X-Tenant-ID"] = self.tenant_id
 
         if payload is not None:
             headers["Content-Type"] = "application/json"

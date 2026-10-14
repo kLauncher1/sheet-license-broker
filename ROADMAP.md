@@ -31,11 +31,11 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Native Go client SDK package (`sdk/go/client.go`)
 - [x] Comprehensive code samples for SaaS applications and protected desktop programs (`examples/`)
 
-## Phase 5: Multi-Tenant Namespacing & Cloudflare Edge Gateway (v0.5.0)
-- [ ] Multi-tenant isolation with namespace prefixes per application
-- [ ] Edge proxy configuration for Cloudflare Workers with edge key caching
-- [ ] Automated Google Sheets backup snapshot exporter
-- [ ] Webhook notifications on license expiration or unauthorized device binding attempts
+## Phase 5: Multi-Tenant Namespacing & Cloudflare Edge Gateway (v0.5.0) - Completed
+- [x] Multi-tenant isolation with namespace prefixes per application (`internal/tenant/tenant.go`)
+- [x] Edge proxy configuration for Cloudflare Workers with edge key caching (`edge/cloudflare/worker.js`)
+- [x] Automated Google Sheets backup snapshot exporter with AES-256-GCM encryption (`internal/backup/snapshot.go`)
+- [x] Real-time webhook notifications for license events and tamper attempts (`internal/webhook/dispatcher.go`)
 
 ## Phase 6: Automated Reconciliation & High-Availability Sync (v0.6.0)
 - [ ] Dual-sheet active-standby replication with collision-free merge

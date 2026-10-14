@@ -60,6 +60,16 @@ func (m *Manager) RegisterUser(username, password, role string) (*User, error) {
 	return user, nil
 }
 
+// PutUser registers or updates an existing user record.
+func (m *Manager) PutUser(u *User) {
+	if u == nil || u.Username == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.users[u.Username] = u
+}
+
 // Authenticate verifies user credentials.
 func (m *Manager) Authenticate(username, password string) (*User, error) {
 	m.mu.RLock()

@@ -46,12 +46,16 @@ namespace SheetLicenseBroker
     {
         private readonly string _baseUrl;
         private readonly byte[] _secretKey;
+        private readonly string _tenantId;
         private readonly int _timeoutMs;
 
-        public SheetLicenseClient(string baseUrl = "http://127.0.0.1:9082", string secretKey = null, int timeoutSeconds = 10)
+        public string TenantId => _tenantId;
+
+        public SheetLicenseClient(string baseUrl = "http://127.0.0.1:9082", string secretKey = null, string tenantId = null, int timeoutSeconds = 10)
         {
             _baseUrl = (baseUrl ?? "http://127.0.0.1:9082").TrimEnd('/');
             _secretKey = string.IsNullOrEmpty(secretKey) ? null : Encoding.UTF8.GetBytes(secretKey);
+            _tenantId = string.IsNullOrWhiteSpace(tenantId) ? null : tenantId.Trim();
             _timeoutMs = timeoutSeconds * 1000;
         }
 
@@ -132,7 +136,12 @@ namespace SheetLicenseBroker
             req.Method = method.ToUpperInvariant();
             req.Timeout = _timeoutMs;
             req.Accept = "application/json";
-            req.UserAgent = "SheetLicenseClient-CSharp/0.4.0";
+            req.UserAgent = "SheetLicenseClient-CSharp/0.5.0";
+
+            if (!string.IsNullOrEmpty(_tenantId))
+            {
+                req.Headers["X-Tenant-ID"] = _tenantId;
+            }
 
             if (bodyBytes != null && bodyBytes.Length > 0)
             {
