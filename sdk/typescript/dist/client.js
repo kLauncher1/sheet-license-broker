@@ -217,4 +217,32 @@ export class SheetLicenseClient {
     const res = await this.request('GET', `/api/usage/stats?license_key=${quoted}`);
     return res.records || [];
   }
+
+  async requestAttestationChallenge(licenseKey, hwid) {
+    const targetHwid = hwid || getMachineHwid();
+    return this.request('POST', '/api/attestation/challenge', {
+      license_key: licenseKey.trim(),
+      hwid: targetHwid.trim(),
+    });
+  }
+
+  async verifyTPMAttestation(licenseKey, challengeId, quoteData, hwid) {
+    const targetHwid = hwid || getMachineHwid();
+    return this.request('POST', '/api/attestation/verify', {
+      license_key: licenseKey.trim(),
+      hwid: targetHwid.trim(),
+      challenge_id: challengeId.trim(),
+      attestation_type: 'tpm2',
+      tpm_quote: quoteData,
+    });
+  }
+
+  async reportTelemetry(licenseKey, report, hwid) {
+    const targetHwid = hwid || getMachineHwid();
+    return this.request('POST', '/api/attestation/telemetry', {
+      license_key: licenseKey.trim(),
+      hwid: targetHwid.trim(),
+      report,
+    });
+  }
 }

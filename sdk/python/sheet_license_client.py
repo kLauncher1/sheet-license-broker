@@ -305,6 +305,34 @@ class SheetLicenseClient:
         res = self._request("GET", f"/api/usage/stats?license_key={quoted}")
         return res.get("records", [])
 
+    def request_attestation_challenge(self, license_key: str, hwid: Optional[str] = None) -> Dict[str, str]:
+        """Obtains a fresh single-use random nonce challenge for TPM/enclave binding."""
+        target_hwid = hwid or get_machine_hwid()
+        return self._request("POST", "/api/attestation/challenge", {
+            "license_key": license_key.strip(),
+            "hwid": target_hwid.strip(),
+        })
+
+    def verify_tpm_attestation(self, license_key: str, challenge_id: str, quote_data: Dict[str, Any], hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Submits a signed TPM 2.0 PCR quote to attest hardware platform integrity."""
+        target_hwid = hwid or get_machine_hwid()
+        return self._request("POST", "/api/attestation/verify", {
+            "license_key": license_key.strip(),
+            "hwid": target_hwid.strip(),
+            "challenge_id": challenge_id.strip(),
+            "attestation_type": "tpm2",
+            "tpm_quote": quote_data,
+        })
+
+    def report_telemetry(self, license_key: str, report: Dict[str, Any], hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Transmits anti-debugging and memory integrity telemetry to broker."""
+        target_hwid = hwid or get_machine_hwid()
+        return self._request("POST", "/api/attestation/telemetry", {
+            "license_key": license_key.strip(),
+            "hwid": target_hwid.strip(),
+            "report": report,
+        })
+
 
 if __name__ == "__main__":
     import sys

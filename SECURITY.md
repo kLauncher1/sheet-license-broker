@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.8.x   | :white_check_mark: |
 | 0.7.x   | :white_check_mark: |
 | 0.6.x   | :white_check_mark: |
 | 0.5.x   | :white_check_mark: |
@@ -63,6 +64,12 @@
 12. **Dynamic Feature Flags & Usage Metering Isolation**:
     - Usage quotas are incremented using thread-safe atomic counters with strict upper bound and negative value rejection.
     - Feature check evaluation strictly enforces tier entitlements and custom overrides, preventing privilege escalation or entitlement spoofing.
+
+13. **Cryptographic Hardware Attestation & Anti-Tamper Telemetry**:
+    - TPM 2.0 PCR quote verification validates that hardware platform configuration registers match expected baseline measurements, signed by the endpoint's Attestation Key (AK).
+    - Single-use challenge nonces expire after 5 minutes, preventing replay of valid hardware attestation statements.
+    - Apple Secure Enclave and Windows Hello statements are verified against hardware public key fingerprints and monotonic counter monotonicity.
+    - Anti-debugging and code section integrity telemetry reports are continuously analyzed; client instances triggering memory patch detection or active debugger attachment automatically result in immediate license revocation and hardware device blacklisting.
 
 ## Reporting a Vulnerability
 

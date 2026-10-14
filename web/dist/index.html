@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v0.7.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v0.8.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -241,6 +241,7 @@
       <button class="tab-btn" id="tab-btn-tenants" onclick="switchTab('tenants')">Multi-Tenant Namespaces</button>
       <button class="tab-btn" id="tab-btn-bl" onclick="switchTab('bl')">Blacklist & Anti-Tamper</button>
       <button class="tab-btn" id="tab-btn-features" onclick="switchTab('features')">Features & Metering</button>
+      <button class="tab-btn" id="tab-btn-attestation" onclick="switchTab('attestation')">Hardware Attestation</button>
       <button class="tab-btn" id="tab-btn-backup" onclick="switchTab('backup')">Backup & Restore</button>
       <button class="tab-btn" id="tab-btn-ha" onclick="switchTab('ha')">Replication & HA</button>
     </div>
@@ -428,6 +429,57 @@
 
       <div id="features-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab: Hardware Attestation & Anti-Tamper -->
+    <div id="panel-attestation" style="display: none;">
+      <div class="action-bar" style="margin-bottom: 16px;">
+        <button class="btn-action" onclick="simulateAttestationChallengePrompt()">⚡ Request TPM Challenge</button>
+        <button class="btn-action btn-secondary" onclick="simulateAttestationVerifyPrompt()">🛡️ Simulate TPM Quote Verify</button>
+        <button class="btn-action btn-danger" onclick="simulateTelemetryPrompt()">🚨 Test Anti-Debug Telemetry</button>
+        <button class="btn-action btn-secondary" onclick="refreshAttestation()">🔄 Refresh Attestations</button>
+      </div>
+
+      <div class="grid-stats" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Attestation Trust Tiers</div>
+          <div class="card-value" style="font-size: 16px; margin: 8px 0; color: #10b981;">TPM 2.0 & Enclave</div>
+          <div class="card-subtext">Hardware-bound cryptographic quote</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Anti-Debugging Engine</div>
+          <div class="card-value" style="font-size: 16px; margin: 8px 0; color: var(--accent-blue);">Continuous Sweep</div>
+          <div class="card-subtext">Active debugger & memory patch detection</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Automated Defense Gate</div>
+          <div class="card-value" style="font-size: 16px; margin: 8px 0; color: var(--accent-red);">Instant Kill-Switch</div>
+          <div class="card-subtext">Auto-bans device & revokes compromised key</div>
+        </div>
+      </div>
+
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>License Key</th>
+            <th>Device HWID</th>
+            <th>Type</th>
+            <th>Trust Level</th>
+            <th>Tamper Score</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="attestation-body">
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              No hardware attestation records logged yet.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div id="attestation-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -435,7 +487,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'backup', 'ha', 'features'];
+      const tabs = ['lic', 'tenants', 'bl', 'backup', 'ha', 'features', 'attestation'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -447,6 +499,7 @@
       document.getElementById('panel-backup').style.display = tab === 'backup' ? 'block' : 'none';
       document.getElementById('panel-ha').style.display = tab === 'ha' ? 'block' : 'none';
       document.getElementById('panel-features').style.display = tab === 'features' ? 'block' : 'none';
+      document.getElementById('panel-attestation').style.display = tab === 'attestation' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -456,6 +509,7 @@
       if (tab === 'tenants') refreshTenants();
       if (tab === 'ha') refreshHA();
       if (tab === 'features') refreshFeaturesTab();
+      if (tab === 'attestation') refreshAttestation();
     }
 
     async function refresh() {
@@ -891,6 +945,134 @@
         out.textContent = JSON.stringify(res, null, 2);
       } catch (e) {
         out.textContent = 'Stats error: ' + e.message;
+      }
+    }
+
+    async function refreshAttestation() {
+      try {
+        const res = await fetch('/api/attestation/status').then(r => r.json());
+        const tbody = document.getElementById('attestation-body');
+        const records = res.records || [];
+        if (!Array.isArray(records) || records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No hardware attestation records logged yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = records.map(r => {
+          const isTampered = r.trust_level === 'tampered' || r.tamper_score >= 50;
+          const isHardware = r.trust_level === 'attested_hardware' || r.trust_level === 'attested_enclave';
+          let pillColor = isTampered ? 'pill-revoked' : (isHardware ? 'pill-active' : 'pill-pending');
+          return `
+            <tr>
+              <td style="font-size:12px; color:#94a3b8;">${new Date(r.verified_at).toLocaleTimeString()}</td>
+              <td style="font-family: monospace; font-weight:700; color:#38bdf8;">${r.license_key}</td>
+              <td style="font-family: monospace; color:#cbd5e1;">${r.hwid}</td>
+              <td><span class="pill pill-active" style="font-size:11px;">${r.attestation_type}</span></td>
+              <td><span class="pill ${pillColor}" style="font-size:11px;">${r.trust_level}</span></td>
+              <td style="font-weight:700; color:${isTampered ? '#f87171' : '#10b981'};">${r.tamper_score}/100</td>
+              <td style="font-size:12px; color:#94a3b8;">${r.details || '<None>'}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Failed to load attestations:', e);
+      }
+    }
+
+    async function simulateAttestationChallengePrompt() {
+      const key = prompt('Enter License Key:');
+      if (!key) return;
+      const hwid = prompt('Enter Device HWID:', 'HWID-SIM-TEST-0001');
+      if (!hwid) return;
+      const out = document.getElementById('attestation-output');
+      out.style.display = 'block';
+      out.textContent = 'Requesting hardware attestation challenge...';
+      try {
+        const res = await fetch('/api/attestation/challenge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_key: key, hwid: hwid })
+        }).then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Challenge error: ' + e.message;
+      }
+    }
+
+    async function simulateAttestationVerifyPrompt() {
+      const key = prompt('Enter License Key:');
+      if (!key) return;
+      const hwid = prompt('Enter Device HWID:', 'HWID-SIM-TEST-0001');
+      if (!hwid) return;
+      const out = document.getElementById('attestation-output');
+      out.style.display = 'block';
+      out.textContent = 'Requesting challenge and generating simulated TPM quote...';
+      try {
+        const ch = await fetch('/api/attestation/challenge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_key: key, hwid: hwid })
+        }).then(r => r.json());
+
+        if (ch.status !== 'success') {
+          out.textContent = 'Challenge error: ' + JSON.stringify(ch);
+          return;
+        }
+
+        out.textContent = 'Challenge issued (ID: ' + ch.challenge_id + '). Verifying simulated enclave statement...';
+        const verifyRes = await fetch('/api/attestation/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: key,
+            hwid: hwid,
+            challenge_id: ch.challenge_id,
+            attestation_type: 'windows_hello',
+            enclave: {
+              enclave_type: 'windows_hello',
+              public_key_pem: '-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+dummy\n-----END PUBLIC KEY-----',
+              counter: 1
+            }
+          })
+        }).then(r => r.json());
+
+        out.textContent = JSON.stringify(verifyRes, null, 2);
+        refreshAttestation();
+      } catch (e) {
+        out.textContent = 'Verification error: ' + e.message;
+      }
+    }
+
+    async function simulateTelemetryPrompt() {
+      const key = prompt('Enter License Key:');
+      if (!key) return;
+      const hwid = prompt('Enter Device HWID:', 'HWID-SIM-TEST-0001');
+      if (!hwid) return;
+      const isTampered = confirm('Simulate Memory Tampering / Active Debugger?\nClick OK for Tampered (Score >= 50), Cancel for Pristine Clean.');
+      const out = document.getElementById('attestation-output');
+      out.style.display = 'block';
+      out.textContent = 'Submitting client integrity telemetry...';
+      try {
+        const res = await fetch('/api/attestation/telemetry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: key,
+            hwid: hwid,
+            report: {
+              debugger_present: isTampered,
+              memory_integrity: !isTampered,
+              sandbox_detected: false,
+              hooks_detected: isTampered,
+              process_checksum: isTampered ? 'tampered-hash' : 'pristine-hash',
+              execution_uptime_s: 300
+            }
+          })
+        }).then(r => r.json());
+        out.textContent = JSON.stringify(res, null, 2);
+        refreshAttestation();
+        refresh();
+      } catch (e) {
+        out.textContent = 'Telemetry error: ' + e.message;
       }
     }
 

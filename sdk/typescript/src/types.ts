@@ -96,3 +96,46 @@ export interface DocumentResponse {
   payload?: Record<string, unknown>;
   error?: string;
 }
+
+export interface AttestationChallengeResponse {
+  status: string;
+  challenge_id: string;
+  nonce: string;
+  expires_at: string;
+}
+
+export interface AttestationRecord {
+  license_key: string;
+  hwid: string;
+  attestation_type: string;
+  trust_level: string;
+  pcr_digest?: string;
+  ak_public_hash?: string;
+  last_nonce?: string;
+  verified_at?: string;
+  tamper_score: number;
+  details?: string;
+}
+
+export interface AttestationVerifyResponse {
+  status: string;
+  record: AttestationRecord;
+}
+
+export interface TelemetryReport {
+  debugger_present: boolean;
+  memory_integrity: boolean;
+  sandbox_detected?: boolean;
+  hooks_detected?: boolean;
+  process_checksum?: string;
+  execution_uptime_s?: number;
+}
+
+export interface TelemetryResponse {
+  status: string;
+  tamper_score: number;
+  tampered: boolean;
+  trust_level: string;
+  details?: string;
+}
+

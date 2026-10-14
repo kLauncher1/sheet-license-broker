@@ -50,10 +50,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Cloudflare Edge Worker gateway edge KV caching for tier and feature lookups
 - [x] Embedded admin console Features & Metering interactive management tab
 
-## Phase 8: Cryptographic Hardware Attestation & Enclave Binding (v0.8.0)
-- [ ] TPM 2.0 endorsement key signing and platform configuration register (PCR) binding
-- [ ] Apple Secure Enclave / Windows Hello hardware key attestation
-- [ ] Anti-debugging and memory-tamper heuristic telemetry detection
+## Phase 8: Cryptographic Hardware Attestation & Enclave Binding (v0.8.0) - Completed
+- [x] TPM 2.0 endorsement key signing and platform configuration register (PCR) binding (`internal/attestation/verify.go`)
+- [x] Apple Secure Enclave / Windows Hello hardware key attestation (`internal/attestation/manager.go`)
+- [x] Anti-debugging and memory-tamper heuristic telemetry detection (`internal/attestation/types.go`)
+- [x] Dedicated attestation router and test suite (`routes_attestation.go`, `routes_attestation_test.go`)
+- [x] Apps Script backend attestation records and audit log synchronization (`gas/Code.gs`)
+- [x] Multi-language client SDK methods for hardware attestation and telemetry reporting
+- [x] Embedded admin console Hardware Attestation interactive management tab (`web/dist/index.html`)
 
 ## Phase 9: Enterprise Security Incident Dispatchers & Rate Limiting (v0.9.0)
 - [ ] IP and hardware ID brute-force rate-limiting with exponential backoff penalty
@@ -74,3 +78,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Zero-knowledge cryptographic proof generation for air-gapped machine entitlement verification
 - [ ] zk-SNARK compact attestation certificates without leaking user or device hardware identities
 - [ ] Quantum-resistant cryptographic signature schemes (ML-DSA / Dilithium) for future-proof entitlement chains
+
+## Phase 13: Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning (v1.3.0)
+- [ ] SAML 2.0 and OIDC identity federation bridge
+- [ ] Automated directory user synchronization and license seat deprovisioning via SCIM 2.0
+- [ ] Scoped RBAC permissions and ephemeral session token issuance
+
+## Phase 14: Post-Quantum Cryptography & ML-DSA Signature Chains (v1.4.0)
+- [ ] Module-Lattice-Based Digital Signature Algorithm (ML-DSA / Dilithium) verification
+- [ ] Quantum-resistant hybrid signature headers
+- [ ] Long-term cryptographic durability and key rotation mechanics

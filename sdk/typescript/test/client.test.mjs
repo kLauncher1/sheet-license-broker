@@ -37,7 +37,7 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
 
         if (req.url === '/health' && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'healthy', version: '0.7.0' }));
+          res.end(JSON.stringify({ status: 'healthy', version: '0.8.0' }));
           return;
         }
 
@@ -112,6 +112,41 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/attestation/challenge' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            challenge_id: 'ts-ch-1234',
+            nonce: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            expires_at: '2026-10-14T12:00:00Z'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/attestation/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            record: {
+              license_key: 'VALID-KEY-TS',
+              trust_level: 'attested_hardware',
+              tamper_score: 0
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/attestation/telemetry' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            tamper_score: 0,
+            tampered: false,
+            trust_level: 'software_grace'
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -138,7 +173,7 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const client = new SheetLicenseClient({ baseUrl });
     const health = await client.health();
     assert.strictEqual(health.status, 'healthy');
-    assert.strictEqual(health.version, '0.7.0');
+    assert.strictEqual(health.version, '0.8.0');
   });
 
   it('validates active license with HMAC request signing', async () => {
@@ -193,5 +228,30 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const records = await client.getUsage('VALID-KEY-TS');
     assert.strictEqual(records.length, 1);
     assert.strictEqual(records[0].metric, 'api_calls');
+  });
+
+  it('requests attestation challenge, verifies TPM quote, and reports telemetry', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    // 1. Challenge
+    const ch = await client.requestAttestationChallenge('VALID-KEY-TS');
+    assert.strictEqual(ch.status, 'success');
+    assert.strictEqual(ch.challenge_id, 'ts-ch-1234');
+    assert.strictEqual(ch.nonce.length, 64);
+
+    // 2. TPM quote verify
+    const verifyRes = await client.verifyTPMAttestation('VALID-KEY-TS', ch.challenge_id, { mock: true });
+    assert.strictEqual(verifyRes.status, 'success');
+    assert.strictEqual(verifyRes.record.trust_level, 'attested_hardware');
+
+    // 3. Telemetry
+    const telemRes = await client.reportTelemetry('VALID-KEY-TS', {
+      debugger_present: false,
+      memory_integrity: true,
+    });
+    assert.strictEqual(telemRes.status, 'success');
+    assert.strictEqual(telemRes.tamper_score, 0);
+    assert.strictEqual(telemRes.tampered, false);
+    assert.strictEqual(telemRes.trust_level, 'software_grace');
   });
 });

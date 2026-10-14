@@ -1,12 +1,16 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { getMachineHwid } from './hwid.ts';
 import type {
+  AttestationChallengeResponse,
+  AttestationVerifyResponse,
   BrokerClientOptions,
   DocumentResponse,
   FeatureCheckResponse,
   HealthResponse,
   LicenseRecord,
   LicenseValidationResponse,
+  TelemetryReport,
+  TelemetryResponse,
   UsageRecord,
   UsageRecordResponse,
   UserAuthResponse,
@@ -288,4 +292,54 @@ export class SheetLicenseClient {
     );
     return res.records || [];
   }
+
+  /**
+   * Obtains a fresh single-use random nonce challenge for TPM/enclave binding.
+   */
+  public async requestAttestationChallenge(
+    licenseKey: string,
+    hwid?: string
+  ): Promise<AttestationChallengeResponse> {
+    const targetHwid = hwid || getMachineHwid();
+    return this.request<AttestationChallengeResponse>('POST', '/api/attestation/challenge', {
+      license_key: licenseKey.trim(),
+      hwid: targetHwid.trim(),
+    });
+  }
+
+  /**
+   * Submits a signed TPM 2.0 PCR quote to attest hardware platform integrity.
+   */
+  public async verifyTPMAttestation(
+    licenseKey: string,
+    challengeId: string,
+    quoteData: Record<string, unknown>,
+    hwid?: string
+  ): Promise<AttestationVerifyResponse> {
+    const targetHwid = hwid || getMachineHwid();
+    return this.request<AttestationVerifyResponse>('POST', '/api/attestation/verify', {
+      license_key: licenseKey.trim(),
+      hwid: targetHwid.trim(),
+      challenge_id: challengeId.trim(),
+      attestation_type: 'tpm2',
+      tpm_quote: quoteData,
+    });
+  }
+
+  /**
+   * Transmits anti-debugging and memory integrity telemetry to broker.
+   */
+  public async reportTelemetry(
+    licenseKey: string,
+    report: TelemetryReport,
+    hwid?: string
+  ): Promise<TelemetryResponse> {
+    const targetHwid = hwid || getMachineHwid();
+    return this.request<TelemetryResponse>('POST', '/api/attestation/telemetry', {
+      license_key: licenseKey.trim(),
+      hwid: targetHwid.trim(),
+      report,
+    });
+  }
 }
+

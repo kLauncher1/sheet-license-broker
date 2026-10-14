@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v0.7.0-emerald.svg" alt="Version: v0.7.0">
+  <img src="https://img.shields.io/badge/version-v0.8.0-emerald.svg" alt="Version: v0.8.0">
+  <img src="https://img.shields.io/badge/attestation-TPM%202.0%20%26%20Enclave-0284C7.svg" alt="Hardware Attestation">
   <img src="https://img.shields.io/badge/tiers-dynamic%20flags-8B5CF6.svg" alt="Feature Flags & Tier Metering">
   <img src="https://img.shields.io/badge/go-%3E%3D1.22-00ADD8.svg" alt="Go Version">
   <img src="https://img.shields.io/badge/high--availability-active--standby-059669.svg" alt="High Availability">
@@ -22,10 +23,12 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Cryptographic Hardware Attestation & Enclave Binding**: TPM 2.0 PCR quote verification and Apple Secure Enclave / Windows Hello hardware key attestation preventing clone attacks.
+- **Client Anti-Debugging & Memory-Tamper Telemetry**: Continuous integrity scoring with instant kill-switch auto-banning devices exhibiting debugger attachment or code section modifications.
 - **Dynamic Feature Flags & Usage-Based Tier Metering**: Free, Pro, and Enterprise subscription tiers with runtime feature gating (`client.isFeatureEnabled("analytics")`) and atomic consumption quota tracking persisted directly in Google Sheets.
 - **Dual-Sheet Active-Standby Replication**: Automatic failover between primary and standby sheets with collision-free bidirectional reconciliation.
 - **Encrypted Local Disk Spool**: AES-256-GCM encrypted journal queue (`spool.bin`) guaranteeing zero data loss during network disruptions.
@@ -433,6 +436,72 @@ GET /api/usage/stats?license_key=KEY-7F2A-9C4B-E108
   "tier": "pro",
   "metrics": {
     "api_calls": 42
+  }
+}
+```
+
+---
+
+### Hardware Attestation & Anti-Tamper Telemetry
+
+#### Request TPM / Enclave Challenge Nonce
+```http
+POST /api/attestation/challenge
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "hwid": "WIN-B829-94AA-0123"
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "challenge_id": "9a4f2b1c8e3d",
+  "nonce": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "expires_at": "2026-10-14T12:05:00Z"
+}
+```
+
+#### Verify TPM 2.0 PCR Quote
+```http
+POST /api/attestation/verify
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "hwid": "WIN-B829-94AA-0123",
+  "challenge_id": "9a4f2b1c8e3d",
+  "attestation_type": "tpm2",
+  "tpm_quote": {
+    "pcr_values": {
+      "0": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "7": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    "pcr_selection": [0, 7],
+    "composite_digest": "4a5b6c7d8e9f...",
+    "signature": "3045022100...",
+    "ak_public_key_pem": "-----BEGIN PUBLIC KEY-----\n..."
+  }
+}
+```
+
+#### Transmit Anti-Debugging & Integrity Telemetry
+```http
+POST /api/attestation/telemetry
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "hwid": "WIN-B829-94AA-0123",
+  "report": {
+    "debugger_present": false,
+    "memory_integrity": true,
+    "sandbox_detected": false,
+    "hooks_detected": false,
+    "process_checksum": "a1b2c3d4e5f6...",
+    "execution_uptime_s": 3600
   }
 }
 ```

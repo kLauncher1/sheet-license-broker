@@ -323,6 +323,41 @@ namespace SheetLicenseBroker
             return await SendRequestAsync("GET", "/api/usage/stats?license_key=" + Uri.EscapeDataString(licenseKey.Trim())).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Obtains a single-use random nonce challenge for TPM / enclave binding.
+        /// </summary>
+        public async Task<string> RequestAttestationChallengeAsync(string licenseKey, string hwid = null)
+        {
+            string targetHwid = string.IsNullOrEmpty(hwid) ? HWID : hwid;
+            string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\"}}",
+                EscapeJson(licenseKey), EscapeJson(targetHwid));
+            return await SendRequestAsync("POST", "/api/attestation/challenge", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Submits a signed TPM 2.0 PCR quote to attest hardware platform integrity.
+        /// </summary>
+        public async Task<string> VerifyTPMAttestationAsync(string licenseKey, string challengeId, string tpmQuoteJson, string hwid = null)
+        {
+            string targetHwid = string.IsNullOrEmpty(hwid) ? HWID : hwid;
+            string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"challenge_id\":\"{2}\",\"attestation_type\":\"tpm2\",\"tpm_quote\":{3}}}",
+                EscapeJson(licenseKey), EscapeJson(targetHwid), EscapeJson(challengeId), tpmQuoteJson);
+            return await SendRequestAsync("POST", "/api/attestation/verify", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Transmits anti-debugging and memory integrity telemetry to the broker.
+        /// </summary>
+        public async Task<string> ReportTelemetryAsync(string licenseKey, bool debuggerPresent, bool memoryIntegrity, string hwid = null)
+        {
+            string targetHwid = string.IsNullOrEmpty(hwid) ? HWID : hwid;
+            string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"report\":{{\"debugger_present\":{2},\"memory_integrity\":{3}}}}}",
+                EscapeJson(licenseKey), EscapeJson(targetHwid),
+                debuggerPresent ? "true" : "false",
+                memoryIntegrity ? "true" : "false");
+            return await SendRequestAsync("POST", "/api/attestation/telemetry", payload).ConfigureAwait(false);
+        }
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

@@ -13,6 +13,7 @@ const SHEET_AUDIT_LOGS = 'Audit_Logs';
 const SHEET_TENANTS = 'Tenants';
 const SHEET_USAGE = 'Usage_Metering';
 const SHEET_FEATURE_FLAGS = 'FeatureFlags';
+const SHEET_ATTESTATIONS = 'Attestations';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -97,6 +98,12 @@ function handleRequest(e, method) {
       case 'usage_get':
         return handleUsageGet(output, payload);
 
+      case 'attestation_record':
+        return handleAttestationRecord(output, payload);
+
+      case 'attestation_list':
+        return handleAttestationList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -115,7 +122,8 @@ function initSheets() {
     { name: SHEET_AUDIT_LOGS, cols: ['timestamp', 'action', 'actor', 'details', 'status'] },
     { name: SHEET_TENANTS, cols: ['tenant_id', 'name', 'prefix', 'hmac_secret', 'max_licenses', 'webhook_url', 'is_active', 'created_at'] },
     { name: SHEET_USAGE, cols: ['key', 'metric', 'period', 'count', 'limit', 'updated_at'] },
-    { name: SHEET_FEATURE_FLAGS, cols: ['feature_key', 'name', 'default_tiers', 'description', 'created_at'] }
+    { name: SHEET_FEATURE_FLAGS, cols: ['feature_key', 'name', 'default_tiers', 'description', 'created_at'] },
+    { name: SHEET_ATTESTATIONS, cols: ['timestamp', 'license_key', 'hwid', 'attestation_type', 'trust_level', 'pcr_digest', 'tamper_score', 'details'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -563,6 +571,61 @@ function handleUsageGet(output, payload) {
   }
 
   return jsonResponse(output, { status: 'success', license_key: key, records: records });
+}
+
+function handleAttestationRecord(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ATTESTATIONS);
+
+  const licKey = String(payload.license_key || '').trim().toUpperCase();
+  const hwid = String(payload.hwid || '').trim().toUpperCase();
+  const attType = String(payload.attestation_type || 'software_emulated').trim();
+  const trustLevel = String(payload.trust_level || 'unverified').trim();
+  const pcrDigest = String(payload.pcr_digest || '').trim();
+  const tamperScore = Number(payload.tamper_score) || 0;
+  const details = String(payload.details || '').trim();
+  const ts = new Date().toISOString();
+
+  sheet.appendRow([ts, licKey, hwid, attType, trustLevel, pcrDigest, tamperScore, details]);
+  logAudit('attestation_recorded', licKey, 'Type: ' + attType + ', Trust: ' + trustLevel + ', Score: ' + tamperScore, 'SUCCESS');
+
+  return jsonResponse(output, {
+    status: 'success',
+    message: 'Attestation recorded',
+    timestamp: ts,
+    trust_level: trustLevel
+  });
+}
+
+function handleAttestationList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ATTESTATIONS);
+  const data = sheet.getDataRange().getValues();
+
+  const filterKey = String(payload.license_key || '').trim().toUpperCase();
+  const filterHWID = String(payload.hwid || '').trim().toUpperCase();
+  const records = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const rowKey = String(data[i][1]).toUpperCase();
+    const rowHWID = String(data[i][2]).toUpperCase();
+
+    if (filterKey && rowKey !== filterKey) continue;
+    if (filterHWID && rowHWID !== filterHWID) continue;
+
+    records.push({
+      timestamp: data[i][0],
+      license_key: data[i][1],
+      hwid: data[i][2],
+      attestation_type: data[i][3],
+      trust_level: data[i][4],
+      pcr_digest: data[i][5],
+      tamper_score: Number(data[i][6]) || 0,
+      details: data[i][7]
+    });
+  }
+
+  return jsonResponse(output, { status: 'success', records: records, count: records.length });
 }
 
 function jsonResponse(output, data) {

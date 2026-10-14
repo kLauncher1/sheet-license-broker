@@ -167,3 +167,58 @@ func TestGoClientFeatureAndUsage(t *testing.T) {
 		t.Errorf("unexpected get usage records: len=%d, err=%v", len(records), err)
 	}
 }
+
+func TestGoClientAttestationAndTelemetry(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/attestation/challenge", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":       "success",
+			"challenge_id": "ch-test-1234",
+			"nonce":        "deadbeefcafebabe0102030405060708deadbeefcafebabe0102030405060708",
+			"expires_at":   time.Now().Add(5 * time.Minute).Format(time.RFC3339),
+		})
+	})
+	mux.HandleFunc("/api/attestation/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"record": map[string]interface{}{
+				"license_key": "TEST-KEY",
+				"trust_level": "attested_hardware",
+			},
+		})
+	})
+	mux.HandleFunc("/api/attestation/telemetry", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":       "success",
+			"tamper_score": 0,
+			"tampered":     false,
+			"trust_level":  "software_grace",
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+
+	// 1. RequestAttestationChallenge
+	chID, nonce, _, err := client.RequestAttestationChallenge(context.Background(), "TEST-KEY", "HWID-TEST")
+	if err != nil || chID != "ch-test-1234" || len(nonce) != 64 {
+		t.Fatalf("challenge request failed: chID=%s, nonce=%s, err=%v", chID, nonce, err)
+	}
+
+	// 2. VerifyTPMAttestation
+	rec, err := client.VerifyTPMAttestation(context.Background(), "TEST-KEY", "HWID-TEST", chID, map[string]interface{}{"dummy": true})
+	if err != nil || rec["trust_level"] != "attested_hardware" {
+		t.Fatalf("tpm attestation verification failed: rec=%v, err=%v", rec, err)
+	}
+
+	// 3. ReportTelemetry
+	score, tampered, trust, err := client.ReportTelemetry(context.Background(), "TEST-KEY", "HWID-TEST", map[string]interface{}{"debugger_present": false})
+	if err != nil || score != 0 || tampered || trust != "software_grace" {
+		t.Fatalf("telemetry report failed: score=%d, tampered=%v, trust=%s, err=%v", score, tampered, trust, err)
+	}
+}
