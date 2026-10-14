@@ -69,10 +69,10 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Conflict-free Replicated Data Type (CRDT) document synchronization
 - [ ] Multi-region active-active mesh with automated network partition healing
 
-## Phase 11: Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning (v1.1.0)
-- [ ] SAML 2.0 and OIDC federation bridge mapping corporate identity providers to sheet roles
-- [ ] Automated directory user synchronization and license seat deprovisioning via SCIM 2.0
-- [ ] Scoped RBAC permissions and ephemeral session token issuance
+## Phase 11: Real-Time WebSocket Streaming & Telemetry Push (v1.1.0)
+- [ ] Bidirectional WebSocket endpoint for instantaneous revocation push
+- [ ] Live client heartbeat telemetry stream
+- [ ] Sub-second remote kill-switch execution
 
 ## Phase 12: Zero-Knowledge Proof (ZKP) Offline License Verification (v1.2.0)
 - [ ] Zero-knowledge cryptographic proof generation for air-gapped machine entitlement verification
