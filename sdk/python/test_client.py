@@ -107,6 +107,32 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 }
             }).encode())
             return
+        if self.path == "/api/sso/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "total_idps": 3,
+                "active_directory_users": 18,
+                "deprovisioned_users": 2,
+                "allocated_license_seats": 18
+            }).encode())
+            return
+        if self.path.startswith("/scim/v2/Users"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/scim+json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+                "totalResults": 1,
+                "startIndex": 1,
+                "itemsPerPage": 1,
+                "Resources": [
+                    {"id": "scim-py-1", "userName": "py-user@corp.com", "active": True}
+                ]
+            }).encode())
+            return
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -302,6 +328,21 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/sso/token/introspect":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "active": True,
+                "authorized": True,
+                "claims": {
+                    "user_id": "usr-py-1",
+                    "email": "py-user@corp.com",
+                    "role": "admin"
+                }
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -459,6 +500,22 @@ class TestSheetLicenseClient(unittest.TestCase):
         status = client.get_zkp_status()
         self.assertEqual(status.get("total_proofs_verified"), 4)
 
+    def test_sso_and_scim_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+        status = client.get_sso_status()
+        self.assertEqual(status.get("active_directory_users"), 18)
+        self.assertEqual(status.get("total_idps"), 3)
+
+        intro = client.introspect_session_token("sso.test.token", "license:read")
+        self.assertTrue(intro.get("active"))
+        self.assertTrue(intro.get("authorized"))
+        self.assertEqual(intro.get("claims", {}).get("email"), "py-user@corp.com")
+
+        scim = client.list_scim_users(1, 10)
+        self.assertEqual(scim.get("totalResults"), 1)
+        self.assertEqual(scim.get("Resources")[0].get("userName"), "py-user@corp.com")
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -441,6 +441,33 @@ namespace SheetLicenseBroker
             return await SendRequestAsync("GET", "/api/zkp/status", null).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Queries telemetry on SSO identity providers and SCIM directory status.
+        /// </summary>
+        public async Task<string> GetSSOStatusAsync()
+        {
+            return await SendRequestAsync("GET", "/api/sso/status", null).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Validates an ephemeral session token and checks permissions.
+        /// </summary>
+        public async Task<string> IntrospectSessionTokenAsync(string token, string requiredScope = null)
+        {
+            string payload = string.Format("{{\"token\":\"{0}\",\"required_scope\":\"{1}\"}}",
+                EscapeJson(token), EscapeJson(requiredScope ?? ""));
+            return await SendRequestAsync("POST", "/api/sso/token/introspect", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries SCIM 2.0 directory users list with pagination.
+        /// </summary>
+        public async Task<string> ListSCIMUsersAsync(int startIndex = 1, int count = 50)
+        {
+            string path = string.Format("/scim/v2/Users?startIndex={0}&count={1}", startIndex, count);
+            return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
+        }
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

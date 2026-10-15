@@ -19,6 +19,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
 	"github.com/kLauncher1/sheet-license-broker/internal/ratelimit"
 	"github.com/kLauncher1/sheet-license-broker/internal/replication"
+	"github.com/kLauncher1/sheet-license-broker/internal/sso"
 	"github.com/kLauncher1/sheet-license-broker/internal/stream"
 	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
@@ -95,6 +96,7 @@ type Proxy struct {
 	p2pMesh            *consensus.P2PMesh
 	streamHub          *stream.Hub
 	zkpVerifier        *zkp.Verifier
+	ssoManager         *sso.Manager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -133,6 +135,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initConsensus(cfg)
 	p.initStream()
 	p.initZKP()
+	p.initSSO()
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

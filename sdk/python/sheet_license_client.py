@@ -429,6 +429,21 @@ class SheetLicenseClient:
         res = self._request("GET", "/api/zkp/status")
         return res.get("zkp", {})
 
+    def get_sso_status(self) -> Dict[str, Any]:
+        """Queries telemetry on SSO identity providers and SCIM directory status."""
+        return self._request("GET", "/api/sso/status")
+
+    def introspect_session_token(self, token: str, required_scope: Optional[str] = None) -> Dict[str, Any]:
+        """Validates an ephemeral session token and evaluates permissions."""
+        payload = {"token": token}
+        if required_scope:
+            payload["required_scope"] = required_scope
+        return self._request("POST", "/api/sso/token/introspect", payload)
+
+    def list_scim_users(self, start_index: int = 1, count: int = 50) -> Dict[str, Any]:
+        """Queries SCIM 2.0 directory users list with pagination."""
+        return self._request("GET", f"/scim/v2/Users?startIndex={start_index}&count={count}")
+
 
 
 

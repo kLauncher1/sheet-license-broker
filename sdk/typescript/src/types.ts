@@ -304,3 +304,47 @@ export interface ZKPStatusResponse {
 }
 
 
+
+export interface SSOStatusSummary {
+  total_idps: number;
+  active_directory_users: number;
+  deprovisioned_users: number;
+  allocated_license_seats: number;
+  supported_protocols: string[];
+}
+
+export interface SessionTokenIntrospectResult {
+  active: boolean;
+  authorized?: boolean;
+  claims?: {
+    session_id: string;
+    user_id: string;
+    email: string;
+    tenant_id: string;
+    role: string;
+    scopes: string[];
+    iat: number;
+    exp: number;
+  };
+  error?: string;
+}
+
+export interface SCIMUserResource {
+  schemas: string[];
+  id: string;
+  userName: string;
+  displayName?: string;
+  active: boolean;
+  tenantId?: string;
+  licenseKey?: string;
+  roles?: Array<{ value: string; display?: string; primary?: boolean }>;
+  emails?: Array<{ value: string; type?: string; primary?: boolean }>;
+}
+
+export interface SCIMListUsersResult {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: SCIMUserResource[];
+}

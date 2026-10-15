@@ -32,8 +32,6 @@ type AppServer struct {
 }
 
 func newAppServer() (*AppServer, error) {
-	webAppURL := strings.TrimSpace(os.Getenv("GAS_WEBAPP_URL"))
-	offlineMode := os.Getenv("OFFLINE_MODE") == "1" || strings.ToLower(os.Getenv("OFFLINE_MODE")) == "true"
 	cacheTTL := 10 * time.Minute
 	if ttlSec := os.Getenv("CACHE_TTL_SECONDS"); ttlSec != "" {
 		if s, err := strconv.Atoi(ttlSec); err == nil && s > 0 {
@@ -42,8 +40,8 @@ func newAppServer() (*AppServer, error) {
 	}
 
 	px, err := proxy.NewProxy(proxy.ProxyConfig{
-		WebAppURL:        webAppURL,
-		OfflineMode:      offlineMode,
+		WebAppURL:        strings.TrimSpace(os.Getenv("GAS_WEBAPP_URL")),
+		OfflineMode:      os.Getenv("OFFLINE_MODE") == "1" || strings.ToLower(os.Getenv("OFFLINE_MODE")) == "true",
 		CacheTTL:         cacheTTL,
 		GlobalWebhookURL: strings.TrimSpace(os.Getenv("GLOBAL_WEBHOOK_URL")),
 		GlobalSecret:     strings.TrimSpace(os.Getenv("GLOBAL_WEBHOOK_SECRET")),
@@ -112,6 +110,7 @@ func main() {
 	server.registerConsensusRoutes(apiMux)
 	server.registerStreamRoutes(apiMux, mux)
 	server.registerZKPRoutes(apiMux)
+	server.registerSSORoutes(apiMux, mux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
@@ -120,7 +119,7 @@ func main() {
 	fileServer := http.FileServer(http.FS(subFS))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/scim/") {
 			http.NotFound(w, r)
 			return
 		}
@@ -133,7 +132,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.2.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.3.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -145,10 +144,11 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "1.2.0",
+		"version":   "1.3.0",
 		"proxy":     s.proxy.Status(),
 		"consensus": s.proxy.ClusterStatus(),
 		"zkp":       s.proxy.GetZKPStatus(),
+		"sso":       s.proxy.GetSSOStatus(),
 		"security":  map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})

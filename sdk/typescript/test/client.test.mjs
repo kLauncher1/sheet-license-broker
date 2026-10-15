@@ -286,6 +286,54 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/sso/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            total_idps: 2,
+            active_directory_users: 12,
+            deprovisioned_users: 1,
+            allocated_license_seats: 12,
+            supported_protocols: ['SAML 2.0', 'OIDC 1.0', 'SCIM 2.0']
+          }));
+          return;
+        }
+
+        if (req.url === '/api/sso/token/introspect' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            active: true,
+            authorized: true,
+            claims: {
+              session_id: 'sess-ts-1',
+              user_id: 'usr-ts-1',
+              email: 'ts-user@corp.com',
+              tenant_id: 'default',
+              role: 'admin',
+              scopes: ['license:read', 'license:write']
+            }
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/scim/v2/Users') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/scim+json' });
+          res.end(JSON.stringify({
+            schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
+            totalResults: 1,
+            startIndex: 1,
+            itemsPerPage: 1,
+            Resources: [
+              {
+                schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+                id: 'scim-ts-1',
+                userName: 'ts-user@corp.com',
+                active: true
+              }
+            ]
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -481,5 +529,22 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     assert.strictEqual(status.total_credentials_issued, 3);
     assert.strictEqual(status.total_proofs_verified, 5);
   });
+
+  it('queries sso status, introspects session token, and lists scim users', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const status = await client.getSSOStatus();
+    assert.strictEqual(status.active_directory_users, 12);
+    assert.strictEqual(status.total_idps, 2);
+
+    const intro = await client.introspectSessionToken('sso.mock.token', 'license:read');
+    assert.strictEqual(intro.active, true);
+    assert.strictEqual(intro.authorized, true);
+    assert.strictEqual(intro.claims.email, 'ts-user@corp.com');
+
+    const scim = await client.listSCIMUsers(1, 10);
+    assert.strictEqual(scim.totalResults, 1);
+    assert.strictEqual(scim.Resources[0].userName, 'ts-user@corp.com');
+  });
 });
+
 

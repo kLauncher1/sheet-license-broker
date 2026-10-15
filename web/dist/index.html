@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v1.0.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v1.3.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -248,6 +248,7 @@
       <button class="tab-btn" id="tab-btn-cluster" onclick="switchTab('cluster')">Distributed Cluster</button>
       <button class="tab-btn" id="tab-btn-stream" onclick="switchTab('stream')">Real-Time Streams & Kill-Switch</button>
       <button class="tab-btn" id="tab-btn-zkp" onclick="switchTab('zkp')">Zero-Knowledge Proofs (ZKP)</button>
+      <button class="tab-btn" id="tab-btn-sso" onclick="switchTab('sso')">Enterprise SSO & SCIM</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -708,6 +709,76 @@
 
       <div id="zkp-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 12: Enterprise SSO & SCIM 2.0 Directory -->
+    <div id="panel-sso" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Registered IdPs</div>
+          <div class="card-value" id="val-sso-idps" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">SAML 2.0 & OIDC Providers</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Directory Users</div>
+          <div class="card-value" id="val-sso-users" style="color: var(--accent-blue);">0</div>
+          <div class="card-subtext">SCIM 2.0 Directory Sync</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Deprovisioned Accounts</div>
+          <div class="card-value" id="val-sso-deprovisioned" style="color: var(--accent-red);">0</div>
+          <div class="card-subtext">Revoked seats & access cut</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Allocated License Seats</div>
+          <div class="card-value" id="val-sso-seats" style="color: #a78bfa;">0</div>
+          <div class="card-subtext">Auto-assigned enterprise licenses</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <button class="btn btn-primary" onclick="promptRegisterIdP()">+ Register Identity Provider</button>
+        <button class="btn btn-secondary" onclick="promptProvisionSCIMUser()">+ Provision SCIM User</button>
+        <button class="btn btn-secondary" onclick="promptIntrospectToken()">🔐 Introspect Session Token</button>
+        <button class="btn btn-secondary" onclick="refreshSSOTab()">🔄 Refresh SSO & SCIM</button>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Identity Providers (SAML 2.0 / OIDC)</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>IdP ID</th>
+            <th>Protocol</th>
+            <th>Entity ID / Issuer</th>
+            <th>SSO Login URL</th>
+            <th>Tenant ID</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="sso-idps-body">
+          <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No Identity Providers registered.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">SCIM 2.0 Directory Users</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>User ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>License Seat</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="scim-users-body">
+          <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No SCIM directory users found.</td></tr>
+        </tbody>
+      </table>
+
+      <div id="sso-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -715,7 +786,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -732,6 +803,7 @@
       document.getElementById('panel-cluster').style.display = tab === 'cluster' ? 'block' : 'none';
       document.getElementById('panel-stream').style.display = tab === 'stream' ? 'block' : 'none';
       document.getElementById('panel-zkp').style.display = tab === 'zkp' ? 'block' : 'none';
+      document.getElementById('panel-sso').style.display = tab === 'sso' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -746,6 +818,7 @@
       if (tab === 'cluster') refreshClusterTab();
       if (tab === 'stream') refreshStreams();
       if (tab === 'zkp') refreshZKPTab();
+      if (tab === 'sso') refreshSSOTab();
     }
 
     async function refresh() {
@@ -1699,6 +1772,151 @@
         out.textContent = 'Nullifier Registry Status:\n\n' + JSON.stringify(res, null, 2);
       } catch (e) {
         out.textContent = 'Nullifier lookup error: ' + e.message;
+      }
+    }
+
+    async function refreshSSOTab() {
+      try {
+        const [status, idpRes, usersRes] = await Promise.all([
+          fetch('/api/sso/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/sso/idp').then(r => r.json()).catch(() => ({ idps: [] })),
+          fetch('/scim/v2/Users').then(r => r.json()).catch(() => ({ Resources: [] }))
+        ]);
+
+        document.getElementById('val-sso-idps').textContent = status.total_idps !== undefined ? status.total_idps : (idpRes.idps ? idpRes.idps.length : 0);
+        document.getElementById('val-sso-users').textContent = status.active_directory_users !== undefined ? status.active_directory_users : 0;
+        document.getElementById('val-sso-deprovisioned').textContent = status.deprovisioned_users !== undefined ? status.deprovisioned_users : 0;
+        document.getElementById('val-sso-seats').textContent = status.allocated_license_seats !== undefined ? status.allocated_license_seats : 0;
+
+        const idpBody = document.getElementById('sso-idps-body');
+        const idps = idpRes.idps || [];
+        if (idps.length === 0) {
+          idpBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#94a3b8;">No Identity Providers registered.</td></tr>';
+        } else {
+          idpBody.innerHTML = idps.map(idp => `
+            <tr>
+              <td style="font-family: monospace; font-weight:700; color:#38bdf8;">${idp.id}</td>
+              <td><span class="pill pill-active">${(idp.protocol || 'SAML').toUpperCase()}</span></td>
+              <td style="font-family: monospace; font-size:12px; color:#cbd5e1;">${idp.entity_id || idp.issuer_url || '-'}</td>
+              <td style="font-size:12px; color:#94a3b8;">${idp.sso_url || '-'}</td>
+              <td style="font-family: monospace;">${idp.tenant_id || 'default'}</td>
+              <td><span class="pill ${idp.enabled ? 'pill-active' : 'pill-revoked'}">${idp.enabled ? 'ENABLED' : 'DISABLED'}</span></td>
+            </tr>
+          `).join('');
+        }
+
+        const scimBody = document.getElementById('scim-users-body');
+        const users = usersRes.Resources || [];
+        if (users.length === 0) {
+          scimBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#94a3b8;">No SCIM directory users found.</td></tr>';
+        } else {
+          scimBody.innerHTML = users.map(u => {
+            const active = u.active !== false;
+            return `
+              <tr>
+                <td style="font-family: monospace; font-size:12px; color:#38bdf8;">${u.id}</td>
+                <td style="font-weight:600;">${u.userName}</td>
+                <td>${u.emails && u.emails[0] ? u.emails[0].value : (u.email || '-')}</td>
+                <td style="font-family: monospace; color:#10b981;">${u.license_key || '<Unassigned>'}</td>
+                <td><span class="pill pill-active">${(u.roles && u.roles[0]) ? u.roles[0].value : (u.role || 'user')}</span></td>
+                <td><span class="pill ${active ? 'pill-active' : 'pill-revoked'}">${active ? 'ACTIVE' : 'DEPROVISIONED'}</span></td>
+                <td>
+                  ${active ? `<button class="btn-action btn-danger btn-sm" onclick="deprovisionSCIMUser('${u.id}')">Deprovision</button>` : '<span style="color:#64748b; font-size:11px;">Revoked</span>'}
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load SSO data:', err);
+      }
+    }
+
+    async function promptRegisterIdP() {
+      const id = prompt('Enter unique IdP ID (e.g., okta-enterprise):', 'okta-enterprise');
+      if (!id) return;
+      const protocol = prompt('Enter Protocol (saml or oidc):', 'saml') || 'saml';
+      const entityId = prompt('Enter Entity ID / Issuer URL:', 'https://idp.example.com/entity') || '';
+      const ssoUrl = prompt('Enter SSO Login URL:', 'https://idp.example.com/sso/login') || '';
+      const tenantId = prompt('Enter Tenant ID (leave empty for default):', '') || 'default';
+
+      try {
+        await fetch('/api/sso/idp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: id,
+            protocol: protocol.toLowerCase(),
+            entity_id: entityId,
+            issuer_url: entityId,
+            sso_url: ssoUrl,
+            tenant_id: tenantId,
+            enabled: true
+          })
+        });
+        refreshSSOTab();
+      } catch (e) {
+        alert('Failed to register IdP: ' + e.message);
+      }
+    }
+
+    async function promptProvisionSCIMUser() {
+      const userName = prompt('Enter username (e.g., alice@example.com):', 'alice@corp.com');
+      if (!userName) return;
+      const email = prompt('Enter primary email:', userName) || userName;
+      const role = prompt('Enter role (admin, operator, user):', 'user') || 'user';
+      const tenantId = prompt('Enter Tenant ID (leave empty for default):', '') || 'default';
+
+      try {
+        await fetch('/scim/v2/Users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            userName: userName,
+            emails: [{ value: email, primary: true }],
+            roles: [{ value: role }],
+            tenant_id: tenantId,
+            active: true
+          })
+        });
+        refreshSSOTab();
+      } catch (e) {
+        alert('Failed to provision SCIM user: ' + e.message);
+      }
+    }
+
+    async function deprovisionSCIMUser(userId) {
+      if (!confirm('Deprovision SCIM user ' + userId + '? This will immediately revoke their allocated license seat.')) return;
+      try {
+        await fetch('/scim/v2/Users/' + encodeURIComponent(userId), {
+          method: 'DELETE'
+        });
+        refreshSSOTab();
+      } catch (e) {
+        alert('Failed to deprovision user: ' + e.message);
+      }
+    }
+
+    async function promptIntrospectToken() {
+      const token = prompt('Enter session token string:');
+      if (!token) return;
+      const scope = prompt('Enter required scope (leave empty for any):', '') || '';
+
+      const out = document.getElementById('sso-output');
+      out.style.display = 'block';
+      out.textContent = 'Introspecting session token...';
+
+      try {
+        const res = await fetch('/api/sso/token/introspect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token.trim(), required_scope: scope.trim() })
+        }).then(r => r.json());
+
+        out.textContent = 'Session Token Introspection Result:\n\n' + JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Introspection failed: ' + e.message;
       }
     }
 

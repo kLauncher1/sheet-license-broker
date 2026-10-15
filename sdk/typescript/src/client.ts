@@ -31,6 +31,9 @@ import type {
   ZKPStatusResponse,
   ZKPVerificationResult,
   ZKPVerifyResponse,
+  SSOStatusSummary,
+  SessionTokenIntrospectResult,
+  SCIMListUsersResult,
 } from './types.js';
 
 export class BrokerError extends Error {
@@ -465,14 +468,28 @@ export class SheetLicenseClient {
     });
   }
 
-  /**
-   * Queries overall telemetry metrics on zero-knowledge verification.
-   */
   public async getZKPStatus(): Promise<ZKPStatusResponse['zkp']> {
-    const res = await this.request<ZKPStatusResponse>('GET', '/api/zkp/status');
-    return res.zkp;
+    return (await this.request<ZKPStatusResponse>('GET', '/api/zkp/status')).zkp;
+  }
+
+  public async getSSOStatus(): Promise<SSOStatusSummary> {
+    return this.request<SSOStatusSummary>('GET', '/api/sso/status');
+  }
+
+  /**
+   * Validates an ephemeral session token and checks permissions.
+   */
+  public async introspectSessionToken(token: string, requiredScope?: string): Promise<SessionTokenIntrospectResult> {
+    return this.request<SessionTokenIntrospectResult>('POST', '/api/sso/token/introspect', {
+      token,
+      required_scope: requiredScope,
+    });
+  }
+
+  /**
+   * Queries SCIM 2.0 directory users list with pagination.
+   */
+  public async listSCIMUsers(startIndex: number = 1, count: number = 50): Promise<SCIMListUsersResult> {
+    return this.request<SCIMListUsersResult>('GET', `/scim/v2/Users?startIndex=${startIndex}&count=${count}`);
   }
 }
-
-
-

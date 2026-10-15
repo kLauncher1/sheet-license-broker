@@ -161,6 +161,21 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"zkp\":{\"total_credentials_issued\":5,\"total_proofs_verified\":10}}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/sso/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"total_idps\":2,\"active_directory_users\":25,\"allocated_license_seats\":25}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/sso/token/introspect")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"active\":true,\"authorized\":true,\"claims\":{\"user_id\":\"usr-cs-1\",\"email\":\"cs-user@corp.com\",\"role\":\"operator\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath.StartsWith("/scim/v2/Users"))
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"schemas\":[\"urn:ietf:params:scim:api:messages:2.0:ListResponse\"],\"totalResults\":1,\"Resources\":[{\"userName\":\"cs-user@corp.com\",\"active\":true}]}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -350,7 +365,28 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: ZKP params, credential issue, proof verify, and telemetry");
 
-                Console.WriteLine("=== All 15 C# Client Tests Passed Successfully! ===");
+                // 16. Test SSO & SCIM directory
+                string ssoStatusRaw = client.GetSSOStatusAsync().GetAwaiter().GetResult();
+                if (!ssoStatusRaw.Contains("active_directory_users"))
+                {
+                    Console.Error.WriteLine("FAIL: SSO status query failed: " + ssoStatusRaw);
+                    return 1;
+                }
+                string introRaw = client.IntrospectSessionTokenAsync("sso.test.token", "license:read").GetAwaiter().GetResult();
+                if (!introRaw.Contains("\"active\":true") || !introRaw.Contains("cs-user@corp.com"))
+                {
+                    Console.Error.WriteLine("FAIL: Token introspection failed: " + introRaw);
+                    return 1;
+                }
+                string scimRaw = client.ListSCIMUsersAsync(1, 10).GetAwaiter().GetResult();
+                if (!scimRaw.Contains("cs-user@corp.com"))
+                {
+                    Console.Error.WriteLine("FAIL: SCIM list users failed: " + scimRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: SSO status, token introspection, and SCIM directory");
+
+                Console.WriteLine("=== All 16 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

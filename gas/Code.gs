@@ -18,6 +18,8 @@ const SHEET_CONSENSUS_NODES = 'ConsensusNodes';
 const SHEET_STREAM_EVENTS = 'StreamEvents';
 const SHEET_ZKP_CREDENTIALS = 'ZKP_Credentials';
 const SHEET_ZKP_NULLIFIERS = 'ZKP_Nullifiers';
+const SHEET_SSO_CONFIGS = 'SSO_Configs';
+const SHEET_DIRECTORY_USERS = 'Directory_Users';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -135,6 +137,21 @@ function handleRequest(e, method) {
       case 'zkp_list':
         return handleZKPList(output, payload);
 
+      case 'sso_idp_save':
+        return handleSSOIdPSave(output, payload);
+
+      case 'sso_idp_list':
+        return handleSSOIdPList(output, payload);
+
+      case 'scim_user_sync':
+        return handleSCIMUserSync(output, payload);
+
+      case 'scim_user_deprovision':
+        return handleSCIMUserDeprovision(output, payload);
+
+      case 'scim_user_list':
+        return handleSCIMUserList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -158,7 +175,9 @@ function initSheets() {
     { name: SHEET_CONSENSUS_NODES, cols: ['node_id', 'address', 'region', 'role', 'term', 'last_seen', 'has_quorum', 'merkle_digest'] },
     { name: SHEET_STREAM_EVENTS, cols: ['timestamp', 'event_type', 'client_id', 'target', 'reason', 'latency_ms', 'details'] },
     { name: SHEET_ZKP_CREDENTIALS, cols: ['credential_id', 'hwid_commitment', 'tier', 'max_seats', 'expires_at', 'scope', 'tenant_id', 'issued_at'] },
-    { name: SHEET_ZKP_NULLIFIERS, cols: ['nullifier', 'epoch', 'tenant_id', 'spent_at'] }
+    { name: SHEET_ZKP_NULLIFIERS, cols: ['nullifier', 'epoch', 'tenant_id', 'spent_at'] },
+    { name: SHEET_SSO_CONFIGS, cols: ['idp_id', 'tenant_id', 'name', 'type', 'entity_id', 'sso_endpoint', 'enabled', 'updated_at'] },
+    { name: SHEET_DIRECTORY_USERS, cols: ['user_id', 'username', 'display_name', 'email', 'role', 'active', 'license_key', 'tenant_id', 'updated_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -864,6 +883,145 @@ function handleZKPList(output, payload) {
     spent_nullifiers_count: Math.max(0, nullData.length - 1),
     credentials: credentials
   });
+}
+
+function handleSSOIdPSave(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_SSO_CONFIGS);
+  const idpId = payload.idp_id || ('idp-' + Utilities.getUuid().substring(0, 8));
+  const tenantId = payload.tenant_id || 'default';
+  const name = payload.name || 'Enterprise IdP';
+  const type = payload.type || 'saml2';
+  const entityId = payload.entity_id || '';
+  const ssoEndpoint = payload.sso_endpoint || '';
+  const enabled = payload.enabled !== false;
+  const now = new Date().toISOString();
+
+  const data = sheet.getDataRange().getValues();
+  let updated = false;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === idpId) {
+      sheet.getRange(i + 1, 1, 1, 8).setValues([[idpId, tenantId, name, type, entityId, ssoEndpoint, enabled, now]]);
+      updated = true;
+      break;
+    }
+  }
+  if (!updated) {
+    sheet.appendRow([idpId, tenantId, name, type, entityId, ssoEndpoint, enabled, now]);
+  }
+  logAudit('sso_idp_save', tenantId, 'Configured IdP ' + idpId + ' (' + type + ')', 'SUCCESS');
+  return jsonResponse(output, { status: 'success', idp_id: idpId, updated: updated });
+}
+
+function handleSSOIdPList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_SSO_CONFIGS);
+  const data = sheet.getDataRange().getValues();
+  const tenantFilter = payload.tenant_id || '';
+  const idps = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!tenantFilter || data[i][1] === tenantFilter) {
+      idps.push({
+        idp_id: data[i][0],
+        tenant_id: data[i][1],
+        name: data[i][2],
+        type: data[i][3],
+        entity_id: data[i][4],
+        sso_endpoint: data[i][5],
+        enabled: data[i][6],
+        updated_at: data[i][7]
+      });
+    }
+  }
+  return jsonResponse(output, { status: 'success', count: idps.length, idps: idps });
+}
+
+function handleSCIMUserSync(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_DIRECTORY_USERS);
+  const userId = payload.user_id || ('scim-' + Utilities.getUuid().substring(0, 8));
+  const username = payload.username || '';
+  const displayName = payload.display_name || '';
+  const email = payload.email || username;
+  const role = payload.role || 'user';
+  const active = payload.active !== false;
+  const licenseKey = payload.license_key || '';
+  const tenantId = payload.tenant_id || 'default';
+  const now = new Date().toISOString();
+
+  const data = sheet.getDataRange().getValues();
+  let updated = false;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === userId || data[i][1] === username) {
+      sheet.getRange(i + 1, 1, 1, 9).setValues([[userId, username, displayName, email, role, active, licenseKey, tenantId, now]]);
+      updated = true;
+      break;
+    }
+  }
+  if (!updated) {
+    sheet.appendRow([userId, username, displayName, email, role, active, licenseKey, tenantId, now]);
+  }
+  logAudit('scim_user_sync', username, 'Synced SCIM directory user (active: ' + active + ')', 'SUCCESS');
+  return jsonResponse(output, { status: 'success', user_id: userId, active: active, updated: updated });
+}
+
+function handleSCIMUserDeprovision(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_DIRECTORY_USERS);
+  const target = payload.user_id || payload.username || '';
+  const reason = payload.reason || 'Deprovisioned via SCIM';
+  const now = new Date().toISOString();
+
+  const data = sheet.getDataRange().getValues();
+  let found = false;
+  let licToRevoke = '';
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === target || data[i][1] === target) {
+      sheet.getRange(i + 1, 6).setValue(false);
+      sheet.getRange(i + 1, 9).setValue(now);
+      licToRevoke = data[i][6];
+      found = true;
+      break;
+    }
+  }
+
+  if (licToRevoke) {
+    const licSheet = ss.getSheetByName(SHEET_LICENSES);
+    const licData = licSheet.getDataRange().getValues();
+    for (let j = 1; j < licData.length; j++) {
+      if (licData[j][0] === licToRevoke) {
+        licSheet.getRange(j + 1, 4).setValue('revoked');
+        break;
+      }
+    }
+  }
+
+  logAudit('scim_deprovision', target, 'Deprovisioned user, revoked license ' + licToRevoke + ' (' + reason + ')', 'REVOKED');
+  return jsonResponse(output, { status: found ? 'success' : 'not_found', target: target, revoked_license: licToRevoke });
+}
+
+function handleSCIMUserList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_DIRECTORY_USERS);
+  const data = sheet.getDataRange().getValues();
+  const tenantFilter = payload.tenant_id || '';
+  const users = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!tenantFilter || data[i][7] === tenantFilter) {
+      users.push({
+        user_id: data[i][0],
+        username: data[i][1],
+        display_name: data[i][2],
+        email: data[i][3],
+        role: data[i][4],
+        active: data[i][5],
+        license_key: data[i][6],
+        tenant_id: data[i][7],
+        updated_at: data[i][8]
+      });
+    }
+  }
+  return jsonResponse(output, { status: 'success', count: users.length, users: users });
 }
 
 function jsonResponse(output, data) {
