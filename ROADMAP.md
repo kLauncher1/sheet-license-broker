@@ -82,10 +82,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK extensions (Go, TypeScript, Python, C#) for stream monitoring and kill-switch control
 - [x] Interactive web console Real-Time Streams tab with live connection counts, event feed, and kill-switch triggers
 
-## Phase 12: Zero-Knowledge Proof (ZKP) Offline License Verification (v1.2.0)
-- [ ] Zero-knowledge cryptographic proof generation for air-gapped machine entitlement verification
-- [ ] zk-SNARK compact attestation certificates without leaking user or device hardware identities
-- [ ] Quantum-resistant cryptographic signature schemes (ML-DSA / Dilithium) for future-proof entitlement chains
+## Phase 12: Zero-Knowledge Proof (ZKP) License Verification & Privacy-Preserving Entitlements (v1.2.0) - Completed
+- [x] NIST P-256 elliptic curve Pedersen commitments with deterministic hash-to-curve generators (`internal/zkp/commitment.go`)
+- [x] Non-interactive zero-knowledge presentation proofs (Sigma protocol with Fiat-Shamir transformation) for HWID privacy (`internal/zkp/proof.go`)
+- [x] Constant-time proof verifier and spent nullifier replay protection registry (`internal/zkp/verifier.go`)
+- [x] Dedicated ZKP REST routing, proxy integration, and telemetry (`routes_zkp.go`, `internal/proxy/zkp.go`)
+- [x] Apps Script backend support for anonymous credentials and nullifiers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods for ZKP workflows (Go, TypeScript, Python, C#)
+- [x] Embedded admin console Zero-Knowledge Proofs (ZKP) interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 13: Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning (v1.3.0)
 - [ ] SAML 2.0 and OIDC identity federation bridge
@@ -136,3 +140,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Direct PKCS#11 hardware cryptoki engine binding
 - [ ] HSM-backed master key derivation for audit token and snapshot encryption
 - [ ] FIPS 140-3 Level 4 tamper-resistant storage certification bridge
+
+## Phase 23: Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography (v2.3.0)
+- [ ] NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM / Kyber-768/1024)
+- [ ] Post-quantum hybrid TLS key exchange wrappers and ephemeral forward secrecy
+- [ ] Post-quantum client SDK handshakes with fallback resilience
+
+## Phase 24: Confidential Computing SEV-SNP Remote Enclave Validation (v2.4.0)
+- [ ] AMD SEV-SNP and Intel TDX remote attestation report cryptographic verification
+- [ ] Hardware-isolated memory execution guarantees for sensitive license decryption
+- [ ] End-to-end attestation token binding with hardware measurements and security version numbers (SVN)

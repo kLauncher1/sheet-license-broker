@@ -230,6 +230,62 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/zkp/params' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            curve: 'P-256',
+            order_n: 'ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zkp/credential/issue' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            credential: {
+              id: 'cred-ts-test-01',
+              tier: 2,
+              max_seats: 1,
+              expires_at: 1800000000,
+              scope: 'production',
+              tenant_id: 'default'
+            },
+            blinding_factor: 'fedcba9876543210'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zkp/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            valid: true,
+            details: {
+              valid: true,
+              claimed_tier: 2,
+              tier_name: 'pro',
+              tenant_id: 'default',
+              nullifier: 'null-ts-01'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zkp/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            zkp: {
+              total_credentials_issued: 3,
+              total_proofs_verified: 5,
+              spent_nullifiers_count: 2
+            }
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -387,4 +443,43 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     assert.strictEqual(telem.active_connections, 1);
     assert.strictEqual(telem.total_heartbeats, 15);
   });
+
+  it('queries zkp params, issues anonymous credential, verifies proof, and checks status', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const params = await client.getZKPParams();
+    assert.strictEqual(params.curve, 'P-256');
+
+    const issueRes = await client.issueAnonymousCredential({
+      licenseKey: 'LIC-ZKP-TS-01',
+      tier: 'pro',
+      validDays: 30,
+    });
+    assert.strictEqual(issueRes.status, 'success');
+    assert.strictEqual(issueRes.credential.id, 'cred-ts-test-01');
+    assert.strictEqual(issueRes.blinding_factor, 'fedcba9876543210');
+
+    const verifyRes = await client.verifyZKPProof({
+      ax: '11',
+      ay: '22',
+      sv: '33',
+      sr: '44',
+      hwid_commitment: { x: '55', y: '66' },
+      credential_id: 'cred-ts-test-01',
+      claimed_tier: 2,
+      max_seats: 1,
+      expires_at: 1800000000,
+      scope: 'production',
+      tenant_id: 'default',
+      nullifier: 'null-ts-01',
+      epoch: 1234,
+      challenge: '77',
+    }, 'pro');
+    assert.strictEqual(verifyRes.valid, true);
+    assert.strictEqual(verifyRes.details.tier_name, 'pro');
+
+    const status = await client.getZKPStatus();
+    assert.strictEqual(status.total_credentials_issued, 3);
+    assert.strictEqual(status.total_proofs_verified, 5);
+  });
 });
+

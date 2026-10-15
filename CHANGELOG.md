@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-10-15
+
+### Added
+- Zero-Knowledge Proof (ZKP) license verification and anonymous credential engine (`internal/zkp/types.go`, `internal/zkp/commitment.go`, `internal/zkp/proof.go`, `internal/zkp/verifier.go`, `internal/zkp/zkp_test.go`) implemented in pure Go standard library with zero external dependencies, providing information-theoretic privacy for device hardware identifiers (HWID).
+- Cryptographic Pedersen commitments $C = vG + rH$ over NIST P-256 elliptic curves with deterministic try-and-increment hash-to-curve independent generator $H$, ensuring computational binding against forgery while hiding underlying client identities.
+- Non-interactive zero-knowledge presentation proofs (Sigma NIZK with Fiat-Shamir transformation) allowing air-gapped and privacy-sensitive client applications to prove entitlement, tier qualification, and HWID ownership without revealing private keys or device parameters.
+- Constant-time proof verifier and spent nullifier replay protection registry (`internal/zkp/verifier.go`) preventing double-presentation replay attacks within active validity epochs while preserving cross-epoch unlinkability.
+- Dedicated modular ZKP REST routing layer (`routes_zkp.go`, `routes_zkp_test.go`) exposing `GET /api/zkp/params`, `POST /api/zkp/credential/issue`, `POST /api/zkp/verify`, `GET /api/zkp/nullifiers/check`, and `GET /api/zkp/status`.
+- Proxy layer ZKP coordination (`internal/proxy/zkp.go`, `internal/proxy/zkp_test.go`) binding the zero-knowledge verifier with automated audit event logging and Google Apps Script synchronization.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and persistent logging for `ZKPCredentials` and `ZKPNullifiers` sheets, with `zkp_record_credential`, `zkp_record_nullifier`, and `zkp_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go`), Python (`sdk/python`), TypeScript / Node.js (`sdk/typescript`), and C# (`sdk/csharp`) adding `GetZKPParams`, `IssueAnonymousCredential`, `VerifyZKPProof`, and `GetZKPStatus` methods with end-to-end unit test verification.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Zero-Knowledge Proofs (ZKP)" tab with real-time public parameters, credential counters, spent nullifier monitors, anonymous credential issuance forms, proof simulators, and nullifier lookup utilities.
+- Version bump to 1.2.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.1.0] - 2026-10-14
 
 ### Added

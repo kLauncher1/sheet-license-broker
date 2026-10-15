@@ -19,4 +19,12 @@ export type {
   LicenseRecord,
   LicenseValidationResponse,
   UserAuthResponse,
+  AnonymousCredential,
+  PedersenCommitmentPoint,
+  ZKPParamsResponse,
+  ZKPIssueResponse,
+  ZKPProof,
+  ZKPStatusResponse,
+  ZKPVerificationResult,
+  ZKPVerifyResponse,
 } from './types.js';

@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.2.x   | :white_check_mark: |
 | 1.1.x   | :white_check_mark: |
 | 1.0.x   | :white_check_mark: |
 | 0.9.x   | :white_check_mark: |
@@ -93,6 +94,12 @@
     - Incoming client frames must be properly masked; unmasked client frames or payloads exceeding the 1MB buffer ceiling are rejected immediately to eliminate denial-of-service and memory exhaustion vectors.
     - Revocation and kill-switch directives (`EventRevocation` & `EventKillSwitch`) are pushed with sub-second latency across active connections indexed by license key, device HWID, or client ID.
     - Kill-switch payloads instruct connected applications to terminate execution or lock functionality immediately upon trigger.
+
+18. **Zero-Knowledge Proof (ZKP) Anonymous Verification & Nullifier Privacy Invariants**:
+    - **Pedersen Commitment Information-Theoretic Hiding**: Device hardware fingerprints (HWID) are converted to scalar representations and blinded using Pedersen commitments $C = vG + rH$ over NIST P-256 elliptic curves. Independent generator $H$ is computed deterministically via try-and-increment hash-to-curve without a known discrete logarithm relative to $G$, guaranteeing both information-theoretic privacy for client identifiers and computational binding against forgery.
+    - **Sigma NIZK Proofs via Fiat-Shamir Transformation**: Client entitlement verification proves possession of a valid blinded credential and knowledge of underlying opening scalars $(v, r)$ without revealing the values to the broker or network observers. Challenge hashes are bound to credential identifiers, epoch numbers, and presentation statements.
+    - **Spent Nullifier Replay Defense**: Proof evaluations require an HMAC-SHA256 derived nullifier $\eta$. The broker maintains a thread-safe nullifier registry that enforces single-use verification within the current validity epoch. Replay attacks submitting identical nullifiers are rejected in constant time, preventing entitlement replay while preserving cross-epoch unlinkability.
+    - **ECDSA Issuer Signatures & Tier Integrity**: Issued anonymous credentials include an ECDSA P-256 signature calculated over the credential digest $(C, \text{tier}, \text{max\_seats}, \text{expires\_at})$. Proof verifications validate the signature against the broker's public key before accepting the zero-knowledge presentation proof, ensuring unforgeable entitlement assertions.
 
 ## Reporting a Vulnerability
 

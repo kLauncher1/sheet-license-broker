@@ -16,6 +16,8 @@ const SHEET_FEATURE_FLAGS = 'FeatureFlags';
 const SHEET_ATTESTATIONS = 'Attestations';
 const SHEET_CONSENSUS_NODES = 'ConsensusNodes';
 const SHEET_STREAM_EVENTS = 'StreamEvents';
+const SHEET_ZKP_CREDENTIALS = 'ZKP_Credentials';
+const SHEET_ZKP_NULLIFIERS = 'ZKP_Nullifiers';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -124,6 +126,15 @@ function handleRequest(e, method) {
       case 'stream_event_list':
         return handleStreamEventList(output, payload);
 
+      case 'zkp_record_credential':
+        return handleZKPRecordCredential(output, payload);
+
+      case 'zkp_record_nullifier':
+        return handleZKPRecordNullifier(output, payload);
+
+      case 'zkp_list':
+        return handleZKPList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -145,7 +156,9 @@ function initSheets() {
     { name: SHEET_FEATURE_FLAGS, cols: ['feature_key', 'name', 'default_tiers', 'description', 'created_at'] },
     { name: SHEET_ATTESTATIONS, cols: ['timestamp', 'license_key', 'hwid', 'attestation_type', 'trust_level', 'pcr_digest', 'tamper_score', 'details'] },
     { name: SHEET_CONSENSUS_NODES, cols: ['node_id', 'address', 'region', 'role', 'term', 'last_seen', 'has_quorum', 'merkle_digest'] },
-    { name: SHEET_STREAM_EVENTS, cols: ['timestamp', 'event_type', 'client_id', 'target', 'reason', 'latency_ms', 'details'] }
+    { name: SHEET_STREAM_EVENTS, cols: ['timestamp', 'event_type', 'client_id', 'target', 'reason', 'latency_ms', 'details'] },
+    { name: SHEET_ZKP_CREDENTIALS, cols: ['credential_id', 'hwid_commitment', 'tier', 'max_seats', 'expires_at', 'scope', 'tenant_id', 'issued_at'] },
+    { name: SHEET_ZKP_NULLIFIERS, cols: ['nullifier', 'epoch', 'tenant_id', 'spent_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -779,6 +792,78 @@ function handleStreamEventList(output, payload) {
   }
 
   return jsonResponse(output, { status: 'success', count: events.length, events: events });
+}
+
+function handleZKPRecordCredential(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ZKP_CREDENTIALS);
+  const now = new Date().toISOString();
+
+  sheet.appendRow([
+    payload.credential_id || '',
+    payload.hwid_commitment || '',
+    payload.tier || 1,
+    payload.max_seats || 1,
+    payload.expires_at || '',
+    payload.scope || 'default',
+    payload.tenant_id || 'default',
+    now
+  ]);
+
+  logAudit('zkp_credential', payload.tenant_id || 'system', 'Issued anonymous credential ' + (payload.credential_id || ''), 'SUCCESS');
+  return jsonResponse(output, { status: 'success', credential_id: payload.credential_id });
+}
+
+function handleZKPRecordNullifier(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ZKP_NULLIFIERS);
+  const nullifier = payload.nullifier;
+  if (!nullifier) {
+    return jsonResponse(output, { status: 'error', message: 'Nullifier required' });
+  }
+
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === nullifier) {
+      return jsonResponse(output, { status: 'error', message: 'Nullifier already spent', spent: true, epoch: data[i][1] });
+    }
+  }
+
+  const now = new Date().toISOString();
+  sheet.appendRow([nullifier, payload.epoch || 0, payload.tenant_id || 'default', now]);
+  return jsonResponse(output, { status: 'success', nullifier: nullifier, spent: true });
+}
+
+function handleZKPList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const credSheet = ss.getSheetByName(SHEET_ZKP_CREDENTIALS);
+  const nullSheet = ss.getSheetByName(SHEET_ZKP_NULLIFIERS);
+
+  const credData = credSheet.getDataRange().getValues();
+  const nullData = nullSheet.getDataRange().getValues();
+
+  const credentials = [];
+  const limit = Math.min(Number(payload.limit) || 50, 100);
+
+  for (let i = credData.length - 1; i >= 1 && credentials.length < limit; i--) {
+    credentials.push({
+      credential_id: credData[i][0],
+      hwid_commitment: credData[i][1],
+      tier: credData[i][2],
+      max_seats: credData[i][3],
+      expires_at: credData[i][4],
+      scope: credData[i][5],
+      tenant_id: credData[i][6],
+      issued_at: credData[i][7]
+    });
+  }
+
+  return jsonResponse(output, {
+    status: 'success',
+    credentials_count: credentials.length,
+    spent_nullifiers_count: Math.max(0, nullData.length - 1),
+    credentials: credentials
+  });
 }
 
 function jsonResponse(output, data) {

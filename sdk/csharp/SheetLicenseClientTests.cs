@@ -141,6 +141,26 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"telemetry\":{\"active_connections\":1,\"total_heartbeats\":99}}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zkp/params")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"curve\":\"P-256\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zkp/credential/issue")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"credential\":{\"id\":\"cred-cs-123\",\"tier\":2},\"blinding_factor\":\"1234abcd\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zkp/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"valid\":true,\"details\":{\"valid\":true,\"claimed_tier\":2,\"tier_name\":\"pro\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zkp/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"zkp\":{\"total_credentials_issued\":5,\"total_proofs_verified\":10}}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -303,7 +323,34 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Stream clients, kill switch, and telemetry");
 
-                Console.WriteLine("=== All 14 C# Client Tests Passed Successfully! ===");
+                // 15. Test Zero-Knowledge Proofs (ZKP)
+                string zkpParamsRaw = client.GetZKPParamsAsync().GetAwaiter().GetResult();
+                if (!zkpParamsRaw.Contains("P-256"))
+                {
+                    Console.Error.WriteLine("FAIL: ZKP params failed: " + zkpParamsRaw);
+                    return 1;
+                }
+                string zkpCredRaw = client.IssueAnonymousCredentialAsync("LIC-ZKP-CS", null, "pro", 30, "production").GetAwaiter().GetResult();
+                if (!zkpCredRaw.Contains("cred-cs-123"))
+                {
+                    Console.Error.WriteLine("FAIL: ZKP credential issue failed: " + zkpCredRaw);
+                    return 1;
+                }
+                string zkpVerifyRaw = client.VerifyZKPProofAsync("{\"ax\":\"1\"}", "pro", 100).GetAwaiter().GetResult();
+                if (!zkpVerifyRaw.Contains("\"valid\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: ZKP proof verify failed: " + zkpVerifyRaw);
+                    return 1;
+                }
+                string zkpStatusRaw = client.GetZKPStatusAsync().GetAwaiter().GetResult();
+                if (!zkpStatusRaw.Contains("total_proofs_verified"))
+                {
+                    Console.Error.WriteLine("FAIL: ZKP status failed: " + zkpStatusRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: ZKP params, credential issue, proof verify, and telemetry");
+
+                Console.WriteLine("=== All 15 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

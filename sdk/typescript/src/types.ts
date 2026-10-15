@@ -220,4 +220,87 @@ export interface StreamTelemetryResponse {
   };
 }
 
+export interface PedersenCommitmentPoint {
+  x: string;
+  y: string;
+}
+
+export interface AnonymousCredential {
+  id: string;
+  hwid_commitment: PedersenCommitmentPoint;
+  tier: number;
+  max_seats: number;
+  expires_at: number;
+  scope: string;
+  tenant_id: string;
+  issued_at: number;
+  sig_r?: string;
+  sig_s?: string;
+}
+
+export interface ZKPProof {
+  ax: string;
+  ay: string;
+  sv: string;
+  sr: string;
+  hwid_commitment: PedersenCommitmentPoint;
+  credential_id: string;
+  claimed_tier: number;
+  max_seats: number;
+  expires_at: number;
+  scope: string;
+  tenant_id: string;
+  nullifier: string;
+  epoch: number;
+  sig_r?: string;
+  sig_s?: string;
+  challenge: string;
+}
+
+export interface ZKPVerificationResult {
+  valid: boolean;
+  claimed_tier: number;
+  tier_name: string;
+  tenant_id: string;
+  nullifier: string;
+  epoch: number;
+  expires_at: string;
+  hwid_commitment: string;
+  reason?: string;
+}
+
+export interface ZKPParamsResponse {
+  status: string;
+  curve: string;
+  generator_g: { x: string; y: string };
+  generator_h: { x: string; y: string };
+  order_n: string;
+  issuer_public_key: { x: string; y: string; hex: string };
+}
+
+export interface ZKPIssueResponse {
+  status: string;
+  credential: AnonymousCredential;
+  blinding_factor?: string;
+}
+
+export interface ZKPVerifyResponse {
+  status: string;
+  valid: boolean;
+  details?: ZKPVerificationResult;
+  reason?: string;
+}
+
+export interface ZKPStatusResponse {
+  status: string;
+  zkp: {
+    total_credentials_issued: number;
+    total_proofs_verified: number;
+    total_proofs_rejected: number;
+    spent_nullifiers_count: number;
+    issuer_public_key: string;
+    active_epoch: number;
+  };
+}
+
 

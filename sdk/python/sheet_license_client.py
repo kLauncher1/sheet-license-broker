@@ -383,6 +383,53 @@ class SheetLicenseClient:
         res = self._request("GET", "/api/stream/telemetry")
         return res.get("telemetry", {})
 
+    def get_zkp_params(self) -> Dict[str, Any]:
+        """Fetches public curve parameters and issuer public key."""
+        return self._request("GET", "/api/zkp/params")
+
+    def issue_anonymous_credential(
+        self,
+        license_key: str,
+        hwid: Optional[str] = None,
+        tier: str = "pro",
+        valid_days: int = 30,
+        scope: str = "production",
+        hwid_commitment: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Issues an issuer-signed anonymous entitlement credential for an authenticated license."""
+        target_hwid = hwid or get_machine_hwid()
+        payload = {
+            "license_key": license_key,
+            "hwid": target_hwid,
+            "tier": tier,
+            "valid_days": valid_days,
+            "scope": scope,
+            "tenant_id": self.tenant_id or "default",
+        }
+        if hwid_commitment:
+            payload["hwid_commitment"] = hwid_commitment
+        return self._request("POST", "/api/zkp/credential/issue", payload)
+
+    def verify_zkp_proof(
+        self,
+        proof: Dict[str, Any],
+        required_tier: str = "free",
+        epoch: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Submits a zero-knowledge presentation proof for anonymous entitlement access."""
+        payload = {
+            "proof": proof,
+            "required_tier": required_tier,
+            "epoch": epoch or int(time.time() // 3600),
+        }
+        return self._request("POST", "/api/zkp/verify", payload)
+
+    def get_zkp_status(self) -> Dict[str, Any]:
+        """Queries overall telemetry on zero-knowledge verifications."""
+        res = self._request("GET", "/api/zkp/status")
+        return res.get("zkp", {})
+
+
 
 
 if __name__ == "__main__":
