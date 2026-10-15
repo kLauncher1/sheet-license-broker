@@ -6,7 +6,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.2.0-emerald.svg" alt="Version: v1.2.0">
+  <img src="https://img.shields.io/badge/version-v1.3.0-emerald.svg" alt="Version: v1.3.0">
+  <img src="https://img.shields.io/badge/sso-SAML%202.0%20%26%20OIDC-blueviolet.svg" alt="SAML & OIDC SSO">
+  <img src="https://img.shields.io/badge/scim-RFC%207643%20%2F%207644%20SCIM%202.0-10B981.svg" alt="SCIM 2.0 Directory Provisioning">
   <img src="https://img.shields.io/badge/zkp-pedersen%20%26%20sigma%20proofs-10B981.svg" alt="Zero-Knowledge Proofs">
   <img src="https://img.shields.io/badge/stream-websocket%20telemetry%20%26%20kill--switch-10B981.svg" alt="WebSocket Streaming & Kill-Switch">
   <img src="https://img.shields.io/badge/consensus-raft%20quorum%20%26%20CRDT-blue.svg" alt="Distributed Consensus">
@@ -31,6 +33,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning**: SAML 2.0 & OIDC identity federation, RFC 7643/7644 directory synchronization, automated license seat allocation, and instant deprovisioning revocation.
 - **Zero-Knowledge Proof (ZKP) Anonymous Verification**: Pedersen commitments over NIST P-256 with deterministic hash-to-curve independent generators, non-interactive Sigma presentation proofs (Fiat-Shamir transformed), and spent nullifier replay defense registries protecting client hardware privacy.
 - **Distributed Raft Quorum Consensus & CRDT Mesh**: Lightweight leader election, majority log quorum, conflict-free LWW-Element-Set state replication, and SHA-256 Merkle tree state digests for anti-entropy sync across distributed broker nodes.
 - **Enterprise Rate-Limiting & Progressive Backoff**: Thread-safe sliding-window throttling per IP and HWID with progressive penalty delays and standard `X-RateLimit-*` headers.
@@ -657,6 +660,147 @@ Content-Type: application/json
 
 ---
 
+### 🕵️ Zero-Knowledge Proof (ZKP) Anonymous Verification
+
+#### Fetch NIST P-256 Public Parameters & Generators
+```http
+GET /api/zkp/params
+```
+
+#### Issue Anonymous Blinded Credential
+```http
+POST /api/zkp/credential/issue
+Content-Type: application/json
+
+{
+  "license_key": "LIC-ENTERPRISE-001",
+  "tenant_id": "default",
+  "hwid": "WIN-B829-94AA-0123",
+  "tier": "enterprise",
+  "max_seats": 5
+}
+```
+
+#### Verify Zero-Knowledge Presentation Proof (Sigma Protocol)
+```http
+POST /api/zkp/verify
+Content-Type: application/json
+
+{
+  "credential": { ... },
+  "required_tier": "enterprise"
+}
+```
+
+#### Inspect Spent Nullifier Status
+```http
+GET /api/zkp/nullifiers/check?nullifier=7f2a9c4b...
+```
+
+---
+
+### 🔐 Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning
+
+#### SAML 2.0 Service Provider Metadata
+Download standard SP metadata XML for Okta, Azure AD, or PingFederate:
+```http
+GET /api/sso/saml/metadata?entity_id=urn:sheet-license-broker:sp
+```
+
+#### SAML 2.0 Assertion Consumer Service (ACS)
+Process inbound SAML assertions and issue authenticated session tokens:
+```http
+POST /api/sso/saml/acs
+Content-Type: application/x-www-form-urlencoded
+
+SAMLResponse=PHNhbWxwOlJlc3BvbnNlIHhtbG5z...
+```
+
+#### OpenID Connect (OIDC) Callback
+Validate ID tokens and claims from Google Workspace, Auth0, or Keycloak:
+```http
+POST /api/sso/oidc/callback
+Content-Type: application/json
+
+{
+  "sub": "usr_9918",
+  "email": "alice@company.com",
+  "iss": "https://accounts.google.com",
+  "aud": "sheet-license-broker",
+  "exp": 1776250000
+}
+```
+
+#### Identity Provider (IdP) Management
+```http
+# Register new SAML or OIDC IdP
+POST /api/sso/idp
+Content-Type: application/json
+
+{
+  "id": "okta-corp",
+  "protocol": "saml",
+  "entity_id": "http://www.okta.com/exk123456",
+  "sso_url": "https://company.okta.com/app/sso",
+  "tenant_id": "default",
+  "enabled": true
+}
+
+# List registered IdPs
+GET /api/sso/idp
+```
+
+#### SCIM 2.0 Directory Provisioning (RFC 7644)
+Integrate corporate user lifecycle provisioning directly with Okta, Microsoft Entra ID (Azure AD), or OneLogin:
+
+```http
+# Service Provider Configuration
+GET /scim/v2/ServiceProviderConfig
+
+# List directory users (paginated)
+GET /scim/v2/Users?startIndex=1&count=50
+
+# Provision user (automatically allocates license seat)
+POST /scim/v2/Users
+Content-Type: application/scim+json
+
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "userName": "alice@corp.com",
+  "emails": [{ "value": "alice@corp.com", "primary": true }],
+  "roles": [{ "value": "operator" }],
+  "active": true
+}
+
+# Deprovision user (instantly revokes allocated license seat and pushes kill-switch)
+DELETE /scim/v2/Users/usr-okta-8821
+```
+
+#### Ephemeral RBAC Session Tokens
+```http
+# Mint ephemeral token
+POST /api/sso/token/mint
+Content-Type: application/json
+
+{
+  "user_id": "usr_9918",
+  "email": "alice@corp.com",
+  "role": "admin",
+  "scopes": ["license:read", "license:write", "sso:manage"]
+}
+
+# Introspect token and enforce scope permissions
+POST /api/sso/token/introspect
+Content-Type: application/json
+
+{
+  "token": "sso_tok_7f2a9c4b...",
+  "required_scope": "license:write"
+}
+```
+
+---
+
 ## ⚡ Cloudflare Edge Gateway
 
 For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
@@ -696,6 +840,10 @@ if res.get("valid"):
 
     # 3. Record consumption towards tier quotas
     client.record_usage("SLB-XXXX-XXXX-XXXX", "api_calls", 1)
+
+    # 4. Enterprise SSO & SCIM directory token check
+    sso_status = client.get_sso_status()
+    token_info = client.introspect_session_token("sso_tok_...", required_scope="license:write")
 else:
     print("Denied:", res.get("message"))
 ```
@@ -721,6 +869,10 @@ if (result.Valid) {
 
     // Record usage
     await client.RecordUsageAsync("SLB-XXXX-XXXX-XXXX", "api_calls", 1);
+
+    // Enterprise SSO & SCIM directory token check
+    var ssoStatus = await client.GetSSOStatusAsync();
+    var tokenInfo = await client.IntrospectSessionTokenAsync("sso_tok_...", "license:write");
 }
 ```
 
@@ -748,6 +900,10 @@ if (result.valid) {
 
   // Record usage metrics
   await client.recordUsage('SLB-XXXX-XXXX-XXXX', 'api_calls', 1);
+
+  // Enterprise SSO & SCIM directory token check
+  const ssoStatus = await client.getSSOStatus();
+  const tokenInfo = await client.introspectSessionToken('sso_tok_...', 'license:write');
 }
 ```
 
@@ -779,6 +935,12 @@ func main() {
 
 		// Record usage consumption
 		_ = client.RecordUsage(context.Background(), "SLB-XXXX-XXXX-XXXX", "api_calls", 1)
+
+		// Enterprise SSO & SCIM directory token check
+		ssoStatus, _ := client.GetSSOStatus(context.Background())
+		tokenInfo, _ := client.IntrospectSessionToken(context.Background(), "sso_tok_...", "license:write")
+		_ = ssoStatus
+		_ = tokenInfo
 	}
 }
 ```

@@ -324,4 +324,19 @@ export class SheetLicenseClient {
     const res = await this.request('GET', '/api/zkp/status');
     return res.zkp;
   }
+
+  async getSSOStatus() {
+    return this.request('GET', '/api/sso/status');
+  }
+
+  async introspectSessionToken(token, requiredScope) {
+    return this.request('POST', '/api/sso/token/introspect', {
+      token,
+      required_scope: requiredScope,
+    });
+  }
+
+  async listSCIMUsers(startIndex = 1, count = 50) {
+    return this.request('GET', `/scim/v2/Users?startIndex=${startIndex}&count=${count}`);
+  }
 }

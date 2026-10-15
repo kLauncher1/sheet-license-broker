@@ -408,3 +408,58 @@ func TestGoClientZKPWorkflow(t *testing.T) {
 }
 
 
+
+func TestGoClientSSOAndSCIMWorkflow(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/sso/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":                  "success",
+			"total_idps":              2,
+			"active_directory_users":  15,
+			"allocated_license_seats": 15,
+		})
+	})
+	mux.HandleFunc("/api/sso/token/introspect", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"active":     true,
+			"authorized": true,
+			"claims": map[string]interface{}{
+				"user_id": "usr-123",
+				"email":   "user@corp.com",
+				"role":    "admin",
+			},
+		})
+	})
+	mux.HandleFunc("/scim/v2/Users", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"schemas":      []string{"urn:ietf:params:scim:api:messages:2.0:ListResponse"},
+			"totalResults": 1,
+			"Resources": []map[string]interface{}{
+				{"userName": "user@corp.com", "active": true},
+			},
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+
+	status, err := client.GetSSOStatus(context.Background())
+	if err != nil || status["active_directory_users"].(float64) != 15 {
+		t.Fatalf("expected sso status, got %v (err: %v)", status, err)
+	}
+
+	intro, err := client.IntrospectSessionToken(context.Background(), "sso.payload.sig", "license:read")
+	if err != nil || intro["active"] != true || intro["authorized"] != true {
+		t.Fatalf("expected active token introspection, got %v (err: %v)", intro, err)
+	}
+
+	scimList, err := client.ListSCIMUsers(context.Background(), 1, 10)
+	if err != nil || scimList["totalResults"].(float64) != 1 {
+		t.Fatalf("expected scim list, got %v (err: %v)", scimList, err)
+	}
+}

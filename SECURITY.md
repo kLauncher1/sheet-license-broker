@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.3.x   | :white_check_mark: |
 | 1.2.x   | :white_check_mark: |
 | 1.1.x   | :white_check_mark: |
 | 1.0.x   | :white_check_mark: |
@@ -100,6 +101,12 @@
     - **Sigma NIZK Proofs via Fiat-Shamir Transformation**: Client entitlement verification proves possession of a valid blinded credential and knowledge of underlying opening scalars $(v, r)$ without revealing the values to the broker or network observers. Challenge hashes are bound to credential identifiers, epoch numbers, and presentation statements.
     - **Spent Nullifier Replay Defense**: Proof evaluations require an HMAC-SHA256 derived nullifier $\eta$. The broker maintains a thread-safe nullifier registry that enforces single-use verification within the current validity epoch. Replay attacks submitting identical nullifiers are rejected in constant time, preventing entitlement replay while preserving cross-epoch unlinkability.
     - **ECDSA Issuer Signatures & Tier Integrity**: Issued anonymous credentials include an ECDSA P-256 signature calculated over the credential digest $(C, \text{tier}, \text{max\_seats}, \text{expires\_at})$. Proof verifications validate the signature against the broker's public key before accepting the zero-knowledge presentation proof, ensuring unforgeable entitlement assertions.
+
+19. **Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Invariants**:
+    - **Federation Assertion Validation**: Inbound SAML 2.0 assertions and OIDC claims are parsed and strictly validated against configured IdP certificates, expected audience identifiers (`urn:sheet-license-broker:sp`), and expiry timestamps. Expired assertions or invalid audiences are rejected immediately.
+    - **RFC 7643 & RFC 7644 SCIM 2.0 Standards Compliance**: Directory synchronizations adhere to standard SCIM schemas (`urn:ietf:params:scim:schemas:core:2.0:User`). User attributes and emails are normalized, and unknown schemas or malformed JSON payloads return standard RFC 7644 error responses.
+    - **Automated Revocation Invariant on Deprovisioning**: When a user is deprovisioned via SCIM (either through `DELETE /scim/v2/Users/{id}` or `active: false` update), their assigned license key is immediately revoked, local and remote caches are invalidated, and an instantaneous WebSocket kill-switch signal is dispatched to terminate active software sessions.
+    - **Scoped RBAC & Constant-Time Ephemeral Token Introspection**: Session tokens minted via `/api/sso/token/mint` are HMAC-SHA256 authenticated. Verifications execute in constant time using `hmac.Equal` to eliminate timing side-channels, and actions are gated by the Role-Scope matrix to prevent privilege escalation.
 
 ## Reporting a Vulnerability
 

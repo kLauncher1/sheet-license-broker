@@ -91,10 +91,17 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods for ZKP workflows (Go, TypeScript, Python, C#)
 - [x] Embedded admin console Zero-Knowledge Proofs (ZKP) interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 13: Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning (v1.3.0)
-- [ ] SAML 2.0 and OIDC identity federation bridge
-- [ ] Automated directory user synchronization and license seat deprovisioning via SCIM 2.0
-- [ ] Scoped RBAC permissions and ephemeral session token issuance
+## Phase 13: Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning (v1.3.0) - Completed
+- [x] SAML 2.0 Service Provider metadata generator (`BuildSPMetadataXML`) and assertion parser (`ParseSAMLResponse`)
+- [x] OpenID Connect (OIDC) ID token and callback validator (`ValidateOIDCClaims`) with claim normalization
+- [x] Multi-tenant Identity Provider registry (`internal/sso/saml_oidc.go`) with tenant isolation
+- [x] RFC 7643 & RFC 7644 compliant SCIM 2.0 user directory management (`internal/sso/scim.go`, `/scim/v2/*`)
+- [x] Automated license seat allocation upon user provisioning and instant revocation on deprovisioning (`internal/proxy/sso.go`)
+- [x] Scoped RBAC permissions matrix (`RoleScopeMatrix`) and ephemeral HMAC-SHA256 session token issuance (`internal/sso/rbac_token.go`)
+- [x] Dedicated SSO & SCIM REST router and tests (`routes_sso.go`, `routes_sso_test.go`)
+- [x] Google Apps Script backend sheets (`SSO_Configs`, `Directory_Users`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods for SSO and SCIM workflows across Go, TypeScript, Python, and C#
+- [x] Embedded admin console Enterprise SSO & SCIM interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 14: Post-Quantum Cryptography & ML-DSA Signature Chains (v1.4.0)
 - [ ] Module-Lattice-Based Digital Signature Algorithm (ML-DSA / Dilithium) verification
@@ -150,3 +157,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] AMD SEV-SNP and Intel TDX remote attestation report cryptographic verification
 - [ ] Hardware-isolated memory execution guarantees for sensitive license decryption
 - [ ] End-to-end attestation token binding with hardware measurements and security version numbers (SVN)
+
+## Phase 25: Real-Time Decentralized Audit Ledger & Verifiable Transparency Logs (v2.5.0)
+- [ ] Cryptographic Merkle tree transparency log with RFC 6962 inclusion and consistency proofs
+- [ ] Tamper-evident verifiable log server endpoints (`/api/transparency/inclusion-proof`)
+- [ ] Continuous signed tree head (STH) publishing and multi-party witness co-signing
+
+## Phase 26: Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation (v2.6.0)
+- [ ] Multi-vector client security posture analyzer (OS patch level, secure boot status, AV health)
+- [ ] Dynamic confidence scoring engine triggering progressive step-up re-authentication
+- [ ] Policy-driven auto-quarantine with graceful degradation mode and localized compliance webhooks
+

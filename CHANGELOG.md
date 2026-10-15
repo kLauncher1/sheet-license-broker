@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-10-15
+
+### Added
+- Enterprise Single Sign-On (SSO) federation and SCIM 2.0 directory user synchronization engine (`internal/sso/types.go`, `internal/sso/saml_oidc.go`, `internal/sso/scim.go`, `internal/sso/rbac_token.go`, `internal/sso/manager.go`, `internal/sso/sso_test.go`) implemented in pure Go standard library with zero external dependencies.
+- Standard SAML 2.0 Service Provider metadata generator (`BuildSPMetadataXML`) and assertion parser (`ParseSAMLResponse`) extracting NameID, entity attributes, audience restriction checks, and expiry timestamps.
+- OpenID Connect (OIDC) ID token and callback validator (`ValidateOIDCClaims`) with aud/iss verification and automated identity normalization.
+- Multi-tenant Identity Provider registry (`internal/sso/saml_oidc.go`) supporting dynamic registration, resolution by entity ID / issuer URL, and tenant namespace isolation.
+- RFC 7643 & RFC 7644 compliant SCIM 2.0 user directory management with full CRUD operations (`/scim/v2/Users`, `/scim/v2/ServiceProviderConfig`), pagination (`startIndex`, `count`), and lifecycle hooks (`OnProvision`, `OnDeprovision`).
+- Automated enterprise license seat provisioning on user creation and instant seat revocation with real-time WebSocket kill-switch dispatch upon directory deprovisioning.
+- Scoped Role-Based Access Control (RBAC) permissions matrix (`RoleScopeMatrix`) supporting `admin`, `operator`, `auditor`, and `user` roles with standard scopes (`license:read`, `license:write`, `license:revoke`, `audit:read`, `tenant:manage`, `sso:manage`, `scim:manage`).
+- Ephemeral HMAC-SHA256 session token minter and constant-time validator issuing tamper-proof bearer tokens with sub-millisecond introspection.
+- Dedicated modular SSO & SCIM REST routing layer (`routes_sso.go`, `routes_sso_test.go`) exposing `/api/sso/saml/metadata`, `/api/sso/saml/acs`, `/api/sso/oidc/callback`, `/api/sso/idp`, `/api/sso/token/mint`, `/api/sso/token/introspect`, `/api/sso/status`, and root `/scim/v2/*` endpoints.
+- Proxy layer integration (`internal/proxy/sso.go`, `internal/proxy/sso_test.go`) connecting SCIM lifecycle hooks with audit event logging, automated tenant license issuance, and instant remote revocation.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and logging for `SSO_Configs` and `Directory_Users` sheets, with `sso_idp_save`, `sso_idp_list`, `scim_user_sync`, `scim_user_deprovision`, and `scim_user_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/sso.go`, `sdk/go/zkp.go`, `sdk/go/client.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) adding SSO IdP registration, SAML/OIDC callbacks, SCIM user provisioning/deprovisioning, and session token introspection with comprehensive unit tests.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Enterprise SSO & SCIM" tab with registered IdP table, SCIM directory user roster, telemetry cards, and ephemeral session token inspection tools.
+- Version bump to 1.3.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.2.0] - 2026-10-15
 
 ### Added
