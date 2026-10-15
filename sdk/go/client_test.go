@@ -338,3 +338,73 @@ func TestGoClientStreamTelemetryAndKillSwitch(t *testing.T) {
 	}
 }
 
+func TestGoClientZKPWorkflow(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/zkp/params", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"curve":  "P-256",
+		})
+	})
+	mux.HandleFunc("/api/zkp/credential/issue", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"credential": map[string]interface{}{
+				"id":        "cred-test-01",
+				"tier":      2,
+				"max_seats": 1,
+			},
+			"blinding_factor": "1234abcd",
+		})
+	})
+	mux.HandleFunc("/api/zkp/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"valid":  true,
+			"details": map[string]interface{}{
+				"valid":        true,
+				"claimed_tier": 2,
+				"tier_name":    "pro",
+			},
+		})
+	})
+	mux.HandleFunc("/api/zkp/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"zkp": map[string]interface{}{
+				"total_proofs_verified": 1,
+			},
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+
+	params, err := client.GetZKPParams(context.Background())
+	if err != nil || params["curve"] != "P-256" {
+		t.Fatalf("expected zkp params, got %v (err: %v)", params, err)
+	}
+
+	cred, rScalar, err := client.IssueAnonymousCredential(context.Background(), "LIC-TEST", "HWID-01", "pro", 30, "production")
+	if err != nil || cred.ID != "cred-test-01" || rScalar == nil {
+		t.Fatalf("expected anonymous credential, got %v (err: %v)", cred, err)
+	}
+
+	res, err := client.VerifyZKPProof(context.Background(), nil, "pro", 100)
+	if err != nil || !res.Valid || res.TierName != "pro" {
+		t.Fatalf("expected valid zkp proof result, got %v (err: %v)", res, err)
+	}
+
+	status, err := client.GetZKPStatus(context.Background())
+	if err != nil || status["total_proofs_verified"].(float64) != 1 {
+		t.Fatalf("expected zkp status, got %v (err: %v)", status, err)
+	}
+}
+
+

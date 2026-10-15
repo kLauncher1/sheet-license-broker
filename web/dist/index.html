@@ -247,6 +247,7 @@
       <button class="tab-btn" id="tab-btn-ha" onclick="switchTab('ha')">Replication & HA</button>
       <button class="tab-btn" id="tab-btn-cluster" onclick="switchTab('cluster')">Distributed Cluster</button>
       <button class="tab-btn" id="tab-btn-stream" onclick="switchTab('stream')">Real-Time Streams & Kill-Switch</button>
+      <button class="tab-btn" id="tab-btn-zkp" onclick="switchTab('zkp')">Zero-Knowledge Proofs (ZKP)</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -662,6 +663,51 @@
 
       <div id="stream-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 11: Zero-Knowledge Proofs (ZKP) -->
+    <div id="panel-zkp" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Anonymous Credentials Issued</div>
+          <div class="card-value" id="val-zkp-issued" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">Blinded HWID Pedersen tokens</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Proofs Verified</div>
+          <div class="card-value" id="val-zkp-verified" style="color: var(--accent-blue);">0</div>
+          <div class="card-subtext">Zero-knowledge Sigma presentations</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Spent Nullifiers</div>
+          <div class="card-value" id="val-zkp-nullifiers" style="color: var(--accent-red);">0</div>
+          <div class="card-subtext">Replay attack defense registry</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Epoch</div>
+          <div class="card-value" id="val-zkp-epoch" style="color: #a78bfa;">--</div>
+          <div class="card-subtext">Hourly sliding validity window</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <button class="btn btn-primary" onclick="promptIssueZKPCredential()">🔑 Issue Anonymous Credential</button>
+        <button class="btn btn-secondary" onclick="promptSimulateZKPProof()">⚡ Verify ZKP Presentation Proof</button>
+        <button class="btn btn-secondary" onclick="promptCheckNullifier()">🔍 Check Nullifier Status</button>
+        <button class="btn btn-secondary" onclick="refreshZKPTab()">🔄 Refresh ZKP Telemetry</button>
+      </div>
+
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title" style="margin-bottom: 10px;">NIST P-256 Public Parameters & Generators</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+          <div><strong>Curve:</strong> NIST P-256 (secp256r1)</div>
+          <div><strong>Base Generator G:</strong> <span id="val-zkp-gen-g" style="color: var(--text-main); word-break: break-all;">Loading...</span></div>
+          <div><strong>Pedersen Generator H:</strong> <span id="val-zkp-gen-h" style="color: var(--text-main); word-break: break-all;">Loading...</span></div>
+          <div><strong>Issuer Public Key:</strong> <span id="val-zkp-issuer-pub" style="color: var(--accent-green); word-break: break-all;">Loading...</span></div>
+        </div>
+      </div>
+
+      <div id="zkp-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -669,7 +715,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -685,6 +731,7 @@
       document.getElementById('panel-attestation').style.display = tab === 'attestation' ? 'block' : 'none';
       document.getElementById('panel-cluster').style.display = tab === 'cluster' ? 'block' : 'none';
       document.getElementById('panel-stream').style.display = tab === 'stream' ? 'block' : 'none';
+      document.getElementById('panel-zkp').style.display = tab === 'zkp' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -698,6 +745,7 @@
       if (tab === 'attestation') refreshAttestation();
       if (tab === 'cluster') refreshClusterTab();
       if (tab === 'stream') refreshStreams();
+      if (tab === 'zkp') refreshZKPTab();
     }
 
     async function refresh() {
@@ -1542,6 +1590,115 @@
         refreshStreams();
       } catch (e) {
         out.textContent = 'Kill-switch error: ' + e.message;
+      }
+    }
+
+    let lastZKPCredential = null;
+
+    async function refreshZKPTab() {
+      try {
+        const [paramsRes, statusRes] = await Promise.all([
+          fetch('/api/zkp/params').then(r => r.json()).catch(() => null),
+          fetch('/api/zkp/status').then(r => r.json()).catch(() => null)
+        ]);
+
+        if (paramsRes && paramsRes.status === 'success') {
+          document.getElementById('val-zkp-gen-g').textContent = paramsRes.g_generator || '--';
+          document.getElementById('val-zkp-gen-h').textContent = paramsRes.h_generator || '--';
+          document.getElementById('val-zkp-issuer-pub').textContent = paramsRes.issuer_public_key || '--';
+        }
+
+        if (statusRes && statusRes.status === 'success') {
+          const s = statusRes.status_summary || {};
+          document.getElementById('val-zkp-issued').textContent = s.total_credentials_issued || 0;
+          document.getElementById('val-zkp-verified').textContent = s.total_proofs_verified || 0;
+          document.getElementById('val-zkp-nullifiers').textContent = s.total_spent_nullifiers || 0;
+          document.getElementById('val-zkp-epoch').textContent = s.active_epoch || '--';
+        }
+      } catch (e) {
+        console.error('Failed to refresh ZKP tab:', e);
+      }
+    }
+
+    async function promptIssueZKPCredential() {
+      const licenseKey = prompt('Enter License Key for ZKP Anonymous Credential issuance:', 'LIC-ENTERPRISE-001');
+      if (!licenseKey) return;
+      const tenantId = prompt('Enter Tenant ID:', 'default') || 'default';
+      const hwid = prompt('Enter client device HWID (leave empty to generate sample HWID):', '') || ('HWID-NODE-' + Math.random().toString(36).substring(2, 10).toUpperCase());
+      const tier = prompt('Enter License Tier (community, pro, enterprise):', 'enterprise') || 'enterprise';
+      const maxSeatsStr = prompt('Enter Max Seats:', '5') || '5';
+      const maxSeats = parseInt(maxSeatsStr, 10) || 5;
+
+      const out = document.getElementById('zkp-output');
+      out.style.display = 'block';
+      out.textContent = 'Issuing ZKP Anonymous Credential for ' + licenseKey + '...';
+
+      try {
+        const res = await fetch('/api/zkp/credential/issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: licenseKey,
+            tenant_id: tenantId,
+            hwid: hwid,
+            tier: tier,
+            max_seats: maxSeats
+          })
+        }).then(r => r.json());
+
+        if (res.status === 'success' && res.credential) {
+          lastZKPCredential = res.credential;
+          out.textContent = 'Anonymous Credential Successfully Issued!\n\n' + JSON.stringify(res, null, 2);
+        } else {
+          out.textContent = 'Issuance Failed:\n' + JSON.stringify(res, null, 2);
+        }
+        refreshZKPTab();
+      } catch (e) {
+        out.textContent = 'Error issuing ZKP credential: ' + e.message;
+      }
+    }
+
+    async function promptSimulateZKPProof() {
+      const out = document.getElementById('zkp-output');
+      out.style.display = 'block';
+
+      if (!lastZKPCredential) {
+        out.textContent = 'No cached credential found. Please click "Issue Anonymous Credential" first to generate a blinded credential token.';
+        return;
+      }
+
+      out.textContent = 'Preparing ZKP Presentation Proof with blinded nullifier...\nCredential ID: ' + lastZKPCredential.id;
+
+      try {
+        const res = await fetch('/api/zkp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            credential: lastZKPCredential,
+            required_tier: lastZKPCredential.tier || 'community'
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'ZKP Verification Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshZKPTab();
+      } catch (e) {
+        out.textContent = 'Verification error: ' + e.message;
+      }
+    }
+
+    async function promptCheckNullifier() {
+      const nullifier = prompt('Enter Nullifier hex string to inspect replay status:');
+      if (!nullifier) return;
+
+      const out = document.getElementById('zkp-output');
+      out.style.display = 'block';
+      out.textContent = 'Checking nullifier status: ' + nullifier + '...';
+
+      try {
+        const res = await fetch('/api/zkp/nullifiers/check?nullifier=' + encodeURIComponent(nullifier.trim())).then(r => r.json());
+        out.textContent = 'Nullifier Registry Status:\n\n' + JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = 'Nullifier lookup error: ' + e.message;
       }
     }
 

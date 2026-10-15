@@ -48,6 +48,9 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 	server.registerHARoutes(apiMux, mux)
 	server.registerFeatureRoutes(apiMux)
 	server.registerAttestationRoutes(apiMux)
+	server.registerConsensusRoutes(apiMux)
+	server.registerStreamRoutes(apiMux, mux)
+	server.registerZKPRoutes(apiMux)
 
 	return server, mux
 }
@@ -69,11 +72,14 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "1.0.0" {
-		t.Fatalf("expected version 1.0.0, got: %v", res["version"])
+	if res["version"] != "1.2.0" {
+		t.Fatalf("expected version 1.2.0, got: %v", res["version"])
 	}
 	if res["consensus"] == nil {
 		t.Fatalf("expected consensus telemetry in health response")
+	}
+	if res["zkp"] == nil {
+		t.Fatalf("expected zkp telemetry in health response")
 	}
 }
 

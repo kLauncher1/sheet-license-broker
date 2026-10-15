@@ -403,6 +403,44 @@ namespace SheetLicenseBroker
             return await SendRequestAsync("GET", "/api/stream/telemetry", null).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Fetches public elliptic curve parameters and issuer public key.
+        /// </summary>
+        public async Task<string> GetZKPParamsAsync()
+        {
+            return await SendRequestAsync("GET", "/api/zkp/params", null).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Issues an issuer-signed anonymous entitlement credential for an authenticated license.
+        /// </summary>
+        public async Task<string> IssueAnonymousCredentialAsync(string licenseKey, string hwid = null, string tier = "pro", int validDays = 30, string scope = "production")
+        {
+            string targetHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string payload = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"tier\":\"{2}\",\"valid_days\":{3},\"scope\":\"{4}\",\"tenant_id\":\"{5}\"}}",
+                EscapeJson(licenseKey), EscapeJson(targetHwid), EscapeJson(tier), validDays, EscapeJson(scope), EscapeJson(TenantId ?? "default"));
+            return await SendRequestAsync("POST", "/api/zkp/credential/issue", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Submits a zero-knowledge presentation proof for privacy-preserving entitlement access.
+        /// </summary>
+        public async Task<string> VerifyZKPProofAsync(string proofJson, string requiredTier = "free", long epoch = 0)
+        {
+            if (epoch <= 0) epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 3600;
+            string payload = string.Format("{{\"proof\":{0},\"required_tier\":\"{1}\",\"epoch\":{2}}}",
+                proofJson, EscapeJson(requiredTier), epoch);
+            return await SendRequestAsync("POST", "/api/zkp/verify", payload).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries overall telemetry on zero-knowledge verifications.
+        /// </summary>
+        public async Task<string> GetZKPStatusAsync()
+        {
+            return await SendRequestAsync("GET", "/api/zkp/status", null).ConfigureAwait(false);
+        }
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

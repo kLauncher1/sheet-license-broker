@@ -23,6 +23,14 @@ import type {
   UsageRecord,
   UsageRecordResponse,
   UserAuthResponse,
+  AnonymousCredential,
+  PedersenCommitmentPoint,
+  ZKPParamsResponse,
+  ZKPIssueResponse,
+  ZKPProof,
+  ZKPStatusResponse,
+  ZKPVerificationResult,
+  ZKPVerifyResponse,
 } from './types.js';
 
 export class BrokerError extends Error {
@@ -411,6 +419,60 @@ export class SheetLicenseClient {
     const res = await this.request<StreamTelemetryResponse>('GET', '/api/stream/telemetry');
     return res.telemetry;
   }
+
+  /**
+   * Fetches the public elliptic curve parameters and issuer public key.
+   */
+  public async getZKPParams(): Promise<ZKPParamsResponse> {
+    return this.request<ZKPParamsResponse>('GET', '/api/zkp/params');
+  }
+
+  /**
+   * Issues an issuer-signed anonymous credential for an authenticated license.
+   */
+  public async issueAnonymousCredential(params: {
+    licenseKey: string;
+    hwid?: string;
+    hwidCommitment?: PedersenCommitmentPoint;
+    tier?: string;
+    validDays?: number;
+    scope?: string;
+  }): Promise<ZKPIssueResponse> {
+    const hwid = params.hwid || getMachineHwid();
+    return this.request<ZKPIssueResponse>('POST', '/api/zkp/credential/issue', {
+      license_key: params.licenseKey,
+      hwid,
+      hwid_commitment: params.hwidCommitment,
+      tier: params.tier || 'pro',
+      valid_days: params.validDays || 30,
+      scope: params.scope || 'production',
+      tenant_id: this.tenantId || 'default',
+    });
+  }
+
+  /**
+   * Submits a zero-knowledge presentation proof for privacy-preserving entitlement access.
+   */
+  public async verifyZKPProof(
+    proof: ZKPProof,
+    requiredTier: string = 'free',
+    epoch?: number
+  ): Promise<ZKPVerifyResponse> {
+    return this.request<ZKPVerifyResponse>('POST', '/api/zkp/verify', {
+      proof,
+      required_tier: requiredTier,
+      epoch: epoch || Math.floor(Date.now() / 3600000),
+    });
+  }
+
+  /**
+   * Queries overall telemetry metrics on zero-knowledge verification.
+   */
+  public async getZKPStatus(): Promise<ZKPStatusResponse['zkp']> {
+    const res = await this.request<ZKPStatusResponse>('GET', '/api/zkp/status');
+    return res.zkp;
+  }
 }
+
 
 

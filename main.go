@@ -61,9 +61,8 @@ func newAppServer() (*AppServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init proxy: %w", err)
 	}
-	hmacSecret := strings.TrimSpace(os.Getenv("HMAC_SECRET"))
 	hmacEnforce := os.Getenv("HMAC_ENFORCE") == "1" || strings.ToLower(os.Getenv("HMAC_ENFORCE")) == "true"
-	secGuard := security.NewGuard([]byte(hmacSecret), 5*time.Minute, hmacEnforce)
+	secGuard := security.NewGuard([]byte(strings.TrimSpace(os.Getenv("HMAC_SECRET"))), 5*time.Minute, hmacEnforce)
 	return &AppServer{proxy: px, guard: secGuard}, nil
 }
 
@@ -112,6 +111,7 @@ func main() {
 	server.registerSecurityRoutes(apiMux)
 	server.registerConsensusRoutes(apiMux)
 	server.registerStreamRoutes(apiMux, mux)
+	server.registerZKPRoutes(apiMux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
@@ -133,7 +133,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.0.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.2.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -145,9 +145,10 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "1.0.0",
+		"version":   "1.2.0",
 		"proxy":     s.proxy.Status(),
 		"consensus": s.proxy.ClusterStatus(),
+		"zkp":       s.proxy.GetZKPStatus(),
 		"security":  map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
@@ -454,8 +455,7 @@ func (s *AppServer) handleBackupRestore(w http.ResponseWriter, r *http.Request) 
 	var encBytes []byte
 	if req.EncryptedPayload != "" {
 		var err error
-		encBytes, err = hex.DecodeString(req.EncryptedPayload)
-		if err != nil {
+		if encBytes, err = hex.DecodeString(req.EncryptedPayload); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid hex in encrypted_payload"})
 			return
 		}

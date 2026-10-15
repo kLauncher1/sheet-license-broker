@@ -294,4 +294,34 @@ export class SheetLicenseClient {
     const res = await this.request('GET', '/api/stream/telemetry');
     return res.telemetry;
   }
+
+  async getZKPParams() {
+    return this.request('GET', '/api/zkp/params');
+  }
+
+  async issueAnonymousCredential(params) {
+    const hwid = params.hwid || getMachineHwid();
+    return this.request('POST', '/api/zkp/credential/issue', {
+      license_key: params.licenseKey,
+      hwid,
+      hwid_commitment: params.hwidCommitment,
+      tier: params.tier || 'pro',
+      valid_days: params.validDays || 30,
+      scope: params.scope || 'production',
+      tenant_id: this.tenantId || 'default',
+    });
+  }
+
+  async verifyZKPProof(proof, requiredTier = 'free', epoch) {
+    return this.request('POST', '/api/zkp/verify', {
+      proof,
+      required_tier: requiredTier,
+      epoch: epoch || Math.floor(Date.now() / 3600000),
+    });
+  }
+
+  async getZKPStatus() {
+    const res = await this.request('GET', '/api/zkp/status');
+    return res.zkp;
+  }
 }

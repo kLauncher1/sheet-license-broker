@@ -86,6 +86,27 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 }
             }).encode())
             return
+        if self.path == "/api/zkp/params":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "curve": "P-256"
+            }).encode())
+            return
+        if self.path == "/api/zkp/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "zkp": {
+                    "total_credentials_issued": 2,
+                    "total_proofs_verified": 4
+                }
+            }).encode())
+            return
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -259,6 +280,28 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/zkp/credential/issue":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "credential": {"id": "cred-py-01", "tier": 2},
+                "blinding_factor": "aabbcc"
+            }).encode())
+            return
+
+        if self.path == "/api/zkp/verify":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "valid": True,
+                "details": {"valid": True, "claimed_tier": 2, "tier_name": "pro"}
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -399,6 +442,22 @@ class TestSheetLicenseClient(unittest.TestCase):
         telem = client.get_stream_telemetry()
         self.assertEqual(telem.get("active_connections"), 1)
         self.assertEqual(telem.get("total_heartbeats"), 25)
+
+    def test_zkp_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+        params = client.get_zkp_params()
+        self.assertEqual(params.get("curve"), "P-256")
+
+        issue_res = client.issue_anonymous_credential("LIC-PY-01", tier="pro", valid_days=30)
+        self.assertEqual(issue_res.get("status"), "success")
+        self.assertEqual(issue_res.get("credential", {}).get("id"), "cred-py-01")
+
+        verify_res = client.verify_zkp_proof({"ax": "1", "ay": "2"}, required_tier="pro")
+        self.assertEqual(verify_res.get("status"), "success")
+        self.assertTrue(verify_res.get("valid"))
+
+        status = client.get_zkp_status()
+        self.assertEqual(status.get("total_proofs_verified"), 4)
 
 
 if __name__ == "__main__":
