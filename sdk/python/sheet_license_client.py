@@ -444,7 +444,55 @@ class SheetLicenseClient:
         """Queries SCIM 2.0 directory users list with pagination."""
         return self._request("GET", f"/scim/v2/Users?startIndex={start_index}&count={count}")
 
+    def get_pqc_params(self) -> Dict[str, Any]:
+        """Queries post-quantum cryptography parameters and active key info."""
+        return self._request("GET", "/api/pqc/params")
 
+    def get_pqc_public_keys(self) -> List[Dict[str, Any]]:
+        """Retrieves active public keys for client-side lattice signature verification."""
+        res = self._request("GET", "/api/pqc/keys")
+        return res.get("keys", [])
+
+    def sign_pqc_license(self, license_key: str, payload: str, hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Issues a quantum-resistant hybrid signature over a payload for an entitled license."""
+        req_payload = {
+            "license_key": license_key,
+            "hwid": hwid or get_machine_hwid(),
+            "payload": payload,
+        }
+        res = self._request("POST", "/api/pqc/sign", req_payload)
+        return res.get("signature", {})
+
+    def verify_pqc_signature(self, payload: str, signature: Dict[str, Any]) -> Dict[str, Any]:
+        """Verifies dual classical and post-quantum lattice signatures."""
+        req_payload = {
+            "payload": payload,
+            "signature": signature,
+        }
+        res = self._request("POST", "/api/pqc/verify", req_payload)
+        return res.get("result", {})
+
+    def rotate_pqc_key(self, algo: Optional[str] = None, grace_days: int = 7, reason: str = "Routine rotation") -> Dict[str, Any]:
+        """Requests an administrative PQC key rotation with active grace period."""
+        req_payload = {
+            "algorithm": algo,
+            "grace_days": grace_days,
+            "reason": reason,
+        }
+        return self._request("POST", "/api/pqc/rotate", req_payload)
+
+    def revoke_pqc_key(self, key_id: str, reason: str = "Administrative revocation") -> Dict[str, Any]:
+        """Revokes a compromised PQC key by ID."""
+        req_payload = {
+            "key_id": key_id,
+            "reason": reason,
+        }
+        return self._request("POST", "/api/pqc/revoke", req_payload)
+
+    def get_pqc_status(self) -> Dict[str, Any]:
+        """Queries operational telemetry for the PQC subsystem."""
+        res = self._request("GET", "/api/pqc/status")
+        return res.get("pqc", {})
 
 
 if __name__ == "__main__":

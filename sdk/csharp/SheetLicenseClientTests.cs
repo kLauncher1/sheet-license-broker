@@ -176,6 +176,41 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"schemas\":[\"urn:ietf:params:scim:api:messages:2.0:ListResponse\"],\"totalResults\":1,\"Resources\":[{\"userName\":\"cs-user@corp.com\",\"active\":true}]}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/params")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"lattice\":{\"dimension\":256,\"modulus\":8380417,\"d\":13},\"primary_algorithm\":\"ML-DSA-65\",\"active_key_id\":\"pqc-key-cs-1\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/keys")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"count\":1,\"keys\":[{\"key_id\":\"pqc-key-cs-1\",\"algorithm\":\"ML-DSA-65\",\"public_key_hex\":\"aabbcc\",\"status\":\"active\"}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/sign")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"signature\":{\"algorithm\":\"Hybrid-P256-MLDSA65\",\"key_id\":\"pqc-key-cs-1\",\"classical_sig_b64\":\"sig_classic\",\"pqc_sig_hex\":\"sig_pqc\",\"payload_hash_hex\":\"payload_hash\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"result\":{\"valid\":true,\"algorithm\":\"Hybrid-P256-MLDSA65\",\"classical_valid\":true,\"pqc_valid\":true}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/rotate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"active_key\":{\"key_id\":\"pqc-key-cs-2\",\"algorithm\":\"ML-DSA-65\",\"status\":\"active\"},\"grace_period_days\":7}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/revoke")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"revoked_key_id\":\"pqc-key-cs-1\",\"reason\":\"Administrative revocation\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"pqc\":{\"primary_algorithm\":\"ML-DSA-65\",\"active_keys\":1,\"total_signatures\":12,\"total_verifications\":10,\"rotation_count\":1}}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -386,7 +421,52 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: SSO status, token introspection, and SCIM directory");
 
-                Console.WriteLine("=== All 16 C# Client Tests Passed Successfully! ===");
+                // 17. Test Post-Quantum Cryptography (PQC) & ML-DSA signatures
+                string pqcParamsRaw = client.GetPQCParamsAsync().GetAwaiter().GetResult();
+                if (!pqcParamsRaw.Contains("ML-DSA-65") || !pqcParamsRaw.Contains("8380417"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC params failed: " + pqcParamsRaw);
+                    return 1;
+                }
+                string pqcKeysRaw = client.GetPQCPublicKeysAsync().GetAwaiter().GetResult();
+                if (!pqcKeysRaw.Contains("pqc-key-cs-1"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC public keys failed: " + pqcKeysRaw);
+                    return 1;
+                }
+                string pqcSignRaw = client.SignPQCLicenseAsync("VALID-KEY-123", "payload-cs-data").GetAwaiter().GetResult();
+                if (!pqcSignRaw.Contains("Hybrid-P256-MLDSA65") || !pqcSignRaw.Contains("pqc-key-cs-1"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC sign failed: " + pqcSignRaw);
+                    return 1;
+                }
+                string pqcVerifyRaw = client.VerifyPQCSignatureAsync("payload-cs-data", "{\"algorithm\":\"Hybrid-P256-MLDSA65\"}").GetAwaiter().GetResult();
+                if (!pqcVerifyRaw.Contains("\"valid\":true") || !pqcVerifyRaw.Contains("\"pqc_valid\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC verify failed: " + pqcVerifyRaw);
+                    return 1;
+                }
+                string pqcRotateRaw = client.RotatePQCKeyAsync("ML-DSA-65", 7, "Routine rotation").GetAwaiter().GetResult();
+                if (!pqcRotateRaw.Contains("pqc-key-cs-2"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC rotate failed: " + pqcRotateRaw);
+                    return 1;
+                }
+                string pqcRevokeRaw = client.RevokePQCKeyAsync("pqc-key-cs-1", "Security deprecation").GetAwaiter().GetResult();
+                if (!pqcRevokeRaw.Contains("pqc-key-cs-1"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC revoke failed: " + pqcRevokeRaw);
+                    return 1;
+                }
+                string pqcStatusRaw = client.GetPQCStatusAsync().GetAwaiter().GetResult();
+                if (!pqcStatusRaw.Contains("ML-DSA-65") || !pqcStatusRaw.Contains("total_signatures"))
+                {
+                    Console.Error.WriteLine("FAIL: PQC status failed: " + pqcStatusRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: PQC params, keys, sign, verify, rotate, revoke, and status");
+
+                Console.WriteLine("=== All 17 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

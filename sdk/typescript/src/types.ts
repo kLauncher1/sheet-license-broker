@@ -348,3 +348,37 @@ export interface SCIMListUsersResult {
   itemsPerPage: number;
   Resources: SCIMUserResource[];
 }
+
+export interface PQCHybridSignature {
+  algorithm: string;
+  key_id: string;
+  classical_sig: string;
+  quantum_sig: string;
+  timestamp: string;
+  epoch?: number;
+  payload_hash?: string;
+}
+
+export interface PQCVerificationResult {
+  valid: boolean;
+  algorithm: string;
+  key_id: string;
+  classical_valid: boolean;
+  quantum_valid: boolean;
+  grace_active?: boolean;
+  error_message?: string;
+  latency_ns?: number;
+}
+
+export interface PQCStatusSummary {
+  active_key_id: string;
+  default_algorithm: string;
+  total_keys: number;
+  rotated_keys_in_grace: number;
+  revoked_keys: number;
+  total_rotations: number;
+  verified_signatures: number;
+  rejected_signatures: number;
+  supported_algorithms: string[];
+}
+

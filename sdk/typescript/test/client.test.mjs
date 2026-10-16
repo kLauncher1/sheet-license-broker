@@ -334,6 +334,91 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/pqc/params' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            default_algorithm: 'Hybrid-P256-MLDSA65',
+            prime_modulus_q: 8380417,
+            lattice_degree: 256
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/keys' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            count: 1,
+            keys: [{ key_id: 'PQC-TS-01', algorithm: 'Hybrid-P256-MLDSA65', public_hex: 'ts-pub-hex-01' }]
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/sign' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            signature: {
+              algorithm: 'Hybrid-P256-MLDSA65',
+              key_id: 'PQC-TS-01',
+              classical_sig: 'sig-classical-ts',
+              quantum_sig: 'sig-quantum-ts',
+              timestamp: '2026-10-16T10:00:00Z'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            result: {
+              valid: true,
+              algorithm: 'Hybrid-P256-MLDSA65',
+              key_id: 'PQC-TS-01',
+              classical_valid: true,
+              quantum_valid: true
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/rotate' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            rotation: {
+              new_key_id: 'PQC-TS-02',
+              old_key_id: 'PQC-TS-01'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/revoke' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            key_id: 'PQC-TS-01'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            pqc: {
+              active_key_id: 'PQC-TS-02',
+              default_algorithm: 'Hybrid-P256-MLDSA65',
+              verified_signatures: 99
+            }
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -544,6 +629,36 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const scim = await client.listSCIMUsers(1, 10);
     assert.strictEqual(scim.totalResults, 1);
     assert.strictEqual(scim.Resources[0].userName, 'ts-user@corp.com');
+  });
+
+  it('queries pqc params, signs license, verifies signature, rotates key, and checks status', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const params = await client.getPQCParams();
+    assert.strictEqual(params.default_algorithm, 'Hybrid-P256-MLDSA65');
+    assert.strictEqual(params.prime_modulus_q, 8380417);
+
+    const keys = await client.getPQCPublicKeys();
+    assert.strictEqual(keys.length, 1);
+    assert.strictEqual(keys[0].key_id, 'PQC-TS-01');
+
+    const sig = await client.signPQCLicense('LIC-TS-01', 'sample-pqc-payload', 'HWID-TS-01');
+    assert.strictEqual(sig.algorithm, 'Hybrid-P256-MLDSA65');
+    assert.strictEqual(sig.key_id, 'PQC-TS-01');
+
+    const verify = await client.verifyPQCSignature('sample-pqc-payload', sig);
+    assert.strictEqual(verify.valid, true);
+    assert.strictEqual(verify.quantum_valid, true);
+
+    const rot = await client.rotatePQCKey('Hybrid-HMAC-MLDSA44', 5, 'testing rotation');
+    assert.strictEqual(rot.status, 'success');
+
+    const revoke = await client.revokePQCKey('PQC-TS-01', 'testing revocation');
+    assert.strictEqual(revoke.status, 'success');
+
+    const status = await client.getPQCStatus();
+    assert.strictEqual(status.active_key_id, 'PQC-TS-02');
+    assert.strictEqual(status.verified_signatures, 99);
   });
 });
 

@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.3.0-emerald.svg" alt="Version: v1.3.0">
+  <img src="https://img.shields.io/badge/version-v1.4.0-emerald.svg" alt="Version: v1.4.0">
+  <img src="https://img.shields.io/badge/pqc-NIST%20FIPS%20204%20ML--DSA-7C3AED.svg" alt="Post-Quantum Cryptography">
   <img src="https://img.shields.io/badge/sso-SAML%202.0%20%26%20OIDC-blueviolet.svg" alt="SAML & OIDC SSO">
   <img src="https://img.shields.io/badge/scim-RFC%207643%20%2F%207644%20SCIM%202.0-10B981.svg" alt="SCIM 2.0 Directory Provisioning">
   <img src="https://img.shields.io/badge/zkp-pedersen%20%26%20sigma%20proofs-10B981.svg" alt="Zero-Knowledge Proofs">
@@ -29,10 +30,11 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Post-Quantum Cryptography & ML-DSA Signature Chains (NIST FIPS 204)**: Quantum-resistant module-lattice digital signature verification (ML-DSA-44 / ML-DSA-65) with dual classical ECDSA / lattice hybrid signature chains (`Hybrid-P256-MLDSA65`), zero-downtime key rotation grace windows, and instant emergency revocation kill-switch broadcasts.
 - **Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning**: SAML 2.0 & OIDC identity federation, RFC 7643/7644 directory synchronization, automated license seat allocation, and instant deprovisioning revocation.
 - **Zero-Knowledge Proof (ZKP) Anonymous Verification**: Pedersen commitments over NIST P-256 with deterministic hash-to-curve independent generators, non-interactive Sigma presentation proofs (Fiat-Shamir transformed), and spent nullifier replay defense registries protecting client hardware privacy.
 - **Distributed Raft Quorum Consensus & CRDT Mesh**: Lightweight leader election, majority log quorum, conflict-free LWW-Element-Set state replication, and SHA-256 Merkle tree state digests for anti-entropy sync across distributed broker nodes.
@@ -796,6 +798,108 @@ Content-Type: application/json
 {
   "token": "sso_tok_7f2a9c4b...",
   "required_scope": "license:write"
+}
+```
+
+---
+
+### ⚛️ Post-Quantum Cryptography & ML-DSA Hybrid Signatures
+
+#### Fetch NIST FIPS 204 Lattice Parameters & Active Key Info
+```http
+GET /api/pqc/params
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "lattice": { "dimension": 256, "modulus": 8380417, "d": 13 },
+  "primary_algorithm": "ML-DSA-65",
+  "active_key_id": "pqc-key-9b0d-e626",
+  "grace_window_days": 7
+}
+```
+
+#### List Public Verification Keys
+```http
+GET /api/pqc/keys
+```
+
+#### Issue Hybrid Quantum-Resistant License Signature
+```http
+POST /api/pqc/sign
+Content-Type: application/json
+
+{
+  "license_key": "LIC-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "payload": "entitlement-v1-pro-tier"
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "signature": {
+    "algorithm": "Hybrid-P256-MLDSA65",
+    "key_id": "pqc-key-9b0d-e626",
+    "classical_sig_b64": "MEUCIQD...",
+    "pqc_sig_hex": "1f8e2a...",
+    "payload_hash_hex": "e3b0c44...",
+    "created_at": "2026-10-16T19:30:00Z"
+  }
+}
+```
+
+#### Verify Dual Classical & Lattice Signatures
+```http
+POST /api/pqc/verify
+Content-Type: application/json
+
+{
+  "payload": "entitlement-v1-pro-tier",
+  "signature": {
+    "algorithm": "Hybrid-P256-MLDSA65",
+    "key_id": "pqc-key-9b0d-e626",
+    "classical_sig_b64": "MEUCIQD...",
+    "pqc_sig_hex": "1f8e2a..."
+  }
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "result": {
+    "valid": true,
+    "algorithm": "Hybrid-P256-MLDSA65",
+    "key_id": "pqc-key-9b0d-e626",
+    "classical_valid": true,
+    "pqc_valid": true
+  }
+}
+```
+
+#### Atomic Key Rotation with Grace Period
+```http
+POST /api/pqc/rotate
+Content-Type: application/json
+
+{
+  "algorithm": "ML-DSA-65",
+  "grace_days": 7,
+  "reason": "Routine cryptographic key rollover"
+}
+```
+
+#### Emergency Compromise Key Revocation
+```http
+POST /api/pqc/revoke
+Content-Type: application/json
+
+{
+  "key_id": "pqc-key-old-compromised",
+  "reason": "Private key leakage detected"
 }
 ```
 

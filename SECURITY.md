@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.4.x   | :white_check_mark: |
 | 1.3.x   | :white_check_mark: |
 | 1.2.x   | :white_check_mark: |
 | 1.1.x   | :white_check_mark: |
@@ -107,6 +108,12 @@
     - **RFC 7643 & RFC 7644 SCIM 2.0 Standards Compliance**: Directory synchronizations adhere to standard SCIM schemas (`urn:ietf:params:scim:schemas:core:2.0:User`). User attributes and emails are normalized, and unknown schemas or malformed JSON payloads return standard RFC 7644 error responses.
     - **Automated Revocation Invariant on Deprovisioning**: When a user is deprovisioned via SCIM (either through `DELETE /scim/v2/Users/{id}` or `active: false` update), their assigned license key is immediately revoked, local and remote caches are invalidated, and an instantaneous WebSocket kill-switch signal is dispatched to terminate active software sessions.
     - **Scoped RBAC & Constant-Time Ephemeral Token Introspection**: Session tokens minted via `/api/sso/token/mint` are HMAC-SHA256 authenticated. Verifications execute in constant time using `hmac.Equal` to eliminate timing side-channels, and actions are gated by the Role-Scope matrix to prevent privilege escalation.
+
+20. **Post-Quantum Cryptography (PQC) & ML-DSA Signature Chains (NIST FIPS 204)**:
+    - **Quantum-Resistant Module-Lattice Foundation**: Core digital signature schemes implement ML-DSA-44 and ML-DSA-65 over the quotient ring $R_q = \mathbb{Z}_q[X]/(X^{256}+1)$ with $q=8380417$, providing long-term forward resistance against Shor's algorithm and cryptanalytically relevant quantum computers (CRQC).
+    - **Hybrid Classical/Quantum Dual Signatures**: Hybrid signature envelopes (`Hybrid-P256-MLDSA65` and `Hybrid-HMAC-MLDSA44`) require simultaneous validity of both classical ECDSA P-256 (or HMAC-SHA256) and post-quantum lattice signatures over canonical SHA-256 payload digests, preventing security compromises even if one cryptographic primitive suffers future algebraic breakthroughs.
+    - **Constant-Time Operations & Rejection-Sampling Bounds**: Polynomial operations, hint vector calculations, and signature verification evaluations maintain strict coefficient bounds ($||z||_\infty < \gamma_1 - \beta$, $||w - c s_2 + c t_0||_\infty < \gamma_2 - \beta$) and use `subtle.ConstantTimeCompare` where appropriate to mitigate timing and side-channel leakage.
+    - **Zero-Downtime Key Rotation & Instant Revocation**: Key rollover supports configurable grace period validity windows (default 7 days) during which older keys remain verifiable for signed payloads, while compromised keys can be revoked instantly via emergency administrative endpoints, triggering immediate WebSocket kill-switch broadcasts to all connected clients.
 
 ## Reporting a Vulnerability
 

@@ -111,6 +111,7 @@ func main() {
 	server.registerStreamRoutes(apiMux, mux)
 	server.registerZKPRoutes(apiMux)
 	server.registerSSORoutes(apiMux, mux)
+	server.registerPQCRoutes(apiMux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
@@ -132,7 +133,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.3.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.4.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -144,23 +145,23 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "1.3.0",
+		"version":   "1.4.0",
 		"proxy":     s.proxy.Status(),
 		"consensus": s.proxy.ClusterStatus(),
 		"zkp":       s.proxy.GetZKPStatus(),
 		"sso":       s.proxy.GetSSOStatus(),
+		"pqc":       s.proxy.GetPQCStatus(),
 		"security":  map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
 func (s *AppServer) handleProxyPing(w http.ResponseWriter, r *http.Request) {
-	res, err := s.proxy.Ping(r.Context())
-	if err != nil {
+	if res, err := s.proxy.Ping(r.Context()); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-		return
+	} else {
+		writeJSON(w, http.StatusOK, res)
 	}
-	writeJSON(w, http.StatusOK, res)
 }
 
 func (s *AppServer) handleProxyStatus(w http.ResponseWriter, r *http.Request) {
@@ -235,9 +236,7 @@ func (s *AppServer) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-		Role     string `json:"role"`
+		Username string `json:"username"`; Password string `json:"password"`; Role string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON payload"})

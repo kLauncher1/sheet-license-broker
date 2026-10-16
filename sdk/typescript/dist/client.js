@@ -339,4 +339,51 @@ export class SheetLicenseClient {
   async listSCIMUsers(startIndex = 1, count = 50) {
     return this.request('GET', `/scim/v2/Users?startIndex=${startIndex}&count=${count}`);
   }
+
+  async getPQCParams() {
+    return this.request('GET', '/api/pqc/params');
+  }
+
+  async getPQCPublicKeys() {
+    const res = await this.request('GET', '/api/pqc/keys');
+    return res.keys || [];
+  }
+
+  async signPQCLicense(licenseKey, payload, hwid) {
+    const machineHwid = hwid || getMachineHwid();
+    const res = await this.request('POST', '/api/pqc/sign', {
+      license_key: licenseKey,
+      hwid: machineHwid,
+      payload,
+    });
+    return res.signature;
+  }
+
+  async verifyPQCSignature(payload, signature) {
+    const res = await this.request('POST', '/api/pqc/verify', {
+      payload,
+      signature,
+    });
+    return res.result;
+  }
+
+  async rotatePQCKey(algo, graceDays = 7, reason = 'Routine rotation') {
+    return this.request('POST', '/api/pqc/rotate', {
+      algorithm: algo,
+      grace_days: graceDays,
+      reason,
+    });
+  }
+
+  async revokePQCKey(keyId, reason = 'Administrative revocation') {
+    return this.request('POST', '/api/pqc/revoke', {
+      key_id: keyId,
+      reason,
+    });
+  }
+
+  async getPQCStatus() {
+    const res = await this.request('GET', '/api/pqc/status');
+    return res.pqc;
+  }
 }
