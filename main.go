@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -14,11 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kLauncher1/sheet-license-broker/internal/backup"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
 	"github.com/kLauncher1/sheet-license-broker/internal/proxy"
 	"github.com/kLauncher1/sheet-license-broker/internal/security"
-	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 )
 
@@ -112,6 +109,7 @@ func main() {
 	server.registerZKPRoutes(apiMux)
 	server.registerSSORoutes(apiMux, mux)
 	server.registerPQCRoutes(apiMux)
+	server.registerAnomalyRoutes(apiMux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
@@ -133,7 +131,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.4.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v1.5.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -145,12 +143,13 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":    "healthy",
 		"service":   "sheet-license-broker",
-		"version":   "1.4.0",
+		"version":   "1.5.0",
 		"proxy":     s.proxy.Status(),
 		"consensus": s.proxy.ClusterStatus(),
 		"zkp":       s.proxy.GetZKPStatus(),
 		"sso":       s.proxy.GetSSOStatus(),
 		"pqc":       s.proxy.GetPQCStatus(),
+		"anomaly":   s.proxy.GetAnomalyStatus(),
 		"security":  map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
@@ -374,120 +373,6 @@ func (s *AppServer) handleBlacklistRemove(w http.ResponseWriter, r *http.Request
 	if req.Type == "" { req.Type = license.BlacklistTypeDevice }
 	_ = s.proxy.RemoveBlacklist(r.Context(), req.Type, req.Target)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "Target removed from blacklist"})
-}
-
-func (s *AppServer) handleTenants(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		id := strings.TrimSpace(r.URL.Query().Get("id"))
-		if id != "" {
-			t, found := s.proxy.GetTenant(id)
-			if !found {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "tenant not found"})
-				return
-			}
-			writeJSON(w, http.StatusOK, t)
-			return
-		}
-		list, _ := s.proxy.ListTenants(r.Context())
-		writeJSON(w, http.StatusOK, list)
-	case http.MethodPost:
-		s.handleRegisterTenant(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (s *AppServer) handleRegisterTenant(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req tenant.Tenant
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON payload"})
-		return
-	}
-	created, err := s.proxy.RegisterTenant(r.Context(), &req)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusCreated, created)
-}
-
-func (s *AppServer) handleBackupExport(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SecretKey string `json:"secret_key"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
-	encrypted, snapshot, err := s.proxy.ExportBackup(r.Context(), []byte(req.SecretKey))
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	res := map[string]interface{}{"status": "success", "checksum": snapshot.Checksum, "timestamp": snapshot.Timestamp.Format(time.RFC3339)}
-	if len(encrypted) > 0 {
-		res["encrypted_payload"] = hex.EncodeToString(encrypted)
-	} else {
-		res["snapshot"] = snapshot
-	}
-	writeJSON(w, http.StatusOK, res)
-}
-
-func (s *AppServer) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req struct {
-		SecretKey        string                 `json:"secret_key"`
-		EncryptedPayload string                 `json:"encrypted_payload"`
-		Snapshot         *backup.BackupSnapshot `json:"snapshot"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON payload"})
-		return
-	}
-
-	var encBytes []byte
-	if req.EncryptedPayload != "" {
-		var err error
-		if encBytes, err = hex.DecodeString(req.EncryptedPayload); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid hex in encrypted_payload"})
-			return
-		}
-	}
-
-	restored, err := s.proxy.RestoreBackup(r.Context(), encBytes, []byte(req.SecretKey), req.Snapshot)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "message": "Backup restored successfully", "checksum": restored.Checksum})
-}
-
-func (s *AppServer) handleTestWebhook(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req struct {
-		EventType string `json:"event_type"`; TargetURL string `json:"target_url"`; Secret string `json:"secret"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetURL == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "target_url is required"})
-		return
-	}
-	if req.EventType == "" { req.EventType = webhook.EventLicenseCreated }
-
-	evt := webhook.NewEvent(req.EventType, "test-tenant", map[string]string{"message": "Test webhook delivery probe"})
-	if err := s.proxy.Dispatcher().DispatchSync(r.Context(), evt, req.TargetURL, req.Secret); err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "delivery_id": evt.ID})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

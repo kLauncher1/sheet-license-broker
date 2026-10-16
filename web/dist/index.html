@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v1.3.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v1.5.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -252,6 +252,7 @@
       <button class="tab-btn" id="tab-btn-zkp" onclick="switchTab('zkp')">Zero-Knowledge Proofs (ZKP)</button>
       <button class="tab-btn" id="tab-btn-sso" onclick="switchTab('sso')">Enterprise SSO & SCIM</button>
       <button class="tab-btn" id="tab-btn-pqc" onclick="switchTab('pqc')">Post-Quantum Cryptography (PQC)</button>
+      <button class="tab-btn" id="tab-btn-anomaly" onclick="switchTab('anomaly')">Behavioral Anomaly & Risk</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -840,6 +841,87 @@
 
       <div id="pqc-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 14: Behavioral Anomaly Detection & Adaptive Risk Scoring -->
+    <div id="panel-anomaly" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Monitored Entities</div>
+          <div class="card-value" id="val-anomaly-entities" style="color: var(--accent-blue);">0</div>
+          <div class="card-subtext">Active telemetry baselines</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Recorded Observations</div>
+          <div class="card-value" id="val-anomaly-obs" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">Heartbeat &amp; Geo telemetry</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Flagged Anomalies</div>
+          <div class="card-value" id="val-anomaly-events" style="color: var(--accent-red);">0</div>
+          <div class="card-subtext">Z-Score drift &amp; travel events</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Challenges</div>
+          <div class="card-value" id="val-anomaly-challenges" style="color: #f59e0b;">0</div>
+          <div class="card-subtext">Risk score &gt;= 50 re-attestation</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Quarantined Clients</div>
+          <div class="card-value" id="val-anomaly-quarantines" style="color: #ef4444;">0</div>
+          <div class="card-subtext">Risk score &gt;= 85 isolated</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="btn-action" onclick="promptCheckAnomalyScore()">🔍 Query Risk Score</button>
+        <button class="btn-action btn-secondary" onclick="promptRecordAnomalyTelemetry()">⚡ Record Telemetry</button>
+        <button class="btn-action btn-secondary" onclick="promptIssueAnomalyChallenge()">🛡️ Issue Challenge</button>
+        <button class="btn-action btn-secondary" onclick="promptVerifyAnomalyChallenge()">🔓 Verify Challenge</button>
+        <button class="btn-action btn-secondary" onclick="refreshAnomalyGraph()">🌐 Refresh Incident Graph</button>
+        <button class="btn-action btn-secondary" onclick="refreshAnomalyTab()">🔄 Refresh Anomaly Telemetry</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <div class="panel-title">🛡️ Adaptive Risk Governance Matrix</div>
+        <div class="panel-desc">
+          Evaluates statistical heartbeat drift (sliding-window Z-Score, &plusmn;15% jitter margin) and geographical impossible travel (&gt;950 km/h Haversine velocity or concurrent /24 subnets).
+          Risk score &gt;= 50 enforces a 5-minute re-attestation challenge; risk score &gt;= 85 triggers automatic zero-trust quarantine.
+        </div>
+        <div style="display: flex; gap: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+          <div><span style="color: #10b981;">● Nominal (0-49):</span> Allowed</div>
+          <div><span style="color: #f59e0b;">● Suspicious (50-84):</span> Re-Attestation Challenge Required</div>
+          <div><span style="color: #ef4444;">● High Risk (85-100):</span> Automatic Quarantine &amp; Access Block</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Security Incident Topology Graph (SIEM Feed)</h3>
+      <div id="anomaly-graph-container" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 13px; color: var(--text-muted);">Interactive Topology Node Overview (<span id="anomaly-node-count">0</span> nodes, <span id="anomaly-edge-count">0</span> edges)</span>
+          <span id="anomaly-schema-version" style="font-size: 11px; font-family: monospace; color: #38bdf8;">Schema: siem-topology-v1</span>
+        </div>
+        <div id="anomaly-nodes-list" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
+          <!-- Rendered Node Badges -->
+        </div>
+        <table class="table-box">
+          <thead>
+            <tr>
+              <th>Edge ID</th>
+              <th>Source Node</th>
+              <th>Target Node</th>
+              <th>Relationship</th>
+              <th>Risk Weight</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="anomaly-edges-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">No incident graph edges logged yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="anomaly-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -847,7 +929,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -866,6 +948,7 @@
       document.getElementById('panel-zkp').style.display = tab === 'zkp' ? 'block' : 'none';
       document.getElementById('panel-sso').style.display = tab === 'sso' ? 'block' : 'none';
       document.getElementById('panel-pqc').style.display = tab === 'pqc' ? 'block' : 'none';
+      document.getElementById('panel-anomaly').style.display = tab === 'anomaly' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -882,6 +965,7 @@
       if (tab === 'zkp') refreshZKPTab();
       if (tab === 'sso') refreshSSOTab();
       if (tab === 'pqc') refreshPQCTab();
+      if (tab === 'anomaly') refreshAnomalyTab();
     }
 
     async function refresh() {
@@ -939,6 +1023,7 @@
 
         if (currentTab === 'bl') renderBlacklist(blEntries);
         if (currentTab === 'tenants') renderTenants(tenants);
+        if (currentTab === 'anomaly') refreshAnomalyTab();
       } catch (err) {
         console.error('Failed to load telemetry:', err);
       }
@@ -2138,6 +2223,173 @@
         refreshPQCTab();
       } catch (e) {
         out.textContent = 'Revocation failed: ' + e.message;
+      }
+    }
+
+    async function refreshAnomalyTab() {
+      try {
+        const status = await fetch('/api/anomaly/status').then(r => r.json());
+        if (status) {
+          document.getElementById('val-anomaly-entities').textContent = status.active_monitored_entities ?? 0;
+          document.getElementById('val-anomaly-obs').textContent = status.total_observations ?? 0;
+          document.getElementById('val-anomaly-events').textContent = status.anomaly_events_flagged ?? 0;
+          document.getElementById('val-anomaly-challenges').textContent = status.active_challenges ?? 0;
+          document.getElementById('val-anomaly-quarantines').textContent = status.quarantined_entities ?? 0;
+        }
+        await refreshAnomalyGraph();
+      } catch (e) {
+        console.error('Failed to refresh anomaly status:', e);
+      }
+    }
+
+    async function refreshAnomalyGraph() {
+      try {
+        const graph = await fetch('/api/anomaly/graph?limit=50').then(r => r.json());
+        if (!graph) return;
+
+        const nodes = graph.nodes || [];
+        const edges = graph.edges || [];
+
+        document.getElementById('anomaly-node-count').textContent = nodes.length;
+        document.getElementById('anomaly-edge-count').textContent = edges.length;
+        if (graph.schema_version) {
+          document.getElementById('anomaly-schema-version').textContent = `Schema: ${graph.schema_version}`;
+        }
+
+        const nodesList = document.getElementById('anomaly-nodes-list');
+        if (nodes.length === 0) {
+          nodesList.innerHTML = '<span style="font-size:12px; color:#64748b;">No active topology nodes. Record telemetry to populate.</span>';
+        } else {
+          nodesList.innerHTML = nodes.map(n => {
+            let color = '#38bdf8';
+            let icon = '💻';
+            if (n.type === 'SUBNET') { color = '#f59e0b'; icon = '🌐'; }
+            else if (n.type === 'GEO_LOCATION') { color = '#a78bfa'; icon = '📍'; }
+            else if (n.type === 'CHALLENGE') { color = '#ef4444'; icon = '🛡️'; }
+            const risk = n.risk_score !== undefined ? ` [Score: ${n.risk_score}]` : '';
+            return `<div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); padding:6px 12px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
+              <span>${icon}</span>
+              <span style="font-family:monospace; color:${color}; font-weight:600;">${n.id}</span>
+              <span style="color:#94a3b8; font-size:11px;">(${n.type}${risk})</span>
+            </div>`;
+          }).join('');
+        }
+
+        const tbody = document.getElementById('anomaly-edges-body');
+        if (edges.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">No incident graph edges logged yet.</td></tr>';
+        } else {
+          tbody.innerHTML = edges.map(e => `
+            <tr>
+              <td style="font-family:monospace; font-size:11px; color:#94a3b8;">${e.id}</td>
+              <td style="font-family:monospace; font-weight:600; color:#38bdf8;">${e.source_id}</td>
+              <td style="font-family:monospace; font-weight:600; color:#a78bfa;">${e.target_id}</td>
+              <td><span class="pill pill-active" style="font-family:monospace;">${e.relationship}</span></td>
+              <td style="font-weight:700; color:${e.weight >= 85 ? '#ef4444' : (e.weight >= 50 ? '#f59e0b' : '#10b981')}">${e.weight}</td>
+              <td style="font-size:11px; color:#94a3b8;">${e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '--'}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        console.error('Failed to refresh incident graph:', e);
+      }
+    }
+
+    async function promptCheckAnomalyScore() {
+      const licenseKey = prompt('Enter License Key (or leave blank to query by HWID):', '') || '';
+      const hwid = prompt('Enter Machine HWID (or leave blank if License Key provided):', '') || '';
+      if (!licenseKey && !hwid) return;
+
+      const out = document.getElementById('anomaly-output');
+      out.style.display = 'block';
+      out.textContent = 'Querying adaptive risk score...';
+
+      try {
+        const params = new URLSearchParams();
+        if (licenseKey) params.set('license_key', licenseKey);
+        if (hwid) params.set('hwid', hwid);
+        const res = await fetch('/api/anomaly/score?' + params.toString()).then(r => r.json());
+        out.textContent = 'Adaptive Risk Score Evaluation:\n\n' + JSON.stringify(res, null, 2);
+        refreshAnomalyTab();
+      } catch (e) {
+        out.textContent = 'Risk score query failed: ' + e.message;
+      }
+    }
+
+    async function promptRecordAnomalyTelemetry() {
+      const licenseKey = prompt('Enter License Key:', 'DEMO-ANOMALY-KEY') || '';
+      if (!licenseKey) return;
+      const hwid = prompt('Enter Machine HWID:', 'HWID-CLIENT-01') || 'HWID-CLIENT-01';
+      const ip = prompt('Enter Client IP address:', '198.51.100.24') || '198.51.100.24';
+      const latStr = prompt('Enter Latitude (optional, e.g. 37.5665):', '37.5665') || '0';
+      const lonStr = prompt('Enter Longitude (optional, e.g. 126.9780):', '126.9780') || '0';
+
+      const out = document.getElementById('anomaly-output');
+      out.style.display = 'block';
+      out.textContent = 'Transmitting client telemetry observation...';
+
+      try {
+        const res = await fetch('/api/anomaly/record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: licenseKey,
+            hwid: hwid,
+            ip: ip,
+            latitude: parseFloat(latStr) || 0,
+            longitude: parseFloat(lonStr) || 0
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Telemetry Observation Recorded:\n\n' + JSON.stringify(res, null, 2);
+        refreshAnomalyTab();
+      } catch (e) {
+        out.textContent = 'Telemetry recording failed: ' + e.message;
+      }
+    }
+
+    async function promptIssueAnomalyChallenge() {
+      const licenseKey = prompt('Enter License Key for Challenge:', '') || '';
+      const hwid = prompt('Enter Machine HWID for Challenge:', '') || '';
+      if (!licenseKey && !hwid) return;
+
+      const out = document.getElementById('anomaly-output');
+      out.style.display = 'block';
+      out.textContent = 'Issuing re-attestation challenge token...';
+
+      try {
+        const res = await fetch('/api/anomaly/challenge/issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_key: licenseKey, hwid: hwid })
+        }).then(r => r.json());
+
+        out.textContent = 'Re-Attestation Challenge Token Issued:\n\n' + JSON.stringify(res, null, 2);
+        refreshAnomalyTab();
+      } catch (e) {
+        out.textContent = 'Challenge issuance failed: ' + e.message;
+      }
+    }
+
+    async function promptVerifyAnomalyChallenge() {
+      const token = prompt('Enter Challenge Token to verify:') || '';
+      if (!token) return;
+
+      const out = document.getElementById('anomaly-output');
+      out.style.display = 'block';
+      out.textContent = 'Verifying challenge attestation...';
+
+      try {
+        const res = await fetch('/api/anomaly/challenge/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ challenge_token: token.trim() })
+        }).then(r => r.json());
+
+        out.textContent = 'Challenge Verification Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshAnomalyTab();
+      } catch (e) {
+        out.textContent = 'Challenge verification failed: ' + e.message;
       }
     }
 

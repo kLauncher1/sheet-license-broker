@@ -515,6 +515,63 @@ namespace SheetLicenseBroker
         public async Task<string> GetPQCStatusAsync() =>
             await SendRequestAsync("GET", "/api/pqc/status", null).ConfigureAwait(false);
 
+        /// <summary>
+        /// Submits client telemetry or heartbeat to the behavioral anomaly engine.
+        /// </summary>
+        public async Task<string> RecordAnomalyObservationAsync(string licenseKey, string ip = "", string action = "heartbeat")
+        {
+            string hwid = GetMachineHwid();
+            string body = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"ip\":\"{2}\",\"action\":\"{3}\"}}",
+                EscapeJson(licenseKey), EscapeJson(hwid), EscapeJson(ip), EscapeJson(action));
+            return await SendRequestAsync("POST", "/api/anomaly/record", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries current adaptive risk score and factors for an entity.
+        /// </summary>
+        public async Task<string> GetAnomalyRiskScoreAsync(string licenseKey = "", string hwid = "")
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string url = string.Format("/api/anomaly/score?license_key={0}&hwid={1}",
+                Uri.EscapeDataString(licenseKey ?? ""), Uri.EscapeDataString(machineHwid ?? ""));
+            return await SendRequestAsync("GET", url, null).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Requests an escalation challenge token for an entity.
+        /// </summary>
+        public async Task<string> IssueAnomalyChallengeAsync(string licenseKey = "", string hwid = "")
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string body = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\"}}",
+                EscapeJson(licenseKey ?? ""), EscapeJson(machineHwid ?? ""));
+            return await SendRequestAsync("POST", "/api/anomaly/challenge/issue", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Submits a challenge token response to clear escalation penalties.
+        /// </summary>
+        public async Task<string> VerifyAnomalyChallengeAsync(string challengeToken)
+        {
+            string body = string.Format("{{\"challenge_token\":\"{0}\"}}", EscapeJson(challengeToken ?? ""));
+            return await SendRequestAsync("POST", "/api/anomaly/challenge/verify", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Exports real-time topological incident graph for enterprise SIEM ingestion.
+        /// </summary>
+        public async Task<string> ExportIncidentGraphAsync(int minScore = 0, int limit = 50)
+        {
+            string url = string.Format("/api/anomaly/graph?min_score={0}&limit={1}", minScore, limit);
+            return await SendRequestAsync("GET", url, null).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries behavioral anomaly operational telemetry metrics.
+        /// </summary>
+        public async Task<string> GetAnomalyStatusAsync() =>
+            await SendRequestAsync("GET", "/api/anomaly/status", null).ConfigureAwait(false);
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

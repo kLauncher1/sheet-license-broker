@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kLauncher1/sheet-license-broker/internal/anomaly"
 	"github.com/kLauncher1/sheet-license-broker/internal/attestation"
 	"github.com/kLauncher1/sheet-license-broker/internal/audit"
 	"github.com/kLauncher1/sheet-license-broker/internal/auth"
@@ -99,6 +100,7 @@ type Proxy struct {
 	zkpVerifier        *zkp.Verifier
 	ssoManager         *sso.Manager
 	pqcManager         *pqc.PQCKeyManager
+	anomalyEngine      *anomaly.Engine
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -139,6 +141,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initZKP()
 	p.initSSO()
 	p.initPQC()
+	p.initAnomaly()
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {
@@ -241,6 +244,17 @@ func (p *Proxy) VerifyLicense(ctx context.Context, key, hwid string) (*VerifyRes
 			Source:     "blacklist",
 			Message:    err.Error(),
 		}, err
+	}
+
+	// 0b. Check behavioral anomaly quarantine
+	if p.anomalyEngine != nil && (p.anomalyEngine.IsQuarantined(key) || p.anomalyEngine.IsQuarantined(hwid)) {
+		p.cache.DeleteLicense(key)
+		return &VerifyResult{
+			Valid:      false,
+			LicenseKey: key,
+			Source:     "quarantine",
+			Message:    "Entity is quarantined due to critical behavioral anomaly",
+		}, errors.New("entity is quarantined")
 	}
 
 	// 1. Check local cache
@@ -459,19 +473,13 @@ func (p *Proxy) GetDocument(ctx context.Context, collection, docID string) (*db.
 }
 
 // ListLicenses returns cached or local licenses for UI presentation.
-func (p *Proxy) ListLicenses() []license.License {
-	return p.localLicense.ListLicenses()
-}
+func (p *Proxy) ListLicenses() []license.License { return p.localLicense.ListLicenses() }
 
 // ListUsers returns local users for UI presentation.
-func (p *Proxy) ListUsers() []auth.User {
-	return p.localAuth.ListUsers()
-}
+func (p *Proxy) ListUsers() []auth.User { return p.localAuth.ListUsers() }
 
 // ListDocuments returns all local documents.
-func (p *Proxy) ListDocuments() []db.Document {
-	return p.localDB.ListAll()
-}
+func (p *Proxy) ListDocuments() []db.Document { return p.localDB.ListAll() }
 
 // Status delivers diagnostic metrics on proxy state.
 func (p *Proxy) Status() map[string]interface{} {

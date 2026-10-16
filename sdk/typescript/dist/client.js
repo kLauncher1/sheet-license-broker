@@ -386,4 +386,48 @@ export class SheetLicenseClient {
     const res = await this.request('GET', '/api/pqc/status');
     return res.pqc;
   }
+
+  async recordAnomalyObservation(observation) {
+    const hwid = observation.hwid || (await getMachineHwid());
+    const res = await this.request('POST', '/api/anomaly/record', {
+      ...observation,
+      hwid,
+    });
+    return res.risk_score;
+  }
+
+  async getAnomalyRiskScore(licenseKey, hwid) {
+    const machineHwid = hwid || (!licenseKey ? await getMachineHwid() : '');
+    const query = new URLSearchParams();
+    if (licenseKey) query.set('license_key', licenseKey);
+    if (machineHwid) query.set('hwid', machineHwid);
+    return this.request('GET', `/api/anomaly/score?${query.toString()}`);
+  }
+
+  async issueAnomalyChallenge(licenseKey, hwid) {
+    const machineHwid = hwid || (await getMachineHwid());
+    const res = await this.request('POST', '/api/anomaly/challenge/issue', {
+      license_key: licenseKey,
+      hwid: machineHwid,
+    });
+    return { token: res.challenge_token, riskScore: res.risk_score };
+  }
+
+  async verifyAnomalyChallenge(challengeToken) {
+    const res = await this.request('POST', '/api/anomaly/challenge/verify', {
+      challenge_token: challengeToken,
+    });
+    return { valid: res.valid, riskScore: res.risk_score };
+  }
+
+  async exportIncidentGraph(minScore, limit) {
+    const query = new URLSearchParams();
+    if (minScore !== undefined) query.set('min_score', minScore.toString());
+    if (limit !== undefined) query.set('limit', limit.toString());
+    return this.request('GET', `/api/anomaly/graph?${query.toString()}`);
+  }
+
+  async getAnomalyStatus() {
+    return this.request('GET', '/api/anomaly/status');
+  }
 }

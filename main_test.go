@@ -72,8 +72,8 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "1.4.0" {
-		t.Fatalf("expected version 1.4.0, got: %v", res["version"])
+	if res["version"] != "1.5.0" {
+		t.Fatalf("expected version 1.5.0, got: %v", res["version"])
 	}
 	if res["consensus"] == nil {
 		t.Fatalf("expected consensus telemetry in health response")
@@ -86,6 +86,9 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 	}
 	if res["pqc"] == nil {
 		t.Fatalf("expected pqc telemetry in health response")
+	}
+	if res["anomaly"] == nil {
+		t.Fatalf("expected anomaly telemetry in health response")
 	}
 }
 

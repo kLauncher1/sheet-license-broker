@@ -21,6 +21,7 @@ const SHEET_ZKP_NULLIFIERS = 'ZKP_Nullifiers';
 const SHEET_SSO_CONFIGS = 'SSO_Configs';
 const SHEET_DIRECTORY_USERS = 'Directory_Users';
 const SHEET_PQC_KEYS = 'PQC_Keys';
+const SHEET_ANOMALY_INCIDENTS = 'Anomaly_Incidents';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -162,6 +163,12 @@ function handleRequest(e, method) {
       case 'pqc_key_list':
         return handlePQCKeyList(output, payload);
 
+      case 'anomaly_record':
+        return handleAnomalyRecord(output, payload);
+
+      case 'anomaly_incident_list':
+        return handleAnomalyIncidentList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -188,7 +195,8 @@ function initSheets() {
     { name: SHEET_ZKP_NULLIFIERS, cols: ['nullifier', 'epoch', 'tenant_id', 'spent_at'] },
     { name: SHEET_SSO_CONFIGS, cols: ['idp_id', 'tenant_id', 'name', 'type', 'entity_id', 'sso_endpoint', 'enabled', 'updated_at'] },
     { name: SHEET_DIRECTORY_USERS, cols: ['user_id', 'username', 'display_name', 'email', 'role', 'active', 'license_key', 'tenant_id', 'updated_at'] },
-    { name: SHEET_PQC_KEYS, cols: ['key_id', 'algorithm', 'public_hex', 'status', 'reason', 'grace_until', 'created_at', 'updated_at'] }
+    { name: SHEET_PQC_KEYS, cols: ['key_id', 'algorithm', 'public_hex', 'status', 'reason', 'grace_until', 'created_at', 'updated_at'] },
+    { name: SHEET_ANOMALY_INCIDENTS, cols: ['timestamp', 'license_key', 'hwid', 'ip', 'country', 'risk_score', 'reason'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1131,4 +1139,42 @@ function constantTimeEquals(a, b) {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
+}
+
+function handleAnomalyRecord(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ANOMALY_INCIDENTS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Anomaly_Incidents sheet missing' });
+
+  const ts = new Date().toISOString();
+  const lic = payload.license_key || '';
+  const hwid = payload.hwid || '';
+  const ip = payload.ip || '';
+  const country = payload.country || '';
+  const score = payload.risk_score || 0;
+  const reason = payload.reason || 'anomaly_detected';
+
+  sheet.appendRow([ts, lic, hwid, ip, country, score, reason]);
+  return jsonResponse(output, { status: 'success', message: 'Anomaly incident recorded', timestamp: ts });
+}
+
+function handleAnomalyIncidentList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ANOMALY_INCIDENTS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Anomaly_Incidents sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const incidents = [];
+  for (let i = 1; i < data.length; i++) {
+    incidents.push({
+      timestamp: data[i][0],
+      license_key: data[i][1],
+      hwid: data[i][2],
+      ip: data[i][3],
+      country: data[i][4],
+      risk_score: data[i][5],
+      reason: data[i][6]
+    });
+  }
+  return jsonResponse(output, { status: 'success', count: incidents.length, incidents: incidents });
 }

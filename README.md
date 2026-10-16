@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.4.0-emerald.svg" alt="Version: v1.4.0">
+  <img src="https://img.shields.io/badge/version-v1.5.0-emerald.svg" alt="Version: v1.5.0">
+  <img src="https://img.shields.io/badge/anomaly-Z--Score%20%26%20SIEM%20Topology-F59E0B.svg" alt="Behavioral Anomaly & SIEM Graph">
   <img src="https://img.shields.io/badge/pqc-NIST%20FIPS%20204%20ML--DSA-7C3AED.svg" alt="Post-Quantum Cryptography">
   <img src="https://img.shields.io/badge/sso-SAML%202.0%20%26%20OIDC-blueviolet.svg" alt="SAML & OIDC SSO">
   <img src="https://img.shields.io/badge/scim-RFC%207643%20%2F%207644%20SCIM%202.0-10B981.svg" alt="SCIM 2.0 Directory Provisioning">
@@ -35,6 +36,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
 - **Post-Quantum Cryptography & ML-DSA Signature Chains (NIST FIPS 204)**: Quantum-resistant module-lattice digital signature verification (ML-DSA-44 / ML-DSA-65) with dual classical ECDSA / lattice hybrid signature chains (`Hybrid-P256-MLDSA65`), zero-downtime key rotation grace windows, and instant emergency revocation kill-switch broadcasts.
+- **Behavioral Anomaly Detection & Adaptive Risk Scoring**: Statistical sliding-window Z-Score heartbeat drift tracking (&plusmn;15% jitter tolerance), Haversine velocity impossible travel detection (&gt;950 km/h or concurrent /24 subnets), adaptive risk score calculation with progressive nominal decay, automated re-attestation challenge escalation at risk score &ge; 50, zero-trust automatic quarantine at risk score &ge; 85, and standardized security incident topology graph exporter (`siem-topology-v1`) for enterprise SIEM ingestion.
 - **Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning**: SAML 2.0 & OIDC identity federation, RFC 7643/7644 directory synchronization, automated license seat allocation, and instant deprovisioning revocation.
 - **Zero-Knowledge Proof (ZKP) Anonymous Verification**: Pedersen commitments over NIST P-256 with deterministic hash-to-curve independent generators, non-interactive Sigma presentation proofs (Fiat-Shamir transformed), and spent nullifier replay defense registries protecting client hardware privacy.
 - **Distributed Raft Quorum Consensus & CRDT Mesh**: Lightweight leader election, majority log quorum, conflict-free LWW-Element-Set state replication, and SHA-256 Merkle tree state digests for anti-entropy sync across distributed broker nodes.
@@ -905,6 +907,96 @@ Content-Type: application/json
 
 ---
 
+### 🛡️ Behavioral Anomaly Detection & Adaptive Risk Scoring
+
+`sheet-license-broker` includes an enterprise-grade behavioral anomaly engine that tracks statistical heartbeat drift, impossible geographic travel, and dynamic risk scoring across client applications.
+
+#### Adaptive Governance Policy
+- **Score 0 – 49 (Nominal)**: Normal operation, unrestricted access. Nominal activity progressively decays accumulated risk points over time.
+- **Score 50 – 84 (Suspicious)**: Requires challenge escalation. Enforces a 5-minute single-use cryptographic re-attestation challenge (`POST /api/anomaly/challenge/issue` and `/verify`).
+- **Score 85 – 100 (High Risk / Compromised)**: Immediate zero-trust quarantine. Verification calls (`POST /api/licenses/verify`) are automatically rejected with HTTP 403 Forbidden, and alerts are broadcast to security webhooks.
+
+#### Record Client Telemetry Observation
+```http
+POST /api/anomaly/record
+Content-Type: application/json
+
+{
+  "license_key": "SLB-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "ip": "198.51.100.24",
+  "latitude": 37.5665,
+  "longitude": 126.9780
+}
+```
+**Response:**
+```json
+{
+  "status": "recorded",
+  "risk_score": {
+    "entity_id": "SLB-PRO-2026-99",
+    "score": 0,
+    "classification": "NOMINAL",
+    "challenge_required": false,
+    "quarantined": false,
+    "last_assessed": "2026-10-16T21:30:00Z"
+  }
+}
+```
+
+#### Query Adaptive Risk Score
+```http
+GET /api/anomaly/score?license_key=SLB-PRO-2026-99
+```
+
+#### Issue & Verify Re-Attestation Challenge
+```http
+# Issue challenge token
+POST /api/anomaly/challenge/issue
+Content-Type: application/json
+
+{
+  "license_key": "SLB-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B"
+}
+
+# Verify challenge token
+POST /api/anomaly/challenge/verify
+Content-Type: application/json
+
+{
+  "challenge_token": "ch_7f2a9c4b..."
+}
+```
+
+#### Export Security Incident Graph (SIEM Standard Feed)
+Export RFC-compliant topological incident nodes and edges formatted for Splunk, Datadog, Elastic, and Microsoft Sentinel:
+```http
+GET /api/anomaly/graph?min_score=50&limit=50
+```
+**Response:**
+```json
+{
+  "schema_version": "siem-topology-v1",
+  "generated_at": "2026-10-16T21:30:00Z",
+  "nodes": [
+    { "id": "SLB-PRO-2026-99", "type": "CLIENT", "risk_score": 60, "first_seen": "...", "last_seen": "..." },
+    { "id": "198.51.100.0/24", "type": "SUBNET", "risk_score": 30, "first_seen": "...", "last_seen": "..." }
+  ],
+  "edges": [
+    { "id": "edge-1", "source_id": "SLB-PRO-2026-99", "target_id": "198.51.100.0/24", "relationship": "OBSERVED_IN_SUBNET", "weight": 60, "timestamp": "..." }
+  ],
+  "total_incidents": 1
+}
+```
+
+#### Engine Telemetry Status
+```http
+GET /api/anomaly/status
+```
+
+---
+
 ## ⚡ Cloudflare Edge Gateway
 
 For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
@@ -948,6 +1040,10 @@ if res.get("valid"):
     # 4. Enterprise SSO & SCIM directory token check
     sso_status = client.get_sso_status()
     token_info = client.introspect_session_token("sso_tok_...", required_scope="license:write")
+
+    # 5. Behavioral anomaly telemetry & risk scoring
+    client.record_anomaly_telemetry("SLB-XXXX-XXXX-XXXX", latitude=37.5665, longitude=126.9780)
+    risk = client.get_anomaly_risk_score(license_key="SLB-XXXX-XXXX-XXXX")
 else:
     print("Denied:", res.get("message"))
 ```
@@ -977,6 +1073,10 @@ if (result.Valid) {
     // Enterprise SSO & SCIM directory token check
     var ssoStatus = await client.GetSSOStatusAsync();
     var tokenInfo = await client.IntrospectSessionTokenAsync("sso_tok_...", "license:write");
+
+    // Behavioral anomaly telemetry & risk scoring
+    await client.RecordAnomalyTelemetryAsync("SLB-XXXX-XXXX-XXXX", 37.5665, 126.9780);
+    var risk = await client.GetAnomalyRiskScoreAsync("SLB-XXXX-XXXX-XXXX");
 }
 ```
 
@@ -1008,6 +1108,10 @@ if (result.valid) {
   // Enterprise SSO & SCIM directory token check
   const ssoStatus = await client.getSSOStatus();
   const tokenInfo = await client.introspectSessionToken('sso_tok_...', 'license:write');
+
+  // Behavioral anomaly telemetry & risk scoring
+  await client.recordAnomalyTelemetry('SLB-XXXX-XXXX-XXXX', { latitude: 37.5665, longitude: 126.9780 });
+  const risk = await client.getAnomalyRiskScore('SLB-XXXX-XXXX-XXXX');
 }
 ```
 
@@ -1045,6 +1149,15 @@ func main() {
 		tokenInfo, _ := client.IntrospectSessionToken(context.Background(), "sso_tok_...", "license:write")
 		_ = ssoStatus
 		_ = tokenInfo
+
+		// Behavioral anomaly telemetry & risk scoring
+		_ = client.RecordAnomalyTelemetry(context.Background(), sdk.ClientObservation{
+			LicenseKey: "SLB-XXXX-XXXX-XXXX",
+			Latitude:   37.5665,
+			Longitude:  126.9780,
+		})
+		risk, _ := client.GetAnomalyRiskScore(context.Background(), "SLB-XXXX-XXXX-XXXX", "")
+		_ = risk
 	}
 }
 ```

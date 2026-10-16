@@ -419,6 +419,95 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/anomaly/record' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'recorded',
+            risk_score: {
+              entity_id: 'LIC-TS-ANOMALY',
+              score: 0,
+              level: 'low',
+              factors: [],
+              challenge_escalation: false,
+              quarantine_triggered: false,
+              evaluated_at: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/anomaly/score') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            entity_id: 'LIC-TS-ANOMALY',
+            score: 15,
+            level: 'low',
+            factors: [{ code: 'HEARTBEAT_DRIFT', description: 'Mild drift', severity: 15, detected_at: new Date().toISOString() }],
+            challenge_escalation: false,
+            quarantine_triggered: false,
+            evaluated_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/anomaly/challenge/issue' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'challenge_issued',
+            challenge_token: 'ts-token-999',
+            risk_score: {
+              entity_id: 'LIC-TS-ANOMALY',
+              score: 55,
+              level: 'high',
+              challenge_escalation: true
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/anomaly/challenge/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'challenge_cleared',
+            valid: true,
+            risk_score: {
+              entity_id: 'LIC-TS-ANOMALY',
+              score: 10,
+              level: 'low',
+              challenge_escalation: false
+            }
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/anomaly/graph') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            format: 'siem-topology-v1',
+            generated_at: new Date().toISOString(),
+            total_nodes: 3,
+            total_edges: 2,
+            nodes: [
+              { id: 'license:LIC-TS', type: 'license', label: 'LIC-TS', risk_score: 50 }
+            ],
+            edges: []
+          }));
+          return;
+        }
+
+        if (req.url === '/api/anomaly/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            total_observations: 50,
+            active_monitored_entities: 10,
+            anomalies_detected: 2,
+            challenges_issued: 1,
+            challenges_cleared: 1,
+            active_quarantines: 0
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -659,6 +748,38 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const status = await client.getPQCStatus();
     assert.strictEqual(status.active_key_id, 'PQC-TS-02');
     assert.strictEqual(status.verified_signatures, 99);
+  });
+
+  it('records anomaly observation, queries risk score, verifies challenge, and exports incident graph', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const obs = await client.recordAnomalyObservation({
+      license_key: 'LIC-TS-ANOMALY',
+      ip: '198.51.100.5',
+      action: 'heartbeat',
+    });
+    assert.strictEqual(obs.entity_id, 'LIC-TS-ANOMALY');
+    assert.strictEqual(obs.score, 0);
+
+    const score = await client.getAnomalyRiskScore('LIC-TS-ANOMALY');
+    assert.strictEqual(score.score, 15);
+    assert.strictEqual(score.factors.length, 1);
+
+    const challenge = await client.issueAnomalyChallenge('LIC-TS-ANOMALY');
+    assert.strictEqual(challenge.token, 'ts-token-999');
+    assert.strictEqual(challenge.riskScore.score, 55);
+
+    const verified = await client.verifyAnomalyChallenge(challenge.token);
+    assert.strictEqual(verified.valid, true);
+    assert.strictEqual(verified.riskScore.score, 10);
+
+    const graph = await client.exportIncidentGraph(0, 10);
+    assert.strictEqual(graph.format, 'siem-topology-v1');
+    assert.strictEqual(graph.total_nodes, 3);
+
+    const status = await client.getAnomalyStatus();
+    assert.strictEqual(status.total_observations, 50);
+    assert.strictEqual(status.active_monitored_entities, 10);
   });
 });
 

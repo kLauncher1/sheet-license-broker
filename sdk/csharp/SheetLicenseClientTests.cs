@@ -211,6 +211,36 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"pqc\":{\"primary_algorithm\":\"ML-DSA-65\",\"active_keys\":1,\"total_signatures\":12,\"total_verifications\":10,\"rotation_count\":1}}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anomaly/record")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"recorded\",\"risk_score\":{\"entity_id\":\"LIC-CS-01\",\"score\":0,\"level\":\"low\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath.StartsWith("/api/anomaly/score"))
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"entity_id\":\"LIC-CS-01\",\"score\":20,\"level\":\"low\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anomaly/challenge/issue")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"challenge_issued\",\"challenge_token\":\"cs-token-123\",\"risk_score\":{\"score\":50,\"challenge_escalation\":true}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anomaly/challenge/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"challenge_cleared\",\"valid\":true,\"risk_score\":{\"score\":10,\"challenge_escalation\":false}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath.StartsWith("/api/anomaly/graph"))
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"format\":\"siem-topology-v1\",\"total_nodes\":5,\"total_edges\":4}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anomaly/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"total_observations\":200,\"active_monitored_entities\":20,\"anomalies_detected\":4}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -466,7 +496,46 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: PQC params, keys, sign, verify, rotate, revoke, and status");
 
-                Console.WriteLine("=== All 17 C# Client Tests Passed Successfully! ===");
+                // Test 18: Behavioral Anomaly Detection & Adaptive Risk Scoring
+                string anomRecRaw = client.RecordAnomalyObservationAsync("LIC-CS-01", "198.51.100.1").GetAwaiter().GetResult();
+                if (!anomRecRaw.Contains("recorded"))
+                {
+                    Console.Error.WriteLine("FAIL: Anomaly observation failed: " + anomRecRaw);
+                    return 1;
+                }
+                string anomScoreRaw = client.GetAnomalyRiskScoreAsync("LIC-CS-01").GetAwaiter().GetResult();
+                if (!anomScoreRaw.Contains("score") || !anomScoreRaw.Contains("LIC-CS-01"))
+                {
+                    Console.Error.WriteLine("FAIL: Anomaly score failed: " + anomScoreRaw);
+                    return 1;
+                }
+                string anomChRaw = client.IssueAnomalyChallengeAsync("LIC-CS-01").GetAwaiter().GetResult();
+                if (!anomChRaw.Contains("cs-token-123"))
+                {
+                    Console.Error.WriteLine("FAIL: Anomaly challenge issue failed: " + anomChRaw);
+                    return 1;
+                }
+                string anomVerRaw = client.VerifyAnomalyChallengeAsync("cs-token-123").GetAwaiter().GetResult();
+                if (!anomVerRaw.Contains("\"valid\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: Anomaly challenge verify failed: " + anomVerRaw);
+                    return 1;
+                }
+                string anomGraphRaw = client.ExportIncidentGraphAsync(0, 10).GetAwaiter().GetResult();
+                if (!anomGraphRaw.Contains("siem-topology-v1"))
+                {
+                    Console.Error.WriteLine("FAIL: Anomaly graph failed: " + anomGraphRaw);
+                    return 1;
+                }
+                string anomStatusRaw = client.GetAnomalyStatusAsync().GetAwaiter().GetResult();
+                if (!anomStatusRaw.Contains("total_observations"))
+                {
+                    Console.Error.WriteLine("FAIL: Anomaly status failed: " + anomStatusRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Anomaly observation, risk score, challenge, graph, and status");
+
+                Console.WriteLine("=== All 18 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

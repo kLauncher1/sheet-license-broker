@@ -169,6 +169,42 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 }
             }).encode())
             return
+
+        if self.path.startswith("/api/anomaly/score"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "entity_id": "LIC-PY-01",
+                "score": 25,
+                "level": "low",
+                "factors": [{"code": "HEARTBEAT_DRIFT", "severity": 25}]
+            }).encode())
+            return
+
+        if self.path.startswith("/api/anomaly/graph"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "format": "siem-topology-v1",
+                "total_nodes": 4,
+                "total_edges": 3
+            }).encode())
+            return
+
+        if self.path == "/api/anomaly/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "total_observations": 120,
+                "active_monitored_entities": 15,
+                "anomalies_detected": 3,
+                "active_quarantines": 0
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -432,6 +468,42 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/anomaly/record":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "recorded",
+                "risk_score": {
+                    "entity_id": "LIC-PY-01",
+                    "score": 0,
+                    "level": "low"
+                }
+            }).encode())
+            return
+
+        if self.path == "/api/anomaly/challenge/issue":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "challenge_issued",
+                "challenge_token": "py-challenge-token-123",
+                "risk_score": {"entity_id": "LIC-PY-01", "score": 55, "challenge_escalation": True}
+            }).encode())
+            return
+
+        if self.path == "/api/anomaly/challenge/verify":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "challenge_cleared",
+                "valid": True,
+                "risk_score": {"entity_id": "LIC-PY-01", "score": 10, "challenge_escalation": False}
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -634,6 +706,38 @@ class TestSheetLicenseClient(unittest.TestCase):
         status = client.get_pqc_status()
         self.assertEqual(status.get("primary_algorithm"), "ML-DSA-65")
         self.assertEqual(status.get("total_signatures"), 10)
+
+    def test_anomaly_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+
+        obs = client.record_anomaly_observation({
+            "license_key": "LIC-PY-01",
+            "ip": "198.51.100.5",
+            "action": "heartbeat"
+        })
+        self.assertEqual(obs.get("entity_id"), "LIC-PY-01")
+        self.assertEqual(obs.get("score"), 0)
+
+        score = client.get_anomaly_risk_score("LIC-PY-01")
+        self.assertEqual(score.get("score"), 25)
+        self.assertEqual(len(score.get("factors", [])), 1)
+
+        challenge = client.issue_anomaly_challenge("LIC-PY-01")
+        token = challenge.get("challenge_token")
+        self.assertEqual(token, "py-challenge-token-123")
+        self.assertTrue(challenge.get("risk_score", {}).get("challenge_escalation"))
+
+        verify = client.verify_anomaly_challenge(token)
+        self.assertTrue(verify.get("valid"))
+        self.assertEqual(verify.get("risk_score", {}).get("score"), 10)
+
+        graph = client.export_incident_graph(min_score=0, limit=10)
+        self.assertEqual(graph.get("format"), "siem-topology-v1")
+        self.assertEqual(graph.get("total_nodes"), 4)
+
+        status = client.get_anomaly_status()
+        self.assertEqual(status.get("total_observations"), 120)
+        self.assertEqual(status.get("active_monitored_entities"), 15)
 
 
 if __name__ == "__main__":

@@ -382,3 +382,72 @@ export interface PQCStatusSummary {
   supported_algorithms: string[];
 }
 
+export interface AnomalyObservation {
+  license_key?: string;
+  hwid?: string;
+  ip?: string;
+  country?: string;
+  region?: string;
+  asn?: string;
+  user_agent?: string;
+  action?: string;
+  timestamp?: string;
+  latency_ms?: number;
+  metadata?: Record<string, string>;
+}
+
+export interface AnomalyRiskFactor {
+  code: string;
+  description: string;
+  severity: number;
+  detected_at: string;
+}
+
+export interface AnomalyRiskScore {
+  entity_id: string;
+  score: number;
+  level: 'low' | 'medium' | 'high' | 'critical';
+  factors: AnomalyRiskFactor[];
+  challenge_escalation: boolean;
+  challenge_type: string;
+  challenge_token?: string;
+  challenge_expires_at?: string;
+  quarantine_triggered: boolean;
+  evaluated_at: string;
+}
+
+export interface AnomalyGraphNode {
+  id: string;
+  type: string;
+  label: string;
+  risk_score: number;
+  properties?: Record<string, any>;
+}
+
+export interface AnomalyGraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+  weight: number;
+  timestamp: string;
+}
+
+export interface AnomalyIncidentGraph {
+  format: string;
+  generated_at: string;
+  total_nodes: number;
+  total_edges: number;
+  nodes: AnomalyGraphNode[];
+  edges: AnomalyGraphEdge[];
+}
+
+export interface AnomalyTelemetrySummary {
+  total_observations: number;
+  active_monitored_entities: number;
+  anomalies_detected: number;
+  challenges_issued: number;
+  challenges_cleared: number;
+  active_quarantines: number;
+  last_anomaly_detected_at?: string;
+}
+

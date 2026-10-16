@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.5.x   | :white_check_mark: |
 | 1.4.x   | :white_check_mark: |
 | 1.3.x   | :white_check_mark: |
 | 1.2.x   | :white_check_mark: |
@@ -114,6 +115,15 @@
     - **Hybrid Classical/Quantum Dual Signatures**: Hybrid signature envelopes (`Hybrid-P256-MLDSA65` and `Hybrid-HMAC-MLDSA44`) require simultaneous validity of both classical ECDSA P-256 (or HMAC-SHA256) and post-quantum lattice signatures over canonical SHA-256 payload digests, preventing security compromises even if one cryptographic primitive suffers future algebraic breakthroughs.
     - **Constant-Time Operations & Rejection-Sampling Bounds**: Polynomial operations, hint vector calculations, and signature verification evaluations maintain strict coefficient bounds ($||z||_\infty < \gamma_1 - \beta$, $||w - c s_2 + c t_0||_\infty < \gamma_2 - \beta$) and use `subtle.ConstantTimeCompare` where appropriate to mitigate timing and side-channel leakage.
     - **Zero-Downtime Key Rotation & Instant Revocation**: Key rollover supports configurable grace period validity windows (default 7 days) during which older keys remain verifiable for signed payloads, while compromised keys can be revoked instantly via emergency administrative endpoints, triggering immediate WebSocket kill-switch broadcasts to all connected clients.
+
+21. **Behavioral Anomaly Detection & Adaptive Risk Scoring Governance**:
+    - **Statistical Drift Analysis with Jitter Margins**: The heartbeat drift analyzer applies sliding-window online mean, variance, and Z-Score statistics over inter-arrival times. To prevent false-positive alarms on tightly clustered baselines ($\sigma \approx 0$), the engine enforces a &plusmn;15% network jitter margin ($|\Delta t - \mu| \le 0.15\mu$) before computing Z-Scores.
+    - **Impossible Travel & Concurrent Subnet Detection**: Geographical velocity is computed using spherical Haversine formulas. Travel between consecutive observations exceeding 950 km/h or concurrent activity originating from multiple distinct /24 IPv4 CIDR subnets within a 1-hour window immediately flags an anomaly incident.
+    - **Adaptive Risk Scoring & Nominal Decay**: Accumulated risk points progressively decay during sustained nominal activity, preventing permanent penalization of transient anomalies.
+    - **Challenge Escalation & Zero-Trust Quarantine Invariants**:
+      - Risk score $\ge 50$ (Suspicious): Enforces single-use 5-minute cryptographic re-attestation challenge tokens. Unchallenged or expired tokens block privilege escalation.
+      - Risk score $\ge 85$ (High Risk / Compromised): Automatically triggers zero-trust quarantine isolation. The unified proxy layer strictly rejects `VerifyLicense` requests for quarantined entities with HTTP 403 Forbidden, and alerts are dispatched to security webhooks.
+    - **SIEM Topology Graph Export (`siem-topology-v1`)**: Exports standardized topological nodes (`CLIENT`, `SUBNET`, `GEO_LOCATION`, `CHALLENGE`) and weighted relationship edges for ingestion into enterprise SIEM platforms (Splunk, Datadog, Elastic, Sentinel).
 
 ## Reporting a Vulnerability
 

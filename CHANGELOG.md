@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-10-16
+
+### Added
+- Enterprise-grade Behavioral Anomaly Detection & Adaptive Risk Scoring engine (`internal/anomaly/types.go`, `internal/anomaly/drift.go`, `internal/anomaly/scoring.go`, `internal/anomaly/graph.go`, `internal/anomaly/engine.go`, `internal/anomaly/anomaly_test.go`) implemented in pure Go standard library with zero external dependencies.
+- Statistical sliding-window heartbeat drift analyzer (`HeartbeatDriftAnalyzer`) computing online rolling mean, standard deviation, and Z-Scores across observed client telemetry intervals, with a built-in &plusmn;15% network jitter margin to prevent false-positive alarms under tight baselines.
+- Great-circle geographical velocity detector (`GeoVelocityDetector`) using spherical Haversine formulas to identify impossible travel patterns exceeding supersonic physical speeds (&gt;950 km/h) and concurrent access from multiple distinct /24 IPv4 CIDR subnets.
+- Dynamic adaptive risk scoring engine (`AdaptiveRiskScorer`) tracking cumulative risk factors per entity with progressive nominal decay, automated re-attestation challenge escalation at risk scores &ge; 50 (5-minute single-use HMAC challenge tokens), and automated zero-trust quarantine isolation at risk scores &ge; 85.
+- Real-time standardized security incident topology graph exporter (`IncidentGraphExporter`) producing RFC-compliant node and edge relationship models (`siem-topology-v1`) for enterprise SIEM ingestion (Splunk, Datadog, Elastic, Sentinel).
+- Unified proxy layer integration (`internal/proxy/anomaly.go`, `internal/proxy/anomaly_test.go`) enforcing automatic license verification rejection for quarantined entities, audit logging, and security incident alerts.
+- Dedicated modular REST routing layer (`routes_anomaly.go`, `routes_anomaly_test.go`) exposing `POST /api/anomaly/record`, `GET /api/anomaly/score`, `POST /api/anomaly/challenge/issue`, `POST /api/anomaly/challenge/verify`, `GET /api/anomaly/graph`, and `GET /api/anomaly/status`.
+- Modular route refactoring (`routes_tenant_backup.go`) extracting tenant, snapshot backup, and webhook test handlers from `main.go` to strictly adhere to the 300–500 line soft limit architectural guidelines.
+- Google Apps Script backend update (`gas/Code.gs`) adding automated sheet initialization and persistent telemetry logging for `Anomaly_Incidents`, with `anomaly_record` and `anomaly_incident_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/anomaly.go`, `sdk/go/anomaly_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) adding telemetry recording, risk score evaluation, challenge issuance, and challenge attestation verification with 100% test coverage.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Behavioral Anomaly & Risk" tab with real-time metric cards, adaptive risk governance policy matrix, interactive SIEM topology graph viewer, and test simulator controls.
+- Version bump to 1.5.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.4.0] - 2026-10-16
 
 ### Added
