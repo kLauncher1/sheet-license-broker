@@ -494,6 +494,56 @@ class SheetLicenseClient:
         res = self._request("GET", "/api/pqc/status")
         return res.get("pqc", {})
 
+    def record_anomaly_observation(self, observation: Dict[str, Any]) -> Dict[str, Any]:
+        """Submits client telemetry or heartbeat to the anomaly detection engine."""
+        payload = dict(observation)
+        if "hwid" not in payload or not payload["hwid"]:
+            payload["hwid"] = get_machine_hwid()
+        res = self._request("POST", "/api/anomaly/record", payload)
+        return res.get("risk_score", {})
+
+    def get_anomaly_risk_score(self, license_key: Optional[str] = None, hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Queries the current adaptive risk score and factors for an entity."""
+        machine_hwid = hwid or (get_machine_hwid() if not license_key else "")
+        params = []
+        if license_key:
+            params.append(f"license_key={urllib.parse.quote(license_key)}")
+        if machine_hwid:
+            params.append(f"hwid={urllib.parse.quote(machine_hwid)}")
+        endpoint = "/api/anomaly/score"
+        if params:
+            endpoint += "?" + "&".join(params)
+        return self._request("GET", endpoint)
+
+    def issue_anomaly_challenge(self, license_key: Optional[str] = None, hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Requests an escalation challenge token for an entity."""
+        payload = {
+            "license_key": license_key or "",
+            "hwid": hwid or get_machine_hwid(),
+        }
+        return self._request("POST", "/api/anomaly/challenge/issue", payload)
+
+    def verify_anomaly_challenge(self, challenge_token: str) -> Dict[str, Any]:
+        """Submits a challenge token response to clear escalation penalties."""
+        payload = {"challenge_token": challenge_token}
+        return self._request("POST", "/api/anomaly/challenge/verify", payload)
+
+    def export_incident_graph(self, min_score: Optional[int] = None, limit: Optional[int] = None) -> Dict[str, Any]:
+        """Exports real-time SIEM topology graph."""
+        params = []
+        if min_score is not None:
+            params.append(f"min_score={min_score}")
+        if limit is not None:
+            params.append(f"limit={limit}")
+        endpoint = "/api/anomaly/graph"
+        if params:
+            endpoint += "?" + "&".join(params)
+        return self._request("GET", endpoint)
+
+    def get_anomaly_status(self) -> Dict[str, Any]:
+        """Queries operational telemetry for the anomaly detection engine."""
+        return self._request("GET", "/api/anomaly/status")
+
 
 if __name__ == "__main__":
     import sys

@@ -112,10 +112,16 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
 - [x] Embedded admin console Post-Quantum Cryptography (PQC) interactive tab (`web/dist/index.html`)
 
-## Phase 15: Behavioral Anomaly Detection & Adaptive Risk Scoring (v1.5.0)
-- [ ] Statistical drift analysis on client heartbeat and geographic origin patterns
-- [ ] Dynamic risk scoring with automated challenge escalation (re-attestation)
-- [ ] Real-time security incident graph exporter for enterprise SIEM ingestion
+## Phase 15: Behavioral Anomaly Detection & Adaptive Risk Scoring (v1.5.0) - Completed
+- [x] Statistical drift analysis on client heartbeat and geographic origin patterns (`internal/anomaly/drift.go`)
+- [x] Sliding-window Z-Score calculation with &plusmn;15% network jitter margin and Haversine velocity impossible travel detection (&gt;950 km/h or concurrent /24 subnets)
+- [x] Dynamic risk scoring engine with automated progressive nominal decay, challenge escalation at risk score &gt;= 50, and automatic zero-trust quarantine at risk score &gt;= 85 (`internal/anomaly/scoring.go`)
+- [x] Real-time security incident graph exporter generating standardized topological nodes and edges for enterprise SIEM ingestion (`internal/anomaly/graph.go`)
+- [x] Unified proxy integration with audit logging, alert webhooks, and automatic license verification rejection for quarantined entities (`internal/proxy/anomaly.go`)
+- [x] Dedicated REST API routing layer (`routes_anomaly.go`) and integration test coverage (`routes_anomaly_test.go`)
+- [x] Google Apps Script backend sheet (`Anomaly_Incidents`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
+- [x] Embedded admin console Behavioral Anomaly & Risk interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 16: Confidential Computing & Hardware Enclave Attestation Bridge (v1.6.0)
 - [ ] Intel SGX / AMD SEV remote attestation quote validation
@@ -181,5 +187,16 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Local differential privacy noise injection for privacy-preserving telemetry analytics
 - [ ] Secure multi-party computation (SMPC) seat usage aggregation without centralized cleartext exposure
 - [ ] Verifiable zero-knowledge compliance attestations for high-assurance enterprise reporting
+
+## Phase 29: Autonomous Self-Healing License Fabric & Fault-Tolerant Rebalancing (v2.9.0)
+- [ ] Topology-aware dynamic workload distribution across resilient peer clusters
+- [ ] Automatic gossip-based failure recovery and state reconciliation under network partitions
+- [ ] Predictive lease extension and decentralized quota preservation during connectivity blackouts
+
+## Phase 30: Cryptographic Zero-Trust Enclave Identity Attestation & Hardware Root of Trust (v3.0.0)
+- [ ] Platform Security Processor (PSP) and ARM TrustZone cryptographically bound hardware credentials
+- [ ] Measured boot log verification with PCR extension and remote attestation validation
+- [ ] Tamper-proof ephemeral session generation anchored directly to hardware PUF (Physically Unclonable Function)
+
 
 

@@ -37,6 +37,10 @@ import type {
   PQCHybridSignature,
   PQCVerificationResult,
   PQCStatusSummary,
+  AnomalyObservation,
+  AnomalyRiskScore,
+  AnomalyIncidentGraph,
+  AnomalyTelemetrySummary,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -539,5 +543,67 @@ export class SheetLicenseClient {
   public async getPQCStatus(): Promise<PQCStatusSummary> {
     const res = await this.request<{ status: string; pqc: PQCStatusSummary }>('GET', '/api/pqc/status');
     return res.pqc;
+  }
+
+  /**
+   * Submits heartbeat or telemetry observation to behavioral anomaly detection engine.
+   */
+  public async recordAnomalyObservation(observation: AnomalyObservation): Promise<AnomalyRiskScore> {
+    const hwid = observation.hwid || (await getMachineHwid());
+    const res = await this.request<{ status: string; risk_score: AnomalyRiskScore }>('POST', '/api/anomaly/record', {
+      ...observation,
+      hwid,
+    });
+    return res.risk_score;
+  }
+
+  /**
+   * Retrieves current adaptive risk score and factors for an entity.
+   */
+  public async getAnomalyRiskScore(licenseKey?: string, hwid?: string): Promise<AnomalyRiskScore> {
+    const machineHwid = hwid || (!licenseKey ? await getMachineHwid() : '');
+    const query = new URLSearchParams();
+    if (licenseKey) query.set('license_key', licenseKey);
+    if (machineHwid) query.set('hwid', machineHwid);
+    return this.request<AnomalyRiskScore>('GET', `/api/anomaly/score?${query.toString()}`);
+  }
+
+  /**
+   * Requests an escalation challenge token for an entity.
+   */
+  public async issueAnomalyChallenge(licenseKey?: string, hwid?: string): Promise<{ token: string; riskScore: AnomalyRiskScore }> {
+    const machineHwid = hwid || (await getMachineHwid());
+    const res = await this.request<{ status: string; challenge_token: string; risk_score: AnomalyRiskScore }>('POST', '/api/anomaly/challenge/issue', {
+      license_key: licenseKey,
+      hwid: machineHwid,
+    });
+    return { token: res.challenge_token, riskScore: res.risk_score };
+  }
+
+  /**
+   * Submits challenge response token to clear escalation penalties.
+   */
+  public async verifyAnomalyChallenge(challengeToken: string): Promise<{ valid: boolean; riskScore: AnomalyRiskScore }> {
+    const res = await this.request<{ status: string; valid: boolean; risk_score: AnomalyRiskScore }>('POST', '/api/anomaly/challenge/verify', {
+      challenge_token: challengeToken,
+    });
+    return { valid: res.valid, riskScore: res.risk_score };
+  }
+
+  /**
+   * Exports real-time topological incident graph for enterprise SIEM ingestion.
+   */
+  public async exportIncidentGraph(minScore?: number, limit?: number): Promise<AnomalyIncidentGraph> {
+    const query = new URLSearchParams();
+    if (minScore !== undefined) query.set('min_score', minScore.toString());
+    if (limit !== undefined) query.set('limit', limit.toString());
+    return this.request<AnomalyIncidentGraph>('GET', `/api/anomaly/graph?${query.toString()}`);
+  }
+
+  /**
+   * Queries behavioral anomaly operational telemetry metrics.
+   */
+  public async getAnomalyStatus(): Promise<AnomalyTelemetrySummary> {
+    return this.request<AnomalyTelemetrySummary>('GET', '/api/anomaly/status');
   }
 }
