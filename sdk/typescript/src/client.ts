@@ -34,33 +34,13 @@ import type {
   SSOStatusSummary,
   SessionTokenIntrospectResult,
   SCIMListUsersResult,
+  PQCHybridSignature,
+  PQCVerificationResult,
+  PQCStatusSummary,
 } from './types.js';
 
-export class BrokerError extends Error {
-  public statusCode?: number;
-  public details?: Record<string, unknown>;
-
-  constructor(message: string, statusCode?: number, details?: Record<string, unknown>) {
-    super(message);
-    this.name = 'BrokerError';
-    this.statusCode = statusCode;
-    this.details = details;
-  }
-}
-
-export class AuthenticationError extends BrokerError {
-  constructor(message: string, statusCode?: number, details?: Record<string, unknown>) {
-    super(message, statusCode, details);
-    this.name = 'AuthenticationError';
-  }
-}
-
-export class LicenseValidationError extends BrokerError {
-  constructor(message: string, statusCode?: number, details?: Record<string, unknown>) {
-    super(message, statusCode, details);
-    this.name = 'LicenseValidationError';
-  }
-}
+export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
+import { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
 
 export class SheetLicenseClient {
   private readonly baseUrl: string;
@@ -491,5 +471,73 @@ export class SheetLicenseClient {
    */
   public async listSCIMUsers(startIndex: number = 1, count: number = 50): Promise<SCIMListUsersResult> {
     return this.request<SCIMListUsersResult>('GET', `/scim/v2/Users?startIndex=${startIndex}&count=${count}`);
+  }
+
+  /**
+   * Retrieves post-quantum cryptography parameters and active key info.
+   */
+  public async getPQCParams(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('GET', '/api/pqc/params');
+  }
+
+  /**
+   * Retrieves public keys for client-side lattice signature verification.
+   */
+  public async getPQCPublicKeys(): Promise<Array<Record<string, unknown>>> {
+    const res = await this.request<{ status: string; count: number; keys: Array<Record<string, unknown>> }>('GET', '/api/pqc/keys');
+    return res.keys || [];
+  }
+
+  /**
+   * Issues a quantum-resistant hybrid signature over a payload for an authenticated license.
+   */
+  public async signPQCLicense(licenseKey: string, payload: string, hwid?: string): Promise<PQCHybridSignature> {
+    const machineHwid = hwid || (await getMachineHwid());
+    const res = await this.request<{ status: string; signature: PQCHybridSignature }>('POST', '/api/pqc/sign', {
+      license_key: licenseKey,
+      hwid: machineHwid,
+      payload,
+    });
+    return res.signature;
+  }
+
+  /**
+   * Verifies a dual classical and post-quantum lattice signature.
+   */
+  public async verifyPQCSignature(payload: string, signature: PQCHybridSignature): Promise<PQCVerificationResult> {
+    const res = await this.request<{ status: string; result: PQCVerificationResult }>('POST', '/api/pqc/verify', {
+      payload,
+      signature,
+    });
+    return res.result;
+  }
+
+  /**
+   * Requests an administrative PQC key rotation with grace window.
+   */
+  public async rotatePQCKey(algo?: string, graceDays: number = 7, reason: string = 'Routine rotation'): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('POST', '/api/pqc/rotate', {
+      algorithm: algo,
+      grace_days: graceDays,
+      reason,
+    });
+  }
+
+  /**
+   * Revokes a compromised PQC key by ID.
+   */
+  public async revokePQCKey(keyId: string, reason: string = 'Administrative revocation'): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('POST', '/api/pqc/revoke', {
+      key_id: keyId,
+      reason,
+    });
+  }
+
+  /**
+   * Retrieves operational telemetry for the PQC engine.
+   */
+  public async getPQCStatus(): Promise<PQCStatusSummary> {
+    const res = await this.request<{ status: string; pqc: PQCStatusSummary }>('GET', '/api/pqc/status');
+    return res.pqc;
   }
 }

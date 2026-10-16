@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-10-16
+
+### Added
+- Module-Lattice-Based Digital Signature Algorithm (ML-DSA / NIST FIPS 204) engine (`internal/pqc/types.go`, `internal/pqc/poly.go`, `internal/pqc/mldsa.go`, `internal/pqc/hybrid.go`, `internal/pqc/rotation.go`, `internal/pqc/pqc_test.go`) implemented in pure Go standard library with zero external dependencies, providing long-term quantum resistance against Shor's algorithm.
+- Complete ring arithmetic in quotient polynomial ring $R_q = \mathbb{Z}_q[X]/(X^{256}+1)$ with $N=256$, modulus $q=8380417$, power-of-two decomposition, high/low bit extraction, hint bit generation/recovery, and rejection sampling algorithms for ML-DSA-44 and ML-DSA-65.
+- Dual hybrid classical/post-quantum signature envelopes (`Hybrid-P256-MLDSA65` and `Hybrid-HMAC-MLDSA44`) requiring simultaneous verification of classical ECDSA (or HMAC) and lattice signatures over canonical SHA-256 payload digests.
+- Thread-safe post-quantum key manager (`PQCKeyManager`) with atomic key rotation, configurable grace period validity windows (default 7 days), and immediate emergency key revocation kill-switch broadcasts.
+- Dedicated modular PQC REST routing layer (`routes_pqc.go`, `routes_pqc_test.go`) exposing `GET /api/pqc/params`, `GET /api/pqc/keys`, `POST /api/pqc/sign`, `POST /api/pqc/verify`, `POST /api/pqc/rotate`, `POST /api/pqc/revoke`, and `GET /api/pqc/status`.
+- Proxy layer PQC coordination (`internal/proxy/pqc.go`, `internal/proxy/pqc_test.go`) enforcing machine HWID binding on hybrid license signatures and broadcasting WebSocket kill-switch signals upon key revocation.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and logging for the `PQC_Keys` sheet, with `pqc_key_save`, `pqc_key_revoke`, and `pqc_key_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/pqc.go`, `sdk/go/pqc_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) adding PQC parameter querying, public key retrieval, hybrid signing, verification, rotation, and revocation methods with 100% test coverage.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Post-Quantum Cryptography (PQC)" tab with live telemetry cards, active key ring table, hybrid signature generation/verification simulators, and emergency revocation controls.
+- Version bump to 1.4.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.3.0] - 2026-10-15
 
 ### Added

@@ -133,6 +133,42 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 ]
             }).encode())
             return
+        if self.path == "/api/pqc/params":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "lattice": {"dimension": 256, "modulus": 8380417, "d": 13},
+                "primary_algorithm": "ML-DSA-65",
+                "active_key_id": "pqc-key-py-1"
+            }).encode())
+            return
+        if self.path == "/api/pqc/keys":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "count": 1,
+                "keys": [{"key_id": "pqc-key-py-1", "algorithm": "ML-DSA-65", "public_key_hex": "aabbcc", "status": "active"}]
+            }).encode())
+            return
+        if self.path == "/api/pqc/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "pqc": {
+                    "primary_algorithm": "ML-DSA-65",
+                    "active_keys": 1,
+                    "total_signatures": 10,
+                    "total_verifications": 8,
+                    "rotation_count": 1
+                }
+            }).encode())
+            return
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -343,6 +379,59 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/pqc/sign":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "signature": {
+                    "algorithm": "Hybrid-P256-MLDSA65",
+                    "key_id": "pqc-key-py-1",
+                    "classical_sig_b64": "class_sig",
+                    "pqc_sig_hex": "pqc_sig",
+                    "payload_hash_hex": "hash_val"
+                }
+            }).encode())
+            return
+
+        if self.path == "/api/pqc/verify":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "result": {
+                    "valid": True,
+                    "algorithm": "Hybrid-P256-MLDSA65",
+                    "classical_valid": True,
+                    "pqc_valid": True
+                }
+            }).encode())
+            return
+
+        if self.path == "/api/pqc/rotate":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "active_key": {"key_id": "pqc-key-py-2", "algorithm": "ML-DSA-65", "status": "active"},
+                "grace_period_days": 7
+            }).encode())
+            return
+
+        if self.path == "/api/pqc/revoke":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "revoked_key_id": "pqc-key-py-1",
+                "reason": "Administrative revocation"
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -515,7 +604,39 @@ class TestSheetLicenseClient(unittest.TestCase):
         self.assertEqual(scim.get("totalResults"), 1)
         self.assertEqual(scim.get("Resources")[0].get("userName"), "py-user@corp.com")
 
+    def test_pqc_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+        params = client.get_pqc_params()
+        self.assertEqual(params.get("primary_algorithm"), "ML-DSA-65")
+        self.assertEqual(params.get("lattice", {}).get("dimension"), 256)
+
+        keys = client.get_pqc_public_keys()
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(keys[0].get("key_id"), "pqc-key-py-1")
+
+        sig = client.sign_pqc_license("VALID-KEY-123", "payload-data")
+        self.assertEqual(sig.get("algorithm"), "Hybrid-P256-MLDSA65")
+        self.assertEqual(sig.get("key_id"), "pqc-key-py-1")
+
+        res = client.verify_pqc_signature("payload-data", sig)
+        self.assertTrue(res.get("valid"))
+        self.assertTrue(res.get("classical_valid"))
+        self.assertTrue(res.get("pqc_valid"))
+
+        rotate_res = client.rotate_pqc_key("ML-DSA-65", grace_days=7)
+        self.assertEqual(rotate_res.get("status"), "success")
+        self.assertEqual(rotate_res.get("active_key", {}).get("key_id"), "pqc-key-py-2")
+
+        revoke_res = client.revoke_pqc_key("pqc-key-py-1")
+        self.assertEqual(revoke_res.get("status"), "success")
+        self.assertEqual(revoke_res.get("revoked_key_id"), "pqc-key-py-1")
+
+        status = client.get_pqc_status()
+        self.assertEqual(status.get("primary_algorithm"), "ML-DSA-65")
+        self.assertEqual(status.get("total_signatures"), 10)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

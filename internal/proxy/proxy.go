@@ -16,6 +16,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
+	"github.com/kLauncher1/sheet-license-broker/internal/pqc"
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
 	"github.com/kLauncher1/sheet-license-broker/internal/ratelimit"
 	"github.com/kLauncher1/sheet-license-broker/internal/replication"
@@ -97,6 +98,7 @@ type Proxy struct {
 	streamHub          *stream.Hub
 	zkpVerifier        *zkp.Verifier
 	ssoManager         *sso.Manager
+	pqcManager         *pqc.PQCKeyManager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -136,6 +138,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initStream()
 	p.initZKP()
 	p.initSSO()
+	p.initPQC()
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

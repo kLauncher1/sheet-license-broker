@@ -372,18 +372,14 @@ namespace SheetLicenseBroker
         /// <summary>
         /// Queries the broker's distributed Raft role, quorum health, and cluster topology.
         /// </summary>
-        public async Task<string> GetClusterStatusAsync()
-        {
-            return await SendRequestAsync("GET", "/api/consensus/status", null).ConfigureAwait(false);
-        }
+        public async Task<string> GetClusterStatusAsync() =>
+            await SendRequestAsync("GET", "/api/consensus/status", null).ConfigureAwait(false);
 
         /// <summary>
         /// Queries active WebSocket telemetry client sessions.
         /// </summary>
-        public async Task<string> GetStreamClientsAsync()
-        {
-            return await SendRequestAsync("GET", "/api/stream/clients", null).ConfigureAwait(false);
-        }
+        public async Task<string> GetStreamClientsAsync() =>
+            await SendRequestAsync("GET", "/api/stream/clients", null).ConfigureAwait(false);
 
         /// <summary>
         /// Dispatches an instantaneous remote kill-switch directive to targeted clients.
@@ -398,18 +394,14 @@ namespace SheetLicenseBroker
         /// <summary>
         /// Queries aggregate streaming telemetry and active client metrics.
         /// </summary>
-        public async Task<string> GetStreamTelemetryAsync()
-        {
-            return await SendRequestAsync("GET", "/api/stream/telemetry", null).ConfigureAwait(false);
-        }
+        public async Task<string> GetStreamTelemetryAsync() =>
+            await SendRequestAsync("GET", "/api/stream/telemetry", null).ConfigureAwait(false);
 
         /// <summary>
         /// Fetches public elliptic curve parameters and issuer public key.
         /// </summary>
-        public async Task<string> GetZKPParamsAsync()
-        {
-            return await SendRequestAsync("GET", "/api/zkp/params", null).ConfigureAwait(false);
-        }
+        public async Task<string> GetZKPParamsAsync() =>
+            await SendRequestAsync("GET", "/api/zkp/params", null).ConfigureAwait(false);
 
         /// <summary>
         /// Issues an issuer-signed anonymous entitlement credential for an authenticated license.
@@ -436,18 +428,14 @@ namespace SheetLicenseBroker
         /// <summary>
         /// Queries overall telemetry on zero-knowledge verifications.
         /// </summary>
-        public async Task<string> GetZKPStatusAsync()
-        {
-            return await SendRequestAsync("GET", "/api/zkp/status", null).ConfigureAwait(false);
-        }
+        public async Task<string> GetZKPStatusAsync() =>
+            await SendRequestAsync("GET", "/api/zkp/status", null).ConfigureAwait(false);
 
         /// <summary>
         /// Queries telemetry on SSO identity providers and SCIM directory status.
         /// </summary>
-        public async Task<string> GetSSOStatusAsync()
-        {
-            return await SendRequestAsync("GET", "/api/sso/status", null).ConfigureAwait(false);
-        }
+        public async Task<string> GetSSOStatusAsync() =>
+            await SendRequestAsync("GET", "/api/sso/status", null).ConfigureAwait(false);
 
         /// <summary>
         /// Validates an ephemeral session token and checks permissions.
@@ -467,6 +455,65 @@ namespace SheetLicenseBroker
             string path = string.Format("/scim/v2/Users?startIndex={0}&count={1}", startIndex, count);
             return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Queries post-quantum cryptography parameters and active key info.
+        /// </summary>
+        public async Task<string> GetPQCParamsAsync() =>
+            await SendRequestAsync("GET", "/api/pqc/params", null).ConfigureAwait(false);
+
+        /// <summary>
+        /// Retrieves active public keys for client-side lattice signature verification.
+        /// </summary>
+        public async Task<string> GetPQCPublicKeysAsync() =>
+            await SendRequestAsync("GET", "/api/pqc/keys", null).ConfigureAwait(false);
+
+        /// <summary>
+        /// Issues a quantum-resistant hybrid signature over a payload for an entitled license.
+        /// </summary>
+        public async Task<string> SignPQCLicenseAsync(string licenseKey, string payload, string hwid = null)
+        {
+            string targetHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string body = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"payload\":\"{2}\"}}",
+                EscapeJson(licenseKey), EscapeJson(targetHwid), EscapeJson(payload));
+            return await SendRequestAsync("POST", "/api/pqc/sign", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Verifies dual classical and post-quantum lattice signatures.
+        /// </summary>
+        public async Task<string> VerifyPQCSignatureAsync(string payload, string signatureJson)
+        {
+            string body = string.Format("{{\"payload\":\"{0}\",\"signature\":{1}}}",
+                EscapeJson(payload), string.IsNullOrWhiteSpace(signatureJson) ? "{}" : signatureJson.Trim());
+            return await SendRequestAsync("POST", "/api/pqc/verify", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Requests an administrative PQC key rotation with active grace period.
+        /// </summary>
+        public async Task<string> RotatePQCKeyAsync(string algorithm = null, int graceDays = 7, string reason = "Routine rotation")
+        {
+            string body = string.Format("{{\"algorithm\":\"{0}\",\"grace_days\":{1},\"reason\":\"{2}\"}}",
+                EscapeJson(algorithm ?? "ML-DSA-65"), graceDays, EscapeJson(reason));
+            return await SendRequestAsync("POST", "/api/pqc/rotate", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Revokes a compromised PQC key by ID.
+        /// </summary>
+        public async Task<string> RevokePQCKeyAsync(string keyId, string reason = "Administrative revocation")
+        {
+            string body = string.Format("{{\"key_id\":\"{0}\",\"reason\":\"{1}\"}}",
+                EscapeJson(keyId), EscapeJson(reason));
+            return await SendRequestAsync("POST", "/api/pqc/revoke", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries operational telemetry for the PQC subsystem.
+        /// </summary>
+        public async Task<string> GetPQCStatusAsync() =>
+            await SendRequestAsync("GET", "/api/pqc/status", null).ConfigureAwait(false);
 
         private static string EscapeJson(string str)
         {

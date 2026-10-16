@@ -103,10 +103,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods for SSO and SCIM workflows across Go, TypeScript, Python, and C#
 - [x] Embedded admin console Enterprise SSO & SCIM interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 14: Post-Quantum Cryptography & ML-DSA Signature Chains (v1.4.0)
-- [ ] Module-Lattice-Based Digital Signature Algorithm (ML-DSA / Dilithium) verification
-- [ ] Quantum-resistant hybrid signature headers
-- [ ] Long-term cryptographic durability and key rotation mechanics
+## Phase 14: Post-Quantum Cryptography & ML-DSA Signature Chains (v1.4.0) - Completed
+- [x] Module-Lattice-Based Digital Signature Algorithm (NIST FIPS 204 ML-DSA-44 / ML-DSA-65) key generation, signing, and verification (`internal/pqc/mldsa.go`, `internal/pqc/poly.go`)
+- [x] Quantum-resistant hybrid signature envelopes (`Hybrid-P256-MLDSA65` and `Hybrid-HMAC-MLDSA44`) combining classical ECDSA/HMAC with lattice chains (`internal/pqc/hybrid.go`)
+- [x] Key rotation manager with zero-downtime grace period windows and emergency revocation kill-switch (`internal/pqc/rotation.go`)
+- [x] Dedicated PQC REST routes (`routes_pqc.go`) and full proxy integration (`internal/proxy/pqc.go`)
+- [x] Google Apps Script backend sheet (`PQC_Keys`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
+- [x] Embedded admin console Post-Quantum Cryptography (PQC) interactive tab (`web/dist/index.html`)
 
 ## Phase 15: Behavioral Anomaly Detection & Adaptive Risk Scoring (v1.5.0)
 - [ ] Statistical drift analysis on client heartbeat and geographic origin patterns
@@ -167,4 +171,15 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Multi-vector client security posture analyzer (OS patch level, secure boot status, AV health)
 - [ ] Dynamic confidence scoring engine triggering progressive step-up re-authentication
 - [ ] Policy-driven auto-quarantine with graceful degradation mode and localized compliance webhooks
+
+## Phase 27: Autonomous Multi-Cloud Edge Failover & Geo-DNS Health Routing (v2.7.0)
+- [ ] Active-active multi-cloud edge routing across Cloudflare, AWS CloudFront, and Fastly
+- [ ] Global latency health probes with sub-second failover orchestration
+- [ ] Zero-packet-loss state synchronization across partitioned cloud providers
+
+## Phase 28: Federated Differential Privacy & Blinded Entitlement Aggregation (v2.8.0)
+- [ ] Local differential privacy noise injection for privacy-preserving telemetry analytics
+- [ ] Secure multi-party computation (SMPC) seat usage aggregation without centralized cleartext exposure
+- [ ] Verifiable zero-knowledge compliance attestations for high-assurance enterprise reporting
+
 

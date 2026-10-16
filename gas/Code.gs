@@ -20,6 +20,7 @@ const SHEET_ZKP_CREDENTIALS = 'ZKP_Credentials';
 const SHEET_ZKP_NULLIFIERS = 'ZKP_Nullifiers';
 const SHEET_SSO_CONFIGS = 'SSO_Configs';
 const SHEET_DIRECTORY_USERS = 'Directory_Users';
+const SHEET_PQC_KEYS = 'PQC_Keys';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -152,6 +153,15 @@ function handleRequest(e, method) {
       case 'scim_user_list':
         return handleSCIMUserList(output, payload);
 
+      case 'pqc_key_save':
+        return handlePQCKeySave(output, payload);
+
+      case 'pqc_key_revoke':
+        return handlePQCKeyRevoke(output, payload);
+
+      case 'pqc_key_list':
+        return handlePQCKeyList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -177,7 +187,8 @@ function initSheets() {
     { name: SHEET_ZKP_CREDENTIALS, cols: ['credential_id', 'hwid_commitment', 'tier', 'max_seats', 'expires_at', 'scope', 'tenant_id', 'issued_at'] },
     { name: SHEET_ZKP_NULLIFIERS, cols: ['nullifier', 'epoch', 'tenant_id', 'spent_at'] },
     { name: SHEET_SSO_CONFIGS, cols: ['idp_id', 'tenant_id', 'name', 'type', 'entity_id', 'sso_endpoint', 'enabled', 'updated_at'] },
-    { name: SHEET_DIRECTORY_USERS, cols: ['user_id', 'username', 'display_name', 'email', 'role', 'active', 'license_key', 'tenant_id', 'updated_at'] }
+    { name: SHEET_DIRECTORY_USERS, cols: ['user_id', 'username', 'display_name', 'email', 'role', 'active', 'license_key', 'tenant_id', 'updated_at'] },
+    { name: SHEET_PQC_KEYS, cols: ['key_id', 'algorithm', 'public_hex', 'status', 'reason', 'grace_until', 'created_at', 'updated_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1022,6 +1033,75 @@ function handleSCIMUserList(output, payload) {
     }
   }
   return jsonResponse(output, { status: 'success', count: users.length, users: users });
+}
+
+function handlePQCKeySave(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_PQC_KEYS);
+  const data = sheet.getDataRange().getValues();
+  const keyId = payload.key_id;
+  const now = new Date().toISOString();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === keyId) {
+      sheet.getRange(i + 1, 4).setValue(payload.status || 'active');
+      sheet.getRange(i + 1, 5).setValue(payload.reason || '');
+      sheet.getRange(i + 1, 6).setValue(payload.grace_until || '');
+      sheet.getRange(i + 1, 8).setValue(now);
+      return jsonResponse(output, { status: 'success', message: 'PQC key updated', key_id: keyId });
+    }
+  }
+
+  sheet.appendRow([
+    keyId,
+    payload.algorithm || '',
+    payload.public_hex || '',
+    payload.status || 'active',
+    payload.reason || '',
+    payload.grace_until || '',
+    now,
+    now
+  ]);
+  return jsonResponse(output, { status: 'success', message: 'PQC key created', key_id: keyId });
+}
+
+function handlePQCKeyRevoke(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_PQC_KEYS);
+  const data = sheet.getDataRange().getValues();
+  const keyId = payload.key_id;
+  const now = new Date().toISOString();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === keyId) {
+      sheet.getRange(i + 1, 4).setValue('revoked');
+      sheet.getRange(i + 1, 5).setValue(payload.reason || 'revoked by administrator');
+      sheet.getRange(i + 1, 8).setValue(now);
+      return jsonResponse(output, { status: 'success', message: 'PQC key revoked', key_id: keyId });
+    }
+  }
+  return jsonResponse(output, { status: 'error', message: 'Key not found: ' + keyId });
+}
+
+function handlePQCKeyList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_PQC_KEYS);
+  const data = sheet.getDataRange().getValues();
+  const keys = [];
+
+  for (let i = 1; i < data.length; i++) {
+    keys.push({
+      key_id: data[i][0],
+      algorithm: data[i][1],
+      public_hex: data[i][2],
+      status: data[i][3],
+      reason: data[i][4],
+      grace_until: data[i][5],
+      created_at: data[i][6],
+      updated_at: data[i][7]
+    });
+  }
+  return jsonResponse(output, { status: 'success', count: keys.length, keys: keys });
 }
 
 function jsonResponse(output, data) {
