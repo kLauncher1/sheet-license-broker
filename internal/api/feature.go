@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 )
 
 // handleFeatures returns either all registered feature definitions or entitlements for a specific key.
-func (s *AppServer) handleFeatures(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleFeatures(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -36,7 +36,7 @@ func (s *AppServer) handleFeatures(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleFeatureCheck performs an atomic entitlement check for a specific license and feature.
-func (s *AppServer) handleFeatureCheck(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleFeatureCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -74,7 +74,7 @@ func (s *AppServer) handleFeatureCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUsageRecord increments usage consumption units for a metric with quota check.
-func (s *AppServer) handleUsageRecord(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUsageRecord(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -117,7 +117,7 @@ func (s *AppServer) handleUsageRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUsageStats returns all usage metric consumption records for a key.
-func (s *AppServer) handleUsageStats(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUsageStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -143,7 +143,7 @@ func (s *AppServer) handleUsageStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerFeatureRoutes wires feature flag and usage metering endpoints onto the api router.
-func (s *AppServer) registerFeatureRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerFeatureRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/features", s.handleFeatures)
 	apiMux.HandleFunc("/api/features/check", s.handleFeatureCheck)
 	apiMux.HandleFunc("/api/usage/record", s.handleUsageRecord)

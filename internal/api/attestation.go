@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 )
 
 // registerAttestationRoutes mounts hardware attestation and anti-tamper endpoints.
-func (s *AppServer) registerAttestationRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerAttestationRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/attestation/challenge", s.handleAttestationChallenge)
 	apiMux.HandleFunc("/api/attestation/verify", s.handleAttestationVerify)
 	apiMux.HandleFunc("/api/attestation/status", s.handleAttestationStatus)
@@ -17,7 +17,7 @@ func (s *AppServer) registerAttestationRoutes(apiMux *http.ServeMux) {
 }
 
 // handleAttestationChallenge generates a single-use random nonce challenge for TPM quote or enclave binding.
-func (s *AppServer) handleAttestationChallenge(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAttestationChallenge(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -54,7 +54,7 @@ func (s *AppServer) handleAttestationChallenge(w http.ResponseWriter, r *http.Re
 }
 
 // handleAttestationVerify validates a TPM 2.0 PCR quote or Secure Enclave assertion statement.
-func (s *AppServer) handleAttestationVerify(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAttestationVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -115,7 +115,7 @@ func (s *AppServer) handleAttestationVerify(w http.ResponseWriter, r *http.Reque
 }
 
 // handleAttestationStatus returns the verified attestation record or list of all device records.
-func (s *AppServer) handleAttestationStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAttestationStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -146,7 +146,7 @@ func (s *AppServer) handleAttestationStatus(w http.ResponseWriter, r *http.Reque
 }
 
 // handleAttestationTelemetry ingests anti-debugging and integrity telemetry from client instances.
-func (s *AppServer) handleAttestationTelemetry(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAttestationTelemetry(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

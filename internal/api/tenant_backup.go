@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/hex"
@@ -12,7 +12,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 )
 
-func (s *AppServer) handleTenants(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		id := strings.TrimSpace(r.URL.Query().Get("id"))
@@ -34,7 +34,7 @@ func (s *AppServer) handleTenants(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *AppServer) handleRegisterTenant(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRegisterTenant(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -52,7 +52,7 @@ func (s *AppServer) handleRegisterTenant(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (s *AppServer) handleBackupExport(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SecretKey string `json:"secret_key"`
 	}
@@ -72,7 +72,7 @@ func (s *AppServer) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-func (s *AppServer) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -104,7 +104,7 @@ func (s *AppServer) handleBackupRestore(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "message": "Backup restored successfully", "checksum": restored.Checksum})
 }
 
-func (s *AppServer) handleTestWebhook(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleTestWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

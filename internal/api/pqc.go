@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 )
 
 // handlePQCParams returns the supported post-quantum cryptography algorithms and active key info.
-func (s *AppServer) handlePQCParams(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCParams(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -41,7 +41,7 @@ func (s *AppServer) handlePQCParams(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePQCKeys returns the set of active and grace-period public keys for client-side verification.
-func (s *AppServer) handlePQCKeys(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCKeys(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -66,7 +66,7 @@ func (s *AppServer) handlePQCKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePQCSign issues a quantum-resistant hybrid signature for an authenticated client license.
-func (s *AppServer) handlePQCSign(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCSign(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -100,7 +100,7 @@ func (s *AppServer) handlePQCSign(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePQCVerify evaluates dual classical and post-quantum digital signatures.
-func (s *AppServer) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -131,7 +131,7 @@ func (s *AppServer) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePQCRotate advances the key epoch and triggers an audit log and storage sync.
-func (s *AppServer) handlePQCRotate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCRotate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -165,7 +165,7 @@ func (s *AppServer) handlePQCRotate(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePQCRevoke revokes a compromised key and broadcasts an immediate kill-switch alert.
-func (s *AppServer) handlePQCRevoke(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCRevoke(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -197,7 +197,7 @@ func (s *AppServer) handlePQCRevoke(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePQCStatus reports operational telemetry for PQC signatures and key management.
-func (s *AppServer) handlePQCStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePQCStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -211,7 +211,7 @@ func (s *AppServer) handlePQCStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerPQCRoutes binds all PQC endpoints to the API serve mux.
-func (s *AppServer) registerPQCRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerPQCRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/pqc/params", s.handlePQCParams)
 	apiMux.HandleFunc("/api/pqc/keys", s.handlePQCKeys)
 	apiMux.HandleFunc("/api/pqc/sign", s.handlePQCSign)

@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"crypto/rand"
@@ -13,7 +13,7 @@ import (
 )
 
 // handleStreamWS upgrades incoming HTTP requests to real-time WebSocket telemetry streams.
-func (s *AppServer) handleStreamWS(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStreamWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := stream.Upgrade(w, r)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("WebSocket upgrade failed: %v", err), http.StatusBadRequest)
@@ -65,7 +65,7 @@ func (s *AppServer) handleStreamWS(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleStreamClients returns metadata for all currently connected client sessions.
-func (s *AppServer) handleStreamClients(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStreamClients(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -80,7 +80,7 @@ func (s *AppServer) handleStreamClients(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleStreamKill executes an immediate remote kill-switch against targeted clients.
-func (s *AppServer) handleStreamKill(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStreamKill(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -115,7 +115,7 @@ func (s *AppServer) handleStreamKill(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleStreamBroadcast broadcasts a notification or payload to all connected clients.
-func (s *AppServer) handleStreamBroadcast(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStreamBroadcast(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -143,7 +143,7 @@ func (s *AppServer) handleStreamBroadcast(w http.ResponseWriter, r *http.Request
 }
 
 // handleStreamTelemetry returns aggregate telemetry metrics across all active streams.
-func (s *AppServer) handleStreamTelemetry(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStreamTelemetry(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -157,7 +157,7 @@ func (s *AppServer) handleStreamTelemetry(w http.ResponseWriter, r *http.Request
 }
 
 // registerStreamRoutes wires streaming and telemetry endpoints onto the API mux and root mux.
-func (s *AppServer) registerStreamRoutes(apiMux *http.ServeMux, rootMux *http.ServeMux) {
+func (s *Server) registerStreamRoutes(apiMux *http.ServeMux, rootMux *http.ServeMux) {
 	// WebSocket upgrade endpoint mounted directly (bypassing buffering middleware)
 	rootMux.HandleFunc("/api/stream/ws", s.handleStreamWS)
 

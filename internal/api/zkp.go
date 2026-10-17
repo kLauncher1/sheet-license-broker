@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 )
 
 // handleZKPParams serves the public curve generators and issuer public key.
-func (s *AppServer) handleZKPParams(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleZKPParams(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -50,7 +50,7 @@ func (s *AppServer) handleZKPParams(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleZKPIssueCredential issues an anonymous entitlement credential for an authenticated license.
-func (s *AppServer) handleZKPIssueCredential(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleZKPIssueCredential(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -108,7 +108,7 @@ func (s *AppServer) handleZKPIssueCredential(w http.ResponseWriter, r *http.Requ
 }
 
 // handleZKPVerify checks a zero-knowledge presentation proof.
-func (s *AppServer) handleZKPVerify(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleZKPVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -152,7 +152,7 @@ func (s *AppServer) handleZKPVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleZKPNullifierCheck reports whether a nullifier has already been recorded.
-func (s *AppServer) handleZKPNullifierCheck(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleZKPNullifierCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -181,7 +181,7 @@ func (s *AppServer) handleZKPNullifierCheck(w http.ResponseWriter, r *http.Reque
 }
 
 // handleZKPStatus returns overall telemetry on zero-knowledge verifications.
-func (s *AppServer) handleZKPStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleZKPStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -195,7 +195,7 @@ func (s *AppServer) handleZKPStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerZKPRoutes registers zero-knowledge proof endpoints onto the API multiplexer.
-func (s *AppServer) registerZKPRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerZKPRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/zkp/params", s.handleZKPParams)
 	apiMux.HandleFunc("/api/zkp/credential/issue", s.handleZKPIssueCredential)
 	apiMux.HandleFunc("/api/zkp/verify", s.handleZKPVerify)

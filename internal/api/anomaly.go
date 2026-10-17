@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 // registerAnomalyRoutes mounts REST endpoints for behavioral anomaly detection and adaptive risk scoring.
-func (s *AppServer) registerAnomalyRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerAnomalyRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/anomaly/record", s.handleAnomalyRecord)
 	apiMux.HandleFunc("/api/anomaly/score", s.handleAnomalyScore)
 	apiMux.HandleFunc("/api/anomaly/challenge/issue", s.handleAnomalyChallengeIssue)
@@ -20,7 +20,7 @@ func (s *AppServer) registerAnomalyRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/anomaly/status", s.handleAnomalyStatus)
 }
 
-func (s *AppServer) handleAnomalyRecord(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAnomalyRecord(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -57,7 +57,7 @@ func (s *AppServer) handleAnomalyRecord(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (s *AppServer) handleAnomalyScore(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAnomalyScore(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -75,7 +75,7 @@ func (s *AppServer) handleAnomalyScore(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, score)
 }
 
-func (s *AppServer) handleAnomalyChallengeIssue(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAnomalyChallengeIssue(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -103,7 +103,7 @@ func (s *AppServer) handleAnomalyChallengeIssue(w http.ResponseWriter, r *http.R
 	})
 }
 
-func (s *AppServer) handleAnomalyChallengeVerify(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAnomalyChallengeVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -135,7 +135,7 @@ func (s *AppServer) handleAnomalyChallengeVerify(w http.ResponseWriter, r *http.
 	})
 }
 
-func (s *AppServer) handleAnomalyGraph(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAnomalyGraph(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -166,7 +166,7 @@ func (s *AppServer) handleAnomalyGraph(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, graph)
 }
 
-func (s *AppServer) handleAnomalyStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAnomalyStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

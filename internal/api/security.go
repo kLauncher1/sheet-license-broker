@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -36,7 +36,7 @@ func extractClientIP(r *http.Request) string {
 }
 
 // securityRateLimitMiddleware wraps the HTTP handler with rate limiting and temporary ban enforcement.
-func (s *AppServer) securityRateLimitMiddleware(next http.Handler) http.Handler {
+func (s *Server) securityRateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientIP := extractClientIP(r)
 		hwid := strings.TrimSpace(r.Header.Get("X-HWID"))
@@ -108,7 +108,7 @@ func (s *AppServer) securityRateLimitMiddleware(next http.Handler) http.Handler 
 }
 
 // registerSecurityRoutes attaches M09 rate limiting, reputation, and audit export endpoints.
-func (s *AppServer) registerSecurityRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerSecurityRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/security/ratelimit/status", s.handleRateLimitStatus)
 	apiMux.HandleFunc("/api/security/reputation", s.handleReputationStatus)
 	apiMux.HandleFunc("/api/security/bans", s.handleBans)
@@ -118,7 +118,7 @@ func (s *AppServer) registerSecurityRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/security/audit/verify", s.handleAuditVerify)
 }
 
-func (s *AppServer) handleRateLimitStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRateLimitStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -129,7 +129,7 @@ func (s *AppServer) handleRateLimitStatus(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func (s *AppServer) handleReputationStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReputationStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -140,7 +140,7 @@ func (s *AppServer) handleReputationStatus(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (s *AppServer) handleBans(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBans(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -179,7 +179,7 @@ func (s *AppServer) handleBans(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *AppServer) handleUnban(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUnban(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -204,7 +204,7 @@ func (s *AppServer) handleUnban(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *AppServer) handleAuditRecords(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAuditRecords(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -226,7 +226,7 @@ func (s *AppServer) handleAuditRecords(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *AppServer) handleAuditExport(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -263,7 +263,7 @@ func (s *AppServer) handleAuditExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *AppServer) handleAuditVerify(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAuditVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

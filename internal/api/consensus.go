@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 )
 
 // handleConsensusStatus returns real-time Raft role, quorum health, and cluster topology.
-func (s *AppServer) handleConsensusStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -18,7 +18,7 @@ func (s *AppServer) handleConsensusStatus(w http.ResponseWriter, r *http.Request
 }
 
 // handleConsensusPeers returns active peer nodes in the consensus mesh.
-func (s *AppServer) handleConsensusPeers(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusPeers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -30,7 +30,7 @@ func (s *AppServer) handleConsensusPeers(w http.ResponseWriter, r *http.Request)
 }
 
 // handleConsensusPeerJoin dynamically registers a new peer in the cluster.
-func (s *AppServer) handleConsensusPeerJoin(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusPeerJoin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -73,7 +73,7 @@ func (s *AppServer) handleConsensusPeerJoin(w http.ResponseWriter, r *http.Reque
 }
 
 // handleConsensusRaftVote handles inbound Raft RequestVote RPCs.
-func (s *AppServer) handleConsensusRaftVote(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusRaftVote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -90,7 +90,7 @@ func (s *AppServer) handleConsensusRaftVote(w http.ResponseWriter, r *http.Reque
 }
 
 // handleConsensusRaftAppend handles inbound Raft AppendEntries (heartbeat/replication) RPCs.
-func (s *AppServer) handleConsensusRaftAppend(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusRaftAppend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -107,7 +107,7 @@ func (s *AppServer) handleConsensusRaftAppend(w http.ResponseWriter, r *http.Req
 }
 
 // handleConsensusCRDTSync handles state-based CRDT anti-entropy sync requests.
-func (s *AppServer) handleConsensusCRDTSync(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusCRDTSync(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -124,7 +124,7 @@ func (s *AppServer) handleConsensusCRDTSync(w http.ResponseWriter, r *http.Reque
 }
 
 // handleConsensusSyncTrigger initiates anti-entropy state synchronization with a peer.
-func (s *AppServer) handleConsensusSyncTrigger(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleConsensusSyncTrigger(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -155,7 +155,7 @@ func (s *AppServer) handleConsensusSyncTrigger(w http.ResponseWriter, r *http.Re
 }
 
 // registerConsensusRoutes wires distributed consensus and quorum endpoints onto the API mux.
-func (s *AppServer) registerConsensusRoutes(apiMux *http.ServeMux) {
+func (s *Server) registerConsensusRoutes(apiMux *http.ServeMux) {
 	apiMux.HandleFunc("/api/consensus/status", s.handleConsensusStatus)
 	apiMux.HandleFunc("/api/consensus/peers", s.handleConsensusPeers)
 	apiMux.HandleFunc("/api/consensus/peers/join", s.handleConsensusPeerJoin)

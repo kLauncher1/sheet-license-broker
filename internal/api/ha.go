@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -11,13 +11,13 @@ import (
 )
 
 // handleHAStatus returns real-time high-availability and spool telemetry.
-func (s *AppServer) handleHAStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHAStatus(w http.ResponseWriter, r *http.Request) {
 	st := s.proxy.HAStatus(r.Context())
 	writeJSON(w, http.StatusOK, st)
 }
 
 // handleHAReconcile triggers bidirectional collision-free reconciliation.
-func (s *AppServer) handleHAReconcile(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHAReconcile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -36,7 +36,7 @@ func (s *AppServer) handleHAReconcile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHASpoolDrain flushes pending offline disk events to the active sheet backend.
-func (s *AppServer) handleHASpoolDrain(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHASpoolDrain(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -60,7 +60,7 @@ func (s *AppServer) handleHASpoolDrain(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHAFailover allows manual failover between primary and standby backends.
-func (s *AppServer) handleHAFailover(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHAFailover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -98,7 +98,7 @@ func (s *AppServer) handleHAFailover(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAlertsTest sends a test incident alert to configured Slack/Discord channels.
-func (s *AppServer) handleAlertsTest(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAlertsTest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -143,7 +143,7 @@ func (s *AppServer) handleAlertsTest(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerHARoutes wires the HA, metrics, and reconciliation endpoints onto the mux.
-func (s *AppServer) registerHARoutes(apiMux *http.ServeMux, rootMux *http.ServeMux) {
+func (s *Server) registerHARoutes(apiMux *http.ServeMux, rootMux *http.ServeMux) {
 	// Guarded API endpoints
 	apiMux.HandleFunc("/api/ha/status", s.handleHAStatus)
 	apiMux.HandleFunc("/api/ha/reconcile", s.handleHAReconcile)

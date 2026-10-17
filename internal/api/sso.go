@@ -1,4 +1,4 @@
-package main
+﻿package api
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 // handleSSOMetadata serves standard SAML 2.0 Service Provider metadata XML.
-func (s *AppServer) handleSSOMetadata(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSSOMetadata(w http.ResponseWriter, r *http.Request) {
 	entityID := r.URL.Query().Get("entity_id")
 	if entityID == "" {
 		entityID = "urn:sheet-license-broker:sp"
@@ -31,7 +31,7 @@ func (s *AppServer) handleSSOMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSAMLACS processes SAML 2.0 Assertion Consumer Service responses.
-func (s *AppServer) handleSAMLACS(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSAMLACS(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -78,7 +78,7 @@ func (s *AppServer) handleSAMLACS(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleOIDCCallback validates OIDC claims and issues an ephemeral session token.
-func (s *AppServer) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -105,7 +105,7 @@ func (s *AppServer) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSSOIdP handles registration and listing of Identity Providers.
-func (s *AppServer) handleSSOIdP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSSOIdP(w http.ResponseWriter, r *http.Request) {
 	tenantID := s.proxy.TenantManager().ResolveFromRequest(r).ID
 	switch r.Method {
 	case http.MethodGet:
@@ -135,7 +135,7 @@ func (s *AppServer) handleSSOIdP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSSOTokenMint mints ephemeral session tokens with custom claims.
-func (s *AppServer) handleSSOTokenMint(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSSOTokenMint(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -160,7 +160,7 @@ func (s *AppServer) handleSSOTokenMint(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSSOTokenIntrospect validates and checks scopes for a session token.
-func (s *AppServer) handleSSOTokenIntrospect(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSSOTokenIntrospect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -196,20 +196,20 @@ func (s *AppServer) handleSSOTokenIntrospect(w http.ResponseWriter, r *http.Requ
 }
 
 // handleSSOStatus delivers telemetry on SSO federation and SCIM directory status.
-func (s *AppServer) handleSSOStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSSOStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.proxy.GetSSOStatus())
 }
 
 // SCIM 2.0 Endpoints (RFC 7644)
 
 // handleSCIMServiceProviderConfig delivers RFC 7643 provider configuration.
-func (s *AppServer) handleSCIMServiceProviderConfig(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSCIMServiceProviderConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/scim+json; charset=utf-8")
 	writeJSON(w, http.StatusOK, sso.BuildServiceProviderConfig())
 }
 
 // handleSCIMUsers handles listing and creating SCIM user resources.
-func (s *AppServer) handleSCIMUsers(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSCIMUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/scim+json; charset=utf-8")
 	tenantID := s.proxy.TenantManager().ResolveFromRequest(r).ID
 
@@ -265,7 +265,7 @@ func (s *AppServer) handleSCIMUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSCIMUserItem handles operations on specific SCIM user items (/scim/v2/Users/{id}).
-func (s *AppServer) handleSCIMUserItem(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSCIMUserItem(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/scim+json; charset=utf-8")
 	userID := strings.TrimPrefix(r.URL.Path, "/scim/v2/Users/")
 	if userID == "" || strings.Contains(userID, "/") {
@@ -324,7 +324,7 @@ func (s *AppServer) handleSCIMUserItem(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerSSORoutes mounts SSO and SCIM 2.0 endpoints.
-func (s *AppServer) registerSSORoutes(apiMux *http.ServeMux, rootMux *http.ServeMux) {
+func (s *Server) registerSSORoutes(apiMux *http.ServeMux, rootMux *http.ServeMux) {
 	// SAML 2.0 & OIDC
 	apiMux.HandleFunc("/api/sso/saml/metadata", s.handleSSOMetadata)
 	apiMux.HandleFunc("/api/sso/saml/acs", s.handleSAMLACS)
