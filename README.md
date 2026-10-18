@@ -34,14 +34,56 @@
   <img src="https://img.shields.io/badge/google--apps--script-deployed-34A853.svg" alt="Google Apps Script">
   <img src="https://img.shields.io/badge/hosting-0%24%2Fmo-10B981.svg" alt="Hosting Cost">
 </p>
+</div>
 
 ---
 
-## 💡 Overview
+<br />
+
+<details open>
+<summary><h3>💡 Overview & Core Architecture</h3></summary>
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
 Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, geo-distributed Anycast edge routing & sub-millisecond L1 cache, confidential computing Intel SGX / AMD SEV-SNP enclave bridges, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+
+
+### 🏛️ System Architecture Topology
+
+```mermaid
+flowchart TD
+    Client["Desktop App / CLI / WebApp"] -->|HTTPS REST + HMAC-SHA256| Guard["Anti-Tamper Security Guard & Nonce Cache"]
+    Guard --> Limiter["Rate Limiter & IP Reputation Gate"]
+    Limiter --> Broker["sheet-license-broker (Go Gateway)"]
+    Broker -->|//go:embed| WebUI["Embedded Admin Console (Port 9082)"]
+    Broker -->|Scrape| Prom["Prometheus Monitoring (/metrics)"]
+    Broker -->|Encrypted Disk Journal| Spool["Local Disk Spool (AES-256-GCM)"]
+    Broker -->|SIEM Export| SIEM["Audit Export Pipeline (AES-256-GCM)"]
+    Broker -->|Alerts| Alerts["Security Webhooks (Discord & Slack)"]
+    Broker -->|Raft RPC & CRDT Sync| Peers["Cluster Peer Mesh (Anti-Entropy)"]
+    Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
+    Broker -->|Active Role| Primary["Primary GAS Web App (Code.gs)"]
+    Broker -.->|Automatic Failover| Standby["Standby GAS Web App (Code.gs)"]
+    Primary --> Sheets1["Primary Google Sheet DB"]
+    Standby -.-> Sheets2["Standby Google Sheet DB"]
+
+    subgraph Google Sheets Database
+        Sheets1 --> Tab1["Tab: Users (Salted Hash Auth)"]
+        Sheets1 --> Tab2["Tab: Licenses (HWID Lock & Expiry)"]
+        Sheets1 --> Tab3["Tab: Blacklist (Revocations & Banned HWIDs)"]
+        Sheets1 --> Tab4["Tab: Audit_Logs (Security Audit Trail & Bans)"]
+        Sheets1 --> Tab5["Tab: Attestations (TPM Quotes & Claims)"]
+        Sheets1 --> Tab6["Tab: KV_Database (NoSQL Store)"]
+        Sheets1 --> Tab7["Tab: ConsensusNodes (Peer Discovery & Heartbeats)"]
+    end
+```
+
+</details>
+
+<br />
+
+<details open>
+<summary><h3>⚡ Complete Feature Matrix & Highlights</h3></summary>
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
@@ -75,41 +117,37 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 - **Resilient Local Caching & Offline Grace**: Memory-cached licenses and KV documents protect against Google API rate limits (HTTP 429) and network blips.
 - **Embedded Web Dashboard**: Self-contained single binary (`sheet-license-broker.exe`) with an emerald-dark management console.
 
----
+### 📊 Feature & Capability Tier Matrix
 
-## 🏛️ Architecture
+| Capability / Feature | Free Tier | Pro Tier | Enterprise Tier |
+| :--- | :---: | :---: | :---: |
+| **Hosting & Base Infrastructure** | $0/mo (GAS Quota) | $0/mo | $0/mo |
+| **Max Devices per License (HWID Lock)** | 1 Device | 5 Devices | Unlimited / Configurable |
+| **In-Memory TTL & Offline Cache** | ✅ (600s TTL) | ✅ (Configurable) | ✅ (Sub-ms Fast-Path) |
+| **Cryptographic HMAC-SHA256 Signing** | ✅ | ✅ | ✅ Enforced |
+| **Anti-Replay Nonce Window** | ✅ (5-min drift) | ✅ | ✅ |
+| **NoSQL Key-Value Store** | ✅ | ✅ | ✅ |
+| **Multi-Tenant Namespaces** | ❌ (Single) | ✅ (Custom Prefix) | ✅ (Full Isolation) |
+| **Dual-Sheet HA Auto-Failover** | ❌ | ✅ | ✅ |
+| **Local Encrypted Disk Spool (AES-256-GCM)** | ❌ | ✅ | ✅ |
+| **Cloudflare Edge Gateway (Sub-10ms)** | ❌ | ✅ | ✅ |
+| **Geo-Distributed Anycast (6 Global POPs)** | ❌ | ✅ | ✅ Sub-100µs L1 Cache |
+| **Confidential Computing (Intel SGX / AMD SEV)** | ❌ | ❌ | ✅ Zero-Plaintext Tunnels |
+| **Post-Quantum Cryptography (ML-DSA-44/65)** | ❌ | ❌ | ✅ NIST FIPS 204 Hybrid |
+| **Behavioral Anomaly Detection (Z-Score)** | ❌ | ❌ | ✅ SIEM Topology Feed |
+| **Enterprise SSO (SAML 2.0 / OIDC)** | ❌ | ❌ | ✅ Okta, Azure AD, Google |
+| **SCIM 2.0 Directory Provisioning** | ❌ | ❌ | ✅ Automated Lifecycle |
+| **Zero-Knowledge Proofs (NIST P-256 Sigma)** | ❌ | ❌ | ✅ Hardware Privacy |
+| **Distributed Raft Quorum & CRDT Mesh** | ❌ | ❌ | ✅ Multi-Node Consensus |
+| **Prometheus Telemetry (`/metrics`)** | ❌ | ✅ | ✅ Extended Metrics |
+| **Security Webhooks (Discord & Slack)** | ❌ | ✅ | ✅ High-Priority Alerting |
 
-```mermaid
-flowchart TD
-    Client["Desktop App / CLI / WebApp"] -->|HTTPS REST + HMAC-SHA256| Guard["Anti-Tamper Security Guard & Nonce Cache"]
-    Guard --> Limiter["Rate Limiter & IP Reputation Gate"]
-    Limiter --> Broker["sheet-license-broker (Go Gateway)"]
-    Broker -->|//go:embed| WebUI["Embedded Admin Console (Port 9082)"]
-    Broker -->|Scrape| Prom["Prometheus Monitoring (/metrics)"]
-    Broker -->|Encrypted Disk Journal| Spool["Local Disk Spool (AES-256-GCM)"]
-    Broker -->|SIEM Export| SIEM["Audit Export Pipeline (AES-256-GCM)"]
-    Broker -->|Alerts| Alerts["Security Webhooks (Discord & Slack)"]
-    Broker -->|Raft RPC & CRDT Sync| Peers["Cluster Peer Mesh (Anti-Entropy)"]
-    Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
-    Broker -->|Active Role| Primary["Primary GAS Web App (Code.gs)"]
-    Broker -.->|Automatic Failover| Standby["Standby GAS Web App (Code.gs)"]
-    Primary --> Sheets1["Primary Google Sheet DB"]
-    Standby -.-> Sheets2["Standby Google Sheet DB"]
+</details>
 
-    subgraph Google Sheets Database
-        Sheets1 --> Tab1["Tab: Users (Salted Hash Auth)"]
-        Sheets1 --> Tab2["Tab: Licenses (HWID Lock & Expiry)"]
-        Sheets1 --> Tab3["Tab: Blacklist (Revocations & Banned HWIDs)"]
-        Sheets1 --> Tab4["Tab: Audit_Logs (Security Audit Trail & Bans)"]
-        Sheets1 --> Tab5["Tab: Attestations (TPM Quotes & Claims)"]
-        Sheets1 --> Tab6["Tab: KV_Database (NoSQL Store)"]
-        Sheets1 --> Tab7["Tab: ConsensusNodes (Peer Discovery & Heartbeats)"]
-    end
-```
+<br />
 
----
-
-## 🚀 Quick Start
+<details open>
+<summary><h3>🚀 Quick Start & Deployment Guide</h3></summary>
 
 ### 1. Run the Local Gateway & Dashboard
 
@@ -143,7 +181,7 @@ The server automatically detects the remote URL, forwards incoming queries, cach
 
 ---
 
-## 📋 Google Sheets Setup & Clasp Deployment
+### 3. Google Sheets Setup & Clasp Deployment
 
 ### Option A: Clasp CLI Zero-Click Deployment
 
@@ -177,7 +215,772 @@ Your Google Sheet will automatically generate three dedicated tabs on the first 
 
 ---
 
-## 📡 REST API Specification
+### 4. Cloudflare Edge Gateway Deployment
+
+For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
+
+```bash
+cd edge/cloudflare
+wrangler deploy
+```
+
+- **Sub-10ms POP Verification**: Checks valid licenses directly from Cloudflare Workers KV cache.
+- **Hardware Web Crypto**: Edge HMAC-SHA256 signature and replay prevention before hitting origin.
+- **Automated Origin Fallback**: Uncached queries, key binds, and revocations transparently proxy to the origin server.
+
+---
+
+### 5. Verification & Standalone Binary Compilation
+
+Run the automated verification suite:
+
+```bash
+# Execute unit tests across all packages
+go test -v ./...
+
+# Compile standalone production binary
+go build -ldflags="-s -w" -o sheet-license-broker.exe .
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>🛡️ Confidential Computing & Enclave Attestation</h3></summary>
+
+### 🔒 Confidential Computing & Hardware Enclave Attestation Bridge
+
+`sheet-license-broker` includes a hardware-rooted confidential computing bridge supporting Intel SGX Quote v3/v4 and AMD SEV-SNP 1184-byte cryptographically signed attestation reports with ephemeral ECDH P-256 encrypted tunnels.
+
+#### Architectural Guarantees
+- **Hardware-Rooted Trust**: Verifies Intel SGX Quote v3/v4 ECDSA P-256 signatures against MREnclave, MRSigner, and ISVSVN security version policies. Verifies AMD SEV-SNP ECDSA P-384 / P-256 reports against launch measurement digests and guest debug policies (bit 17 enforcement).
+- **Ephemeral ECDH Tunnel & HKDF Expansion**: Derives independent client and server 32-byte session keys using native RFC 5869 HKDF Extract-and-Expand with SHA-256 and authenticated AES-256-GCM encryption.
+- **Replay Protection**: Strictly monotonic 64-bit sequence counters reject out-of-order or duplicate requests.
+- **Zero-Plaintext In-Enclave Evaluation**: Sensitive license keys, hardware identifiers, and feature entitlement policies are evaluated inside secure memory. Neither untrusted host OS, hypervisors, nor intermediary broker transit networks observe cleartext license keys.
+
+#### Request Single-Use Challenge Nonce
+```http
+POST /api/enclave/challenge
+Content-Type: application/json
+
+{}
+```
+**Response:**
+```json
+{
+  "challenge": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "expires_in": 300
+}
+```
+
+#### Attest Hardware Enclave Quote
+```http
+POST /api/enclave/attest
+Content-Type: application/json
+
+{
+  "platform": "intel_sgx",
+  "quote": "<quote-hex-bytes>",
+  "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "policy_id": "pol-prod-sgx-01"
+}
+```
+**Response:**
+```json
+{
+  "valid": true,
+  "attestation": {
+    "valid": true,
+    "platform": "intel_sgx",
+    "mr_enclave": "aabbccddeeff...",
+    "mr_signer": "112233445566...",
+    "svn": 2,
+    "debug": false,
+    "report_data_hex": "..."
+  }
+}
+```
+
+#### Establish Mutual Ephemeral ECDH Encrypted Tunnel
+```http
+POST /api/enclave/tunnel/handshake
+Content-Type: application/json
+
+{
+  "platform": "intel_sgx",
+  "quote": "<quote-hex-bytes>",
+  "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "client_public_key": "04..."
+}
+```
+**Response:**
+```json
+{
+  "established": true,
+  "session_id": "enclave-sess-...",
+  "broker_public_key": "04...",
+  "expires_at": "2026-10-18T20:30:00Z"
+}
+```
+
+#### Submit Zero-Plaintext Encrypted Evaluation Query
+```http
+POST /api/enclave/tunnel/evaluate
+Content-Type: application/json
+
+{
+  "session_id": "enclave-sess-...",
+  "sequence": 1,
+  "nonce": "<12-byte-hex-iv>",
+  "payload": "<aes-256-gcm-ciphertext-hex>"
+}
+```
+**Response:**
+```json
+{
+  "session_id": "enclave-sess-...",
+  "sequence": 1,
+  "nonce": "<12-byte-hex-iv>",
+  "payload": "<aes-256-gcm-encrypted-result-hex>"
+}
+```
+
+#### Query Enclave Status & Telemetry
+```http
+GET /api/enclave/status
+```
+
+---
+
+### Hardware Attestation & Anti-Tamper Telemetry
+
+#### Request TPM / Enclave Challenge Nonce
+```http
+POST /api/attestation/challenge
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "hwid": "WIN-B829-94AA-0123"
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "challenge_id": "9a4f2b1c8e3d",
+  "nonce": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "expires_at": "2026-10-14T12:05:00Z"
+}
+```
+
+#### Verify TPM 2.0 PCR Quote
+```http
+POST /api/attestation/verify
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "hwid": "WIN-B829-94AA-0123",
+  "challenge_id": "9a4f2b1c8e3d",
+  "attestation_type": "tpm2",
+  "tpm_quote": {
+    "pcr_values": {
+      "0": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "7": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    "pcr_selection": [0, 7],
+    "composite_digest": "4a5b6c7d8e9f...",
+    "signature": "3045022100...",
+    "ak_public_key_pem": "-----BEGIN PUBLIC KEY-----\n..."
+  }
+}
+```
+
+#### Transmit Anti-Debugging & Integrity Telemetry
+```http
+POST /api/attestation/telemetry
+Content-Type: application/json
+
+{
+  "license_key": "KEY-7F2A-9C4B-E108",
+  "hwid": "WIN-B829-94AA-0123",
+  "report": {
+    "debugger_present": false,
+    "memory_integrity": true,
+    "sandbox_detected": false,
+    "hooks_detected": false,
+    "process_checksum": "a1b2c3d4e5f6...",
+    "execution_uptime_s": 3600
+  }
+}
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>🔐 Post-Quantum Cryptography & ML-DSA</h3></summary>
+
+### ⚛️ Post-Quantum Cryptography & ML-DSA Hybrid Signatures
+
+#### Fetch NIST FIPS 204 Lattice Parameters & Active Key Info
+```http
+GET /api/pqc/params
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "lattice": { "dimension": 256, "modulus": 8380417, "d": 13 },
+  "primary_algorithm": "ML-DSA-65",
+  "active_key_id": "pqc-key-9b0d-e626",
+  "grace_window_days": 7
+}
+```
+
+#### List Public Verification Keys
+```http
+GET /api/pqc/keys
+```
+
+#### Issue Hybrid Quantum-Resistant License Signature
+```http
+POST /api/pqc/sign
+Content-Type: application/json
+
+{
+  "license_key": "LIC-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "payload": "entitlement-v1-pro-tier"
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "signature": {
+    "algorithm": "Hybrid-P256-MLDSA65",
+    "key_id": "pqc-key-9b0d-e626",
+    "classical_sig_b64": "MEUCIQD...",
+    "pqc_sig_hex": "1f8e2a...",
+    "payload_hash_hex": "e3b0c44...",
+    "created_at": "2026-10-16T19:30:00Z"
+  }
+}
+```
+
+#### Verify Dual Classical & Lattice Signatures
+```http
+POST /api/pqc/verify
+Content-Type: application/json
+
+{
+  "payload": "entitlement-v1-pro-tier",
+  "signature": {
+    "algorithm": "Hybrid-P256-MLDSA65",
+    "key_id": "pqc-key-9b0d-e626",
+    "classical_sig_b64": "MEUCIQD...",
+    "pqc_sig_hex": "1f8e2a..."
+  }
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "result": {
+    "valid": true,
+    "algorithm": "Hybrid-P256-MLDSA65",
+    "key_id": "pqc-key-9b0d-e626",
+    "classical_valid": true,
+    "pqc_valid": true
+  }
+}
+```
+
+#### Atomic Key Rotation with Grace Period
+```http
+POST /api/pqc/rotate
+Content-Type: application/json
+
+{
+  "algorithm": "ML-DSA-65",
+  "grace_days": 7,
+  "reason": "Routine cryptographic key rollover"
+}
+```
+
+#### Emergency Compromise Key Revocation
+```http
+POST /api/pqc/revoke
+Content-Type: application/json
+
+{
+  "key_id": "pqc-key-old-compromised",
+  "reason": "Private key leakage detected"
+}
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>👁️ Behavioral Anomaly Detection & SIEM Graph</h3></summary>
+
+### 🛡️ Behavioral Anomaly Detection & Adaptive Risk Scoring
+
+`sheet-license-broker` includes an enterprise-grade behavioral anomaly engine that tracks statistical heartbeat drift, impossible geographic travel, and dynamic risk scoring across client applications.
+
+#### Adaptive Governance Policy
+- **Score 0 – 49 (Nominal)**: Normal operation, unrestricted access. Nominal activity progressively decays accumulated risk points over time.
+- **Score 50 – 84 (Suspicious)**: Requires challenge escalation. Enforces a 5-minute single-use cryptographic re-attestation challenge (`POST /api/anomaly/challenge/issue` and `/verify`).
+- **Score 85 – 100 (High Risk / Compromised)**: Immediate zero-trust quarantine. Verification calls (`POST /api/licenses/verify`) are automatically rejected with HTTP 403 Forbidden, and alerts are broadcast to security webhooks.
+
+#### Record Client Telemetry Observation
+```http
+POST /api/anomaly/record
+Content-Type: application/json
+
+{
+  "license_key": "SLB-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "ip": "198.51.100.24",
+  "latitude": 37.5665,
+  "longitude": 126.9780
+}
+```
+**Response:**
+```json
+{
+  "status": "recorded",
+  "risk_score": {
+    "entity_id": "SLB-PRO-2026-99",
+    "score": 0,
+    "classification": "NOMINAL",
+    "challenge_required": false,
+    "quarantined": false,
+    "last_assessed": "2026-10-16T21:30:00Z"
+  }
+}
+```
+
+#### Query Adaptive Risk Score
+```http
+GET /api/anomaly/score?license_key=SLB-PRO-2026-99
+```
+
+#### Issue & Verify Re-Attestation Challenge
+```http
+# Issue challenge token
+POST /api/anomaly/challenge/issue
+Content-Type: application/json
+
+{
+  "license_key": "SLB-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B"
+}
+
+# Verify challenge token
+POST /api/anomaly/challenge/verify
+Content-Type: application/json
+
+{
+  "challenge_token": "ch_7f2a9c4b..."
+}
+```
+
+#### Export Security Incident Graph (SIEM Standard Feed)
+Export RFC-compliant topological incident nodes and edges formatted for Splunk, Datadog, Elastic, and Microsoft Sentinel:
+```http
+GET /api/anomaly/graph?min_score=50&limit=50
+```
+**Response:**
+```json
+{
+  "schema_version": "siem-topology-v1",
+  "generated_at": "2026-10-16T21:30:00Z",
+  "nodes": [
+    { "id": "SLB-PRO-2026-99", "type": "CLIENT", "risk_score": 60, "first_seen": "...", "last_seen": "..." },
+    { "id": "198.51.100.0/24", "type": "SUBNET", "risk_score": 30, "first_seen": "...", "last_seen": "..." }
+  ],
+  "edges": [
+    { "id": "edge-1", "source_id": "SLB-PRO-2026-99", "target_id": "198.51.100.0/24", "relationship": "OBSERVED_IN_SUBNET", "weight": 60, "timestamp": "..." }
+  ],
+  "total_incidents": 1
+}
+```
+
+#### Engine Telemetry Status
+```http
+GET /api/anomaly/status
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>🔑 Enterprise SSO (SAML/OIDC) & SCIM 2.0</h3></summary>
+
+### 🔐 Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning
+
+#### SAML 2.0 Service Provider Metadata
+Download standard SP metadata XML for Okta, Azure AD, or PingFederate:
+```http
+GET /api/sso/saml/metadata?entity_id=urn:sheet-license-broker:sp
+```
+
+#### SAML 2.0 Assertion Consumer Service (ACS)
+Process inbound SAML assertions and issue authenticated session tokens:
+```http
+POST /api/sso/saml/acs
+Content-Type: application/x-www-form-urlencoded
+
+SAMLResponse=PHNhbWxwOlJlc3BvbnNlIHhtbG5z...
+```
+
+#### OpenID Connect (OIDC) Callback
+Validate ID tokens and claims from Google Workspace, Auth0, or Keycloak:
+```http
+POST /api/sso/oidc/callback
+Content-Type: application/json
+
+{
+  "sub": "usr_9918",
+  "email": "alice@company.com",
+  "iss": "https://accounts.google.com",
+  "aud": "sheet-license-broker",
+  "exp": 1776250000
+}
+```
+
+#### Identity Provider (IdP) Management
+```http
+# Register new SAML or OIDC IdP
+POST /api/sso/idp
+Content-Type: application/json
+
+{
+  "id": "okta-corp",
+  "protocol": "saml",
+  "entity_id": "http://www.okta.com/exk123456",
+  "sso_url": "https://company.okta.com/app/sso",
+  "tenant_id": "default",
+  "enabled": true
+}
+
+# List registered IdPs
+GET /api/sso/idp
+```
+
+#### SCIM 2.0 Directory Provisioning (RFC 7644)
+Integrate corporate user lifecycle provisioning directly with Okta, Microsoft Entra ID (Azure AD), or OneLogin:
+
+```http
+# Service Provider Configuration
+GET /scim/v2/ServiceProviderConfig
+
+# List directory users (paginated)
+GET /scim/v2/Users?startIndex=1&count=50
+
+# Provision user (automatically allocates license seat)
+POST /scim/v2/Users
+Content-Type: application/scim+json
+
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "userName": "alice@corp.com",
+  "emails": [{ "value": "alice@corp.com", "primary": true }],
+  "roles": [{ "value": "operator" }],
+  "active": true
+}
+
+# Deprovision user (instantly revokes allocated license seat and pushes kill-switch)
+DELETE /scim/v2/Users/usr-okta-8821
+```
+
+#### Ephemeral RBAC Session Tokens
+```http
+# Mint ephemeral token
+POST /api/sso/token/mint
+Content-Type: application/json
+
+{
+  "user_id": "usr_9918",
+  "email": "alice@corp.com",
+  "role": "admin",
+  "scopes": ["license:read", "license:write", "sso:manage"]
+}
+
+# Introspect token and enforce scope permissions
+POST /api/sso/token/introspect
+Content-Type: application/json
+
+{
+  "token": "sso_tok_7f2a9c4b...",
+  "required_scope": "license:write"
+}
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>🕵️ Zero-Knowledge Proof (ZKP) Architecture</h3></summary>
+
+### 🕵️ Zero-Knowledge Proof (ZKP) Anonymous Verification
+
+#### Fetch NIST P-256 Public Parameters & Generators
+```http
+GET /api/zkp/params
+```
+
+#### Issue Anonymous Blinded Credential
+```http
+POST /api/zkp/credential/issue
+Content-Type: application/json
+
+{
+  "license_key": "LIC-ENTERPRISE-001",
+  "tenant_id": "default",
+  "hwid": "WIN-B829-94AA-0123",
+  "tier": "enterprise",
+  "max_seats": 5
+}
+```
+
+#### Verify Zero-Knowledge Presentation Proof (Sigma Protocol)
+```http
+POST /api/zkp/verify
+Content-Type: application/json
+
+{
+  "credential": { ... },
+  "required_tier": "enterprise"
+}
+```
+
+#### Inspect Spent Nullifier Status
+```http
+GET /api/zkp/nullifiers/check?nullifier=7f2a9c4b...
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>🌐 Distributed Raft Quorum & CRDT Mesh</h3></summary>
+
+### 🌐 Distributed Consensus & Multi-Region Quorum Sync
+
+#### Cluster Status & Peer Topology
+```http
+GET /api/consensus/status
+GET /api/consensus/peers
+```
+
+Response:
+```json
+{
+  "node_id": "node-1",
+  "role": "Leader",
+  "current_term": 1,
+  "commit_index": 4,
+  "peer_count": 2,
+  "healthy_peers": 2,
+  "has_quorum": true,
+  "merkle_digest": "4a7d1ed414474e4033ac29ccb8653d9b...",
+  "element_count": 128
+}
+```
+
+#### Join Cluster Peer
+```http
+POST /api/consensus/peers/join
+Content-Type: application/json
+
+{
+  "node_id": "node-2",
+  "address": "http://192.168.1.50:9082"
+}
+```
+
+#### Trigger Anti-Entropy State Synchronization
+```http
+POST /api/consensus/sync/trigger
+```
+
+---
+
+### ⚡ Real-Time WebSocket Streaming & Telemetry Push
+
+#### Bidirectional WebSocket Telemetry Stream
+Connect persistent WebSocket clients to `/api/stream/ws` for real-time telemetry streaming and sub-second kill-switch pushes:
+
+```http
+GET /api/stream/ws?license_key=SLB-XXXX-XXXX&hwid=HWID-1234 HTTP/1.1
+Host: localhost:9082
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+Sec-WebSocket-Version: 13
+```
+
+#### Query Connected Streaming Clients & Telemetry
+```http
+# List active streaming sessions
+GET /api/stream/clients
+
+# Query streaming metrics and recent event audit log
+GET /api/stream/telemetry
+```
+
+#### Execute Instantaneous Remote Kill-Switch
+```http
+POST /api/stream/kill
+Content-Type: application/json
+
+{
+  "target": "SLB-XXXX-XXXX",
+  "reason": "Suspected device cloning or fraud",
+  "immediate": true
+}
+```
+*Note: Target can be a specific License Key, Device HWID, Client ID, or `"ALL"` for emergency broadcast kill-switch execution. Signals are pushed to matching client sockets with sub-second delivery.*
+
+---
+
+### 🌐 Geo-Distributed Edge CDN Anycast Routing & Sub-Millisecond L1 Cache
+
+`sheet-license-broker` includes an enterprise-grade Geo-Distributed Anycast Edge Routing and Sub-Millisecond L1 Cache engine (`internal/anycast/`) designed to route incoming global license queries to the lowest-latency healthy Point of Presence (POP) and deliver cached verifications in under 100 microseconds.
+
+#### Architectural Capabilities
+- **Global 6-Node POP Registry**: Ashburn (IAD / us-east), San Jose (SJC / us-west), Frankfurt (FRA / eu-central), Tokyo (NRT / ap-northeast), Singapore (SIN / ap-southeast), and Sao Paulo (GRU / sa-east).
+- **Great-Circle Haversine Routing**: Computes spherical distances from client coordinates (`lat`, `lon`), blends active dynamic telemetry probes (RTT latency, jitter, packet loss), and outputs optimal healthy POP selections with alternative fallbacks.
+- **Cryptographically Signed Routing Tokens**: Issues and verifies HMAC-SHA256 signed routing tokens guaranteeing edge affinity and tamper protection.
+- **Sub-Millisecond In-Memory L1 Cache**: Serves license checks in <100 microseconds with asynchronous Stale-While-Revalidate (SWR) background cache refreshes to eliminate latency spikes.
+- **Geographic Partition Mitigation & Emergency Leases**: During upstream cloud outages or localized network disconnects, automatically issues HMAC-signed emergency lease tokens to keep client applications running smoothly without lockouts.
+
+#### Compute Nearest Anycast Route
+```http
+GET /api/anycast/route?lat=37.7749&lon=-122.4194&ip=198.51.100.1&region=us-west
+```
+**Response:**
+```json
+{
+  "selected_pop": {
+    "id": "sjc",
+    "name": "San Jose SJC",
+    "region": "us-west",
+    "country": "US",
+    "latitude": 37.3382,
+    "longitude": -121.8863,
+    "endpoint_url": "https://sjc.edge.broker.internal",
+    "weight": 100,
+    "avg_rtt_ms": 12.4,
+    "status": "healthy"
+  },
+  "fallback_pops": [
+    { "id": "iad", "name": "Ashburn IAD", "region": "us-east", "status": "healthy" }
+  ],
+  "estimated_latency_ms": 12.4,
+  "signed_routing_token": "anycast-tok-7f2a...",
+  "timestamp": "2026-10-18T21:40:00Z"
+}
+```
+
+#### Ingest Dynamic Latency Health Probe
+```http
+POST /api/anycast/probe
+Content-Type: application/json
+
+{
+  "target_pop_id": "sjc",
+  "rtt_ms": 14.2,
+  "jitter_ms": 0.8,
+  "packet_loss": 0.0,
+  "source_ip": "198.51.100.1"
+}
+```
+
+#### Sub-Millisecond Fast License Verification (L1 Cache Fast-Path)
+```http
+POST /api/anycast/verify
+Content-Type: application/json
+
+{
+  "license_key": "SLB-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "preferred_pop": "sjc"
+}
+```
+
+#### Query Edge Cache Telemetry & Hit/Miss Ratios
+```http
+GET /api/anycast/cache/stats
+```
+**Response:**
+```json
+{
+  "hits": 1420,
+  "misses": 38,
+  "revalidations": 12,
+  "lookup_latency_us": 84.5,
+  "hit_ratio": 0.973,
+  "cached_tier_entries": 4
+}
+```
+
+#### Query Global Anycast Status
+```http
+GET /api/anycast/status
+```
+
+</details>
+
+<br />
+
+<details>
+<summary><h3>📡 Complete REST API Reference & Payload Specs</h3></summary>
+
+### 🧭 Master REST Endpoint Routing Reference
+
+| Method | Path | Subsystem | Description | Authentication / Headers |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/health` | Diagnostics | System health, proxy status, consensus & subsystem telemetry | Public |
+| `GET` | `/api/proxy/ping` | Diagnostics | Active Google Apps Script connectivity probe | Public |
+| `POST` | `/api/users/register` | Authentication | Register a new administrative or standard user | Salted SHA-256 |
+| `POST` | `/api/users/login` | Authentication | Authenticate user credentials and return role | Salted SHA-256 |
+| `POST` | `/api/licenses` | Licensing | Issue new software license key (supports multi-tenant) | Admin / `X-Tenant-ID` |
+| `POST` | `/api/licenses/validate` | Licensing | Verify license key & lock/bind machine HWID | `X-Signature` HMAC |
+| `POST` | `/api/licenses/revoke` | Licensing | Administratively revoke license key | Admin / Reason |
+| `GET` | `/api/security/blacklist` | Security | List all revoked license keys and banned hardware IDs | Admin |
+| `POST` | `/api/security/blacklist` | Security | Blacklist hardware ID (HWID) or key | Admin |
+| `POST` | `/api/docs` | NoSQL KV | Store or update JSON document in collection | HMAC / Admin |
+| `GET` | `/api/docs` | NoSQL KV | Fetch all documents from Google Sheets `KV_Database` | HMAC / Admin |
+| `POST` | `/api/tenants/register` | Multi-Tenant | Register isolated tenant product namespace | Admin |
+| `POST` | `/api/backup/export` | Disaster Recovery | Export encrypted database snapshot (AES-256-GCM) | Master Passphrase |
+| `POST` | `/api/backup/restore` | Disaster Recovery | Restore spreadsheet database from encrypted snapshot | Master Passphrase |
+| `GET` | `/api/features` | Entitlement | List feature catalogue and subscription tier definitions | Public |
+| `POST` | `/api/features/check` | Entitlement | Verify whether license is entitled to specific feature | License Key |
+| `POST` | `/api/usage/record` | Entitlement | Atomically record usage consumption towards tier quotas | License Key |
+| `GET` | `/api/usage/stats` | Entitlement | Query real-time daily usage consumption statistics | License Key |
+| `GET` | `/api/security/ratelimit/status` | Rate Limiter | Query thread-safe sliding window rate limit metrics | Admin |
+| `GET` | `/api/security/reputation` | Rate Limiter | Inspect IP & HWID reputation tracking scores | Admin |
+| `GET` | `/api/security/bans` | Rate Limiter | Query active temporary rate-limiting bans | Admin |
+| `POST` | `/api/security/bans` | Rate Limiter | Impose temporary ban on suspicious IP or HWID | Admin |
+| `POST` | `/api/security/bans/unban` | Rate Limiter | Lift temporary ban from IP or HWID | Admin |
+| `POST` | `/api/security/audit/export` | Compliance | Export sealed AES-256-GCM audit log bundle for SIEM | Compliance Secret |
+| `POST` | `/api/security/audit/verify` | Compliance | Decrypt and verify HMAC integrity of audit bundle | Compliance Secret |
+| `GET` | `/metrics` | Monitoring | Prometheus 0.0.4 scraper metrics endpoint | Public / Scraper |
+
+---
 
 ### Health & Diagnostics
 
@@ -475,72 +1278,6 @@ GET /api/usage/stats?license_key=KEY-7F2A-9C4B-E108
 
 ---
 
-### Hardware Attestation & Anti-Tamper Telemetry
-
-#### Request TPM / Enclave Challenge Nonce
-```http
-POST /api/attestation/challenge
-Content-Type: application/json
-
-{
-  "license_key": "KEY-7F2A-9C4B-E108",
-  "hwid": "WIN-B829-94AA-0123"
-}
-```
-**Response:**
-```json
-{
-  "status": "success",
-  "challenge_id": "9a4f2b1c8e3d",
-  "nonce": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "expires_at": "2026-10-14T12:05:00Z"
-}
-```
-
-#### Verify TPM 2.0 PCR Quote
-```http
-POST /api/attestation/verify
-Content-Type: application/json
-
-{
-  "license_key": "KEY-7F2A-9C4B-E108",
-  "hwid": "WIN-B829-94AA-0123",
-  "challenge_id": "9a4f2b1c8e3d",
-  "attestation_type": "tpm2",
-  "tpm_quote": {
-    "pcr_values": {
-      "0": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "7": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-    },
-    "pcr_selection": [0, 7],
-    "composite_digest": "4a5b6c7d8e9f...",
-    "signature": "3045022100...",
-    "ak_public_key_pem": "-----BEGIN PUBLIC KEY-----\n..."
-  }
-}
-```
-
-#### Transmit Anti-Debugging & Integrity Telemetry
-```http
-POST /api/attestation/telemetry
-Content-Type: application/json
-
-{
-  "license_key": "KEY-7F2A-9C4B-E108",
-  "hwid": "WIN-B829-94AA-0123",
-  "report": {
-    "debugger_present": false,
-    "memory_integrity": true,
-    "sandbox_detected": false,
-    "hooks_detected": false,
-    "process_checksum": "a1b2c3d4e5f6...",
-    "execution_uptime_s": 3600
-  }
-}
-```
-
----
-
 ### 🛡️ Enterprise Rate Limiting & SIEM Audit Export
 
 #### Rate Limiter & IP Reputation Telemetry
@@ -595,628 +1332,78 @@ Content-Type: application/json
 }
 ```
 
----
+</details>
 
-### 🌐 Distributed Consensus & Multi-Region Quorum Sync
+<br />
 
-#### Cluster Status & Peer Topology
-```http
-GET /api/consensus/status
-GET /api/consensus/peers
+<details>
+<summary><h3>⚙️ Environment Variables & Configuration Matrix</h3></summary>
+
+### 📋 Configuration Matrix
+
+| Variable | Type | Default | Description | Required / Optional |
+| :--- | :---: | :---: | :--- | :---: |
+| `PORT` | `integer` | `9082` | HTTP port for gateway server & embedded web dashboard | Optional |
+| `GAS_WEBAPP_URL` | `string` | *(empty)* | Primary Google Apps Script Web App exec URL (`https://script.google.com/macros/s/.../exec`) | Optional (Runs offline if omitted) |
+| `GAS_STANDBY_WEBAPP_URL` | `string` | *(empty)* | Standby Google Apps Script Web App exec URL for active-standby HA failover | Optional |
+| `HA_AUTO_FAILOVER` | `boolean` | `true` | Automatically failover to standby sheet when primary returns errors or timeouts | Optional |
+| `OFFLINE_MODE` | `boolean` | `true` | Enforce standalone offline mode (operates purely on local cache and memory DB) | Optional |
+| `CACHE_TTL_SECONDS` | `integer` | `600` | In-memory TTL cache expiration duration (in seconds) for license verifications | Optional |
+| `HMAC_SECRET` | `string` | *(empty)* | Master cryptographic signing secret for HMAC-SHA256 anti-tamper verification (min 32 chars) | Recommended |
+| `HMAC_ENFORCE` | `boolean` | `false` | Strictly reject incoming requests lacking valid `X-Signature` headers | Optional |
+| `GLOBAL_WEBHOOK_URL` | `string` | *(empty)* | Endpoint for real-time lifecycle event webhook delivery (license binds, revokes, bans) | Optional |
+| `GLOBAL_WEBHOOK_SECRET` | `string` | *(empty)* | Cryptographic HMAC secret for signing outgoing webhook notification payloads | Optional |
+| `DISCORD_ALERT_WEBHOOK_URL` | `string` | *(empty)* | Discord webhook URL for high-priority security alerts and quarantine notifications | Optional |
+| `SLACK_ALERT_WEBHOOK_URL` | `string` | *(empty)* | Slack incoming webhook URL for enterprise security alerts | Optional |
+| `SPOOL_PATH` | `string` | `spool.bin` | Local path to encrypted journal queue file for zero-data-loss network spooling | Optional |
+| `SPOOL_SECRET` | `string` | *(empty)* | 32-byte AES-256-GCM encryption key for local disk spool journal | Optional |
+| `NODE_ID` | `string` | `node-1` | Unique node identifier for distributed Raft quorum consensus | Optional |
+| `CLUSTER_REGION` | `string` | `us-east` | Geographic region code for node (e.g., `us-east`, `us-west`, `eu-central`, `ap-northeast`) | Optional |
+| `CLUSTER_ADDRESS` | `string` | `http://localhost:9082` | Advertised HTTP/RPC listening address for consensus peer discovery | Optional |
+| `CLUSTER_PEERS` | `string` | *(empty)* | Comma-separated list of peer cluster addresses for initial bootstrap discovery | Optional |
+
+### 🛠️ Production `.env` Example
+
+```env
+# Server & Network Configuration
+PORT=9082
+CACHE_TTL_SECONDS=600
+OFFLINE_MODE=false
+
+# Google Apps Script Backend (Primary & Standby High Availability)
+GAS_WEBAPP_URL=https://script.google.com/macros/s/AKfycb.../exec
+GAS_STANDBY_WEBAPP_URL=https://script.google.com/macros/s/AKfycb_standby.../exec
+HA_AUTO_FAILOVER=true
+
+# Cryptographic Anti-Tamper Protection (HMAC-SHA256)
+HMAC_SECRET=your-secure-hmac-master-secret-min-32-chars-long
+HMAC_ENFORCE=true
+
+# Encrypted Disk Spool (Zero Data Loss During Outages)
+SPOOL_PATH=spool.bin
+SPOOL_SECRET=your-spool-encryption-key-32-bytes-long!
+
+# Security Incident Webhooks (Discord & Slack)
+DISCORD_ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/...
+SLACK_ALERT_WEBHOOK_URL=https://hooks.slack.com/services/...
+
+# Global Lifecycle Event Webhooks
+GLOBAL_WEBHOOK_URL=https://api.yourdomain.com/webhooks/licenses
+GLOBAL_WEBHOOK_SECRET=your-webhook-signing-secret
+
+# Distributed Raft Quorum Consensus & Mesh Sync
+NODE_ID=node-1
+CLUSTER_REGION=us-east
+CLUSTER_ADDRESS=http://192.168.1.10:9082
+CLUSTER_PEERS=http://192.168.1.11:9082,http://192.168.1.12:9082
 ```
 
-Response:
-```json
-{
-  "node_id": "node-1",
-  "role": "Leader",
-  "current_term": 1,
-  "commit_index": 4,
-  "peer_count": 2,
-  "healthy_peers": 2,
-  "has_quorum": true,
-  "merkle_digest": "4a7d1ed414474e4033ac29ccb8653d9b...",
-  "element_count": 128
-}
-```
+</details>
 
-#### Join Cluster Peer
-```http
-POST /api/consensus/peers/join
-Content-Type: application/json
+<br />
 
-{
-  "node_id": "node-2",
-  "address": "http://192.168.1.50:9082"
-}
-```
-
-#### Trigger Anti-Entropy State Synchronization
-```http
-POST /api/consensus/sync/trigger
-```
-
----
-
-### ⚡ Real-Time WebSocket Streaming & Telemetry Push
-
-#### Bidirectional WebSocket Telemetry Stream
-Connect persistent WebSocket clients to `/api/stream/ws` for real-time telemetry streaming and sub-second kill-switch pushes:
-
-```http
-GET /api/stream/ws?license_key=SLB-XXXX-XXXX&hwid=HWID-1234 HTTP/1.1
-Host: localhost:9082
-Upgrade: websocket
-Connection: Upgrade
-Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
-Sec-WebSocket-Version: 13
-```
-
-#### Query Connected Streaming Clients & Telemetry
-```http
-# List active streaming sessions
-GET /api/stream/clients
-
-# Query streaming metrics and recent event audit log
-GET /api/stream/telemetry
-```
-
-#### Execute Instantaneous Remote Kill-Switch
-```http
-POST /api/stream/kill
-Content-Type: application/json
-
-{
-  "target": "SLB-XXXX-XXXX",
-  "reason": "Suspected device cloning or fraud",
-  "immediate": true
-}
-```
-*Note: Target can be a specific License Key, Device HWID, Client ID, or `"ALL"` for emergency broadcast kill-switch execution. Signals are pushed to matching client sockets with sub-second delivery.*
-
----
-
-### 🕵️ Zero-Knowledge Proof (ZKP) Anonymous Verification
-
-#### Fetch NIST P-256 Public Parameters & Generators
-```http
-GET /api/zkp/params
-```
-
-#### Issue Anonymous Blinded Credential
-```http
-POST /api/zkp/credential/issue
-Content-Type: application/json
-
-{
-  "license_key": "LIC-ENTERPRISE-001",
-  "tenant_id": "default",
-  "hwid": "WIN-B829-94AA-0123",
-  "tier": "enterprise",
-  "max_seats": 5
-}
-```
-
-#### Verify Zero-Knowledge Presentation Proof (Sigma Protocol)
-```http
-POST /api/zkp/verify
-Content-Type: application/json
-
-{
-  "credential": { ... },
-  "required_tier": "enterprise"
-}
-```
-
-#### Inspect Spent Nullifier Status
-```http
-GET /api/zkp/nullifiers/check?nullifier=7f2a9c4b...
-```
-
----
-
-### 🔐 Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning
-
-#### SAML 2.0 Service Provider Metadata
-Download standard SP metadata XML for Okta, Azure AD, or PingFederate:
-```http
-GET /api/sso/saml/metadata?entity_id=urn:sheet-license-broker:sp
-```
-
-#### SAML 2.0 Assertion Consumer Service (ACS)
-Process inbound SAML assertions and issue authenticated session tokens:
-```http
-POST /api/sso/saml/acs
-Content-Type: application/x-www-form-urlencoded
-
-SAMLResponse=PHNhbWxwOlJlc3BvbnNlIHhtbG5z...
-```
-
-#### OpenID Connect (OIDC) Callback
-Validate ID tokens and claims from Google Workspace, Auth0, or Keycloak:
-```http
-POST /api/sso/oidc/callback
-Content-Type: application/json
-
-{
-  "sub": "usr_9918",
-  "email": "alice@company.com",
-  "iss": "https://accounts.google.com",
-  "aud": "sheet-license-broker",
-  "exp": 1776250000
-}
-```
-
-#### Identity Provider (IdP) Management
-```http
-# Register new SAML or OIDC IdP
-POST /api/sso/idp
-Content-Type: application/json
-
-{
-  "id": "okta-corp",
-  "protocol": "saml",
-  "entity_id": "http://www.okta.com/exk123456",
-  "sso_url": "https://company.okta.com/app/sso",
-  "tenant_id": "default",
-  "enabled": true
-}
-
-# List registered IdPs
-GET /api/sso/idp
-```
-
-#### SCIM 2.0 Directory Provisioning (RFC 7644)
-Integrate corporate user lifecycle provisioning directly with Okta, Microsoft Entra ID (Azure AD), or OneLogin:
-
-```http
-# Service Provider Configuration
-GET /scim/v2/ServiceProviderConfig
-
-# List directory users (paginated)
-GET /scim/v2/Users?startIndex=1&count=50
-
-# Provision user (automatically allocates license seat)
-POST /scim/v2/Users
-Content-Type: application/scim+json
-
-{
-  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-  "userName": "alice@corp.com",
-  "emails": [{ "value": "alice@corp.com", "primary": true }],
-  "roles": [{ "value": "operator" }],
-  "active": true
-}
-
-# Deprovision user (instantly revokes allocated license seat and pushes kill-switch)
-DELETE /scim/v2/Users/usr-okta-8821
-```
-
-#### Ephemeral RBAC Session Tokens
-```http
-# Mint ephemeral token
-POST /api/sso/token/mint
-Content-Type: application/json
-
-{
-  "user_id": "usr_9918",
-  "email": "alice@corp.com",
-  "role": "admin",
-  "scopes": ["license:read", "license:write", "sso:manage"]
-}
-
-# Introspect token and enforce scope permissions
-POST /api/sso/token/introspect
-Content-Type: application/json
-
-{
-  "token": "sso_tok_7f2a9c4b...",
-  "required_scope": "license:write"
-}
-```
-
----
-
-### ⚛️ Post-Quantum Cryptography & ML-DSA Hybrid Signatures
-
-#### Fetch NIST FIPS 204 Lattice Parameters & Active Key Info
-```http
-GET /api/pqc/params
-```
-**Response:**
-```json
-{
-  "status": "success",
-  "lattice": { "dimension": 256, "modulus": 8380417, "d": 13 },
-  "primary_algorithm": "ML-DSA-65",
-  "active_key_id": "pqc-key-9b0d-e626",
-  "grace_window_days": 7
-}
-```
-
-#### List Public Verification Keys
-```http
-GET /api/pqc/keys
-```
-
-#### Issue Hybrid Quantum-Resistant License Signature
-```http
-POST /api/pqc/sign
-Content-Type: application/json
-
-{
-  "license_key": "LIC-PRO-2026-99",
-  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
-  "payload": "entitlement-v1-pro-tier"
-}
-```
-**Response:**
-```json
-{
-  "status": "success",
-  "signature": {
-    "algorithm": "Hybrid-P256-MLDSA65",
-    "key_id": "pqc-key-9b0d-e626",
-    "classical_sig_b64": "MEUCIQD...",
-    "pqc_sig_hex": "1f8e2a...",
-    "payload_hash_hex": "e3b0c44...",
-    "created_at": "2026-10-16T19:30:00Z"
-  }
-}
-```
-
-#### Verify Dual Classical & Lattice Signatures
-```http
-POST /api/pqc/verify
-Content-Type: application/json
-
-{
-  "payload": "entitlement-v1-pro-tier",
-  "signature": {
-    "algorithm": "Hybrid-P256-MLDSA65",
-    "key_id": "pqc-key-9b0d-e626",
-    "classical_sig_b64": "MEUCIQD...",
-    "pqc_sig_hex": "1f8e2a..."
-  }
-}
-```
-**Response:**
-```json
-{
-  "status": "success",
-  "result": {
-    "valid": true,
-    "algorithm": "Hybrid-P256-MLDSA65",
-    "key_id": "pqc-key-9b0d-e626",
-    "classical_valid": true,
-    "pqc_valid": true
-  }
-}
-```
-
-#### Atomic Key Rotation with Grace Period
-```http
-POST /api/pqc/rotate
-Content-Type: application/json
-
-{
-  "algorithm": "ML-DSA-65",
-  "grace_days": 7,
-  "reason": "Routine cryptographic key rollover"
-}
-```
-
-#### Emergency Compromise Key Revocation
-```http
-POST /api/pqc/revoke
-Content-Type: application/json
-
-{
-  "key_id": "pqc-key-old-compromised",
-  "reason": "Private key leakage detected"
-}
-```
-
----
-
-### 🛡️ Behavioral Anomaly Detection & Adaptive Risk Scoring
-
-`sheet-license-broker` includes an enterprise-grade behavioral anomaly engine that tracks statistical heartbeat drift, impossible geographic travel, and dynamic risk scoring across client applications.
-
-#### Adaptive Governance Policy
-- **Score 0 – 49 (Nominal)**: Normal operation, unrestricted access. Nominal activity progressively decays accumulated risk points over time.
-- **Score 50 – 84 (Suspicious)**: Requires challenge escalation. Enforces a 5-minute single-use cryptographic re-attestation challenge (`POST /api/anomaly/challenge/issue` and `/verify`).
-- **Score 85 – 100 (High Risk / Compromised)**: Immediate zero-trust quarantine. Verification calls (`POST /api/licenses/verify`) are automatically rejected with HTTP 403 Forbidden, and alerts are broadcast to security webhooks.
-
-#### Record Client Telemetry Observation
-```http
-POST /api/anomaly/record
-Content-Type: application/json
-
-{
-  "license_key": "SLB-PRO-2026-99",
-  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
-  "ip": "198.51.100.24",
-  "latitude": 37.5665,
-  "longitude": 126.9780
-}
-```
-**Response:**
-```json
-{
-  "status": "recorded",
-  "risk_score": {
-    "entity_id": "SLB-PRO-2026-99",
-    "score": 0,
-    "classification": "NOMINAL",
-    "challenge_required": false,
-    "quarantined": false,
-    "last_assessed": "2026-10-16T21:30:00Z"
-  }
-}
-```
-
-#### Query Adaptive Risk Score
-```http
-GET /api/anomaly/score?license_key=SLB-PRO-2026-99
-```
-
-#### Issue & Verify Re-Attestation Challenge
-```http
-# Issue challenge token
-POST /api/anomaly/challenge/issue
-Content-Type: application/json
-
-{
-  "license_key": "SLB-PRO-2026-99",
-  "hwid": "HWID-9B0D-E626-C8D9-6D4B"
-}
-
-# Verify challenge token
-POST /api/anomaly/challenge/verify
-Content-Type: application/json
-
-{
-  "challenge_token": "ch_7f2a9c4b..."
-}
-```
-
-#### Export Security Incident Graph (SIEM Standard Feed)
-Export RFC-compliant topological incident nodes and edges formatted for Splunk, Datadog, Elastic, and Microsoft Sentinel:
-```http
-GET /api/anomaly/graph?min_score=50&limit=50
-```
-**Response:**
-```json
-{
-  "schema_version": "siem-topology-v1",
-  "generated_at": "2026-10-16T21:30:00Z",
-  "nodes": [
-    { "id": "SLB-PRO-2026-99", "type": "CLIENT", "risk_score": 60, "first_seen": "...", "last_seen": "..." },
-    { "id": "198.51.100.0/24", "type": "SUBNET", "risk_score": 30, "first_seen": "...", "last_seen": "..." }
-  ],
-  "edges": [
-    { "id": "edge-1", "source_id": "SLB-PRO-2026-99", "target_id": "198.51.100.0/24", "relationship": "OBSERVED_IN_SUBNET", "weight": 60, "timestamp": "..." }
-  ],
-  "total_incidents": 1
-}
-```
-
-#### Engine Telemetry Status
-```http
-GET /api/anomaly/status
-```
-
----
-
-### 🔒 Confidential Computing & Hardware Enclave Attestation Bridge
-
-`sheet-license-broker` includes a hardware-rooted confidential computing bridge supporting Intel SGX Quote v3/v4 and AMD SEV-SNP 1184-byte cryptographically signed attestation reports with ephemeral ECDH P-256 encrypted tunnels.
-
-#### Architectural Guarantees
-- **Hardware-Rooted Trust**: Verifies Intel SGX Quote v3/v4 ECDSA P-256 signatures against MREnclave, MRSigner, and ISVSVN security version policies. Verifies AMD SEV-SNP ECDSA P-384 / P-256 reports against launch measurement digests and guest debug policies (bit 17 enforcement).
-- **Ephemeral ECDH Tunnel & HKDF Expansion**: Derives independent client and server 32-byte session keys using native RFC 5869 HKDF Extract-and-Expand with SHA-256 and authenticated AES-256-GCM encryption.
-- **Replay Protection**: Strictly monotonic 64-bit sequence counters reject out-of-order or duplicate requests.
-- **Zero-Plaintext In-Enclave Evaluation**: Sensitive license keys, hardware identifiers, and feature entitlement policies are evaluated inside secure memory. Neither untrusted host OS, hypervisors, nor intermediary broker transit networks observe cleartext license keys.
-
-#### Request Single-Use Challenge Nonce
-```http
-POST /api/enclave/challenge
-Content-Type: application/json
-
-{}
-```
-**Response:**
-```json
-{
-  "challenge": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
-  "expires_in": 300
-}
-```
-
-#### Attest Hardware Enclave Quote
-```http
-POST /api/enclave/attest
-Content-Type: application/json
-
-{
-  "platform": "intel_sgx",
-  "quote": "<quote-hex-bytes>",
-  "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
-  "policy_id": "pol-prod-sgx-01"
-}
-```
-**Response:**
-```json
-{
-  "valid": true,
-  "attestation": {
-    "valid": true,
-    "platform": "intel_sgx",
-    "mr_enclave": "aabbccddeeff...",
-    "mr_signer": "112233445566...",
-    "svn": 2,
-    "debug": false,
-    "report_data_hex": "..."
-  }
-}
-```
-
-#### Establish Mutual Ephemeral ECDH Encrypted Tunnel
-```http
-POST /api/enclave/tunnel/handshake
-Content-Type: application/json
-
-{
-  "platform": "intel_sgx",
-  "quote": "<quote-hex-bytes>",
-  "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
-  "client_public_key": "04..."
-}
-```
-**Response:**
-```json
-{
-  "established": true,
-  "session_id": "enclave-sess-...",
-  "broker_public_key": "04...",
-  "expires_at": "2026-10-18T20:30:00Z"
-}
-```
-
-#### Submit Zero-Plaintext Encrypted Evaluation Query
-```http
-POST /api/enclave/tunnel/evaluate
-Content-Type: application/json
-
-{
-  "session_id": "enclave-sess-...",
-  "sequence": 1,
-  "nonce": "<12-byte-hex-iv>",
-  "payload": "<aes-256-gcm-ciphertext-hex>"
-}
-```
-**Response:**
-```json
-{
-  "session_id": "enclave-sess-...",
-  "sequence": 1,
-  "nonce": "<12-byte-hex-iv>",
-  "payload": "<aes-256-gcm-encrypted-result-hex>"
-}
-```
-
-#### Query Enclave Status & Telemetry
-```http
-GET /api/enclave/status
-```
-
----
-
-### 🌐 Geo-Distributed Edge CDN Anycast Routing & Sub-Millisecond L1 Cache
-
-`sheet-license-broker` includes an enterprise-grade Geo-Distributed Anycast Edge Routing and Sub-Millisecond L1 Cache engine (`internal/anycast/`) designed to route incoming global license queries to the lowest-latency healthy Point of Presence (POP) and deliver cached verifications in under 100 microseconds.
-
-#### Architectural Capabilities
-- **Global 6-Node POP Registry**: Ashburn (IAD / us-east), San Jose (SJC / us-west), Frankfurt (FRA / eu-central), Tokyo (NRT / ap-northeast), Singapore (SIN / ap-southeast), and Sao Paulo (GRU / sa-east).
-- **Great-Circle Haversine Routing**: Computes spherical distances from client coordinates (`lat`, `lon`), blends active dynamic telemetry probes (RTT latency, jitter, packet loss), and outputs optimal healthy POP selections with alternative fallbacks.
-- **Cryptographically Signed Routing Tokens**: Issues and verifies HMAC-SHA256 signed routing tokens guaranteeing edge affinity and tamper protection.
-- **Sub-Millisecond In-Memory L1 Cache**: Serves license checks in <100 microseconds with asynchronous Stale-While-Revalidate (SWR) background cache refreshes to eliminate latency spikes.
-- **Geographic Partition Mitigation & Emergency Leases**: During upstream cloud outages or localized network disconnects, automatically issues HMAC-signed emergency lease tokens to keep client applications running smoothly without lockouts.
-
-#### Compute Nearest Anycast Route
-```http
-GET /api/anycast/route?lat=37.7749&lon=-122.4194&ip=198.51.100.1&region=us-west
-```
-**Response:**
-```json
-{
-  "selected_pop": {
-    "id": "sjc",
-    "name": "San Jose SJC",
-    "region": "us-west",
-    "country": "US",
-    "latitude": 37.3382,
-    "longitude": -121.8863,
-    "endpoint_url": "https://sjc.edge.broker.internal",
-    "weight": 100,
-    "avg_rtt_ms": 12.4,
-    "status": "healthy"
-  },
-  "fallback_pops": [
-    { "id": "iad", "name": "Ashburn IAD", "region": "us-east", "status": "healthy" }
-  ],
-  "estimated_latency_ms": 12.4,
-  "signed_routing_token": "anycast-tok-7f2a...",
-  "timestamp": "2026-10-18T21:40:00Z"
-}
-```
-
-#### Ingest Dynamic Latency Health Probe
-```http
-POST /api/anycast/probe
-Content-Type: application/json
-
-{
-  "target_pop_id": "sjc",
-  "rtt_ms": 14.2,
-  "jitter_ms": 0.8,
-  "packet_loss": 0.0,
-  "source_ip": "198.51.100.1"
-}
-```
-
-#### Sub-Millisecond Fast License Verification (L1 Cache Fast-Path)
-```http
-POST /api/anycast/verify
-Content-Type: application/json
-
-{
-  "license_key": "SLB-PRO-2026-99",
-  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
-  "preferred_pop": "sjc"
-}
-```
-
-#### Query Edge Cache Telemetry & Hit/Miss Ratios
-```http
-GET /api/anycast/cache/stats
-```
-**Response:**
-```json
-{
-  "hits": 1420,
-  "misses": 38,
-  "revalidations": 12,
-  "lookup_latency_us": 84.5,
-  "hit_ratio": 0.973,
-  "cached_tier_entries": 4
-}
-```
-
-#### Query Global Anycast Status
-```http
-GET /api/anycast/status
-```
-
----
-
-## ⚡ Cloudflare Edge Gateway
-
-For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
-
-```bash
-cd edge/cloudflare
-wrangler deploy
-```
-
-- **Sub-10ms POP Verification**: Checks valid licenses directly from Cloudflare Workers KV cache.
-- **Hardware Web Crypto**: Edge HMAC-SHA256 signature and replay prevention before hitting origin.
-- **Automated Origin Fallback**: Uncached queries, key binds, and revocations transparently proxy to the origin server.
-
----
-
-## 💻 Multi-Language Client SDKs
+<details>
+<summary><h3>💻 Multi-Language Client SDKs (Python, C#, TypeScript, Go)</h3></summary>
 
 `sheet-license-broker` includes production-ready client SDKs under `sdk/` supporting automatic hardware ID (HWID) device binding and cryptographic HMAC-SHA256 request signing.
 
@@ -1366,22 +1553,17 @@ func main() {
 }
 ```
 
----
+</details>
 
-## 🛠️ Verification & Build
-
-Run the automated verification suite:
-
-```bash
-# Execute unit tests across all packages
-go test -v ./...
-
-# Compile standalone production binary
-go build -ldflags="-s -w" -o sheet-license-broker.exe .
-```
+<br />
 
 ---
 
 ## 📄 License
 
 Licensed under the [MIT License](LICENSE).
+
+<div align="center">
+  <sub>Distributed under the <b>MIT License</b> · Crafted by <b>kLauncher1</b></sub>
+</div>
+
