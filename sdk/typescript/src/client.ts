@@ -41,6 +41,10 @@ import type {
   AnomalyRiskScore,
   AnomalyIncidentGraph,
   AnomalyTelemetrySummary,
+  EnclaveAttestationResult,
+  EnclaveHandshakeResponse,
+  EnclaveEncryptedMessage,
+  EnclaveTelemetry,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -605,5 +609,69 @@ export class SheetLicenseClient {
    */
   public async getAnomalyStatus(): Promise<AnomalyTelemetrySummary> {
     return this.request<AnomalyTelemetrySummary>('GET', '/api/anomaly/status');
+  }
+
+  /**
+   * Requests a single-use cryptographic challenge nonce for enclave attestation.
+   */
+  public async requestEnclaveChallenge(): Promise<string> {
+    const res = await this.request<{ challenge: string; expires_in: number }>('POST', '/api/enclave/challenge');
+    return res.challenge;
+  }
+
+  /**
+   * Attests an Intel SGX or AMD SEV-SNP attestation quote against security policies.
+   */
+  public async attestEnclaveQuote(params: {
+    platform: 'intel_sgx' | 'amd_sev_snp';
+    quoteHex: string;
+    nonce: string;
+    policyId?: string;
+  }): Promise<EnclaveAttestationResult> {
+    const res = await this.request<{ valid: boolean; attestation: EnclaveAttestationResult }>('POST', '/api/enclave/attest', {
+      platform: params.platform,
+      quote: params.quoteHex,
+      nonce: params.nonce,
+      policy_id: params.policyId,
+    });
+    return res.attestation;
+  }
+
+  /**
+   * Performs an enclave ECDH handshake and establishes an end-to-end encrypted session tunnel.
+   */
+  public async establishEnclaveTunnel(params: {
+    platform: 'intel_sgx' | 'amd_sev_snp';
+    quoteHex: string;
+    nonce: string;
+    clientPublicKey: string;
+    policyId?: string;
+  }): Promise<EnclaveHandshakeResponse> {
+    return this.request<EnclaveHandshakeResponse>('POST', '/api/enclave/tunnel/handshake', {
+      platform: params.platform,
+      quote: params.quoteHex,
+      nonce: params.nonce,
+      policy_id: params.policyId,
+      client_public_key: params.clientPublicKey,
+    });
+  }
+
+  /**
+   * Evaluates an encrypted license query inside the zero-plaintext confidential computing enclave tunnel.
+   */
+  public async evaluateEnclaveLicense(msg: EnclaveEncryptedMessage): Promise<EnclaveEncryptedMessage> {
+    return this.request<EnclaveEncryptedMessage>('POST', '/api/enclave/tunnel/evaluate', {
+      session_id: msg.session_id,
+      sequence: msg.sequence,
+      nonce: msg.nonce,
+      payload: msg.payload,
+    });
+  }
+
+  /**
+   * Queries confidential computing operational telemetry and active policies.
+   */
+  public async getEnclaveStatus(): Promise<{ telemetry: EnclaveTelemetry; policies: any[] }> {
+    return this.request<{ telemetry: EnclaveTelemetry; policies: any[] }>('GET', '/api/enclave/status');
   }
 }

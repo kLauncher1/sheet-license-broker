@@ -544,6 +544,68 @@ class SheetLicenseClient:
         """Queries operational telemetry for the anomaly detection engine."""
         return self._request("GET", "/api/anomaly/status")
 
+    def request_enclave_challenge(self) -> str:
+        """Requests a single-use cryptographic challenge nonce for enclave attestation."""
+        res = self._request("POST", "/api/enclave/challenge")
+        return res.get("challenge", "")
+
+    def attest_enclave_quote(
+        self,
+        platform: str,
+        quote_hex: str,
+        nonce: str,
+        policy_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Submits an Intel SGX or AMD SEV-SNP attestation quote for verification."""
+        payload = {
+            "platform": platform,
+            "quote": quote_hex,
+            "nonce": nonce,
+        }
+        if policy_id:
+            payload["policy_id"] = policy_id
+        res = self._request("POST", "/api/enclave/attest", payload)
+        return res.get("attestation", {})
+
+    def establish_enclave_tunnel(
+        self,
+        platform: str,
+        quote_hex: str,
+        nonce: str,
+        client_public_key: str,
+        policy_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Validates an enclave quote and establishes an end-to-end encrypted session tunnel."""
+        payload = {
+            "platform": platform,
+            "quote": quote_hex,
+            "nonce": nonce,
+            "client_public_key": client_public_key,
+        }
+        if policy_id:
+            payload["policy_id"] = policy_id
+        return self._request("POST", "/api/enclave/tunnel/handshake", payload)
+
+    def evaluate_enclave_license(
+        self,
+        session_id: str,
+        sequence: int,
+        nonce_hex: str,
+        payload_hex: str,
+    ) -> Dict[str, Any]:
+        """Submits an encrypted license query inside the zero-plaintext confidential computing enclave tunnel."""
+        payload = {
+            "session_id": session_id,
+            "sequence": sequence,
+            "nonce": nonce_hex,
+            "payload": payload_hex,
+        }
+        return self._request("POST", "/api/enclave/tunnel/evaluate", payload)
+
+    def get_enclave_status(self) -> Dict[str, Any]:
+        """Queries confidential computing operational telemetry and registered policies."""
+        return self._request("GET", "/api/enclave/status")
+
 
 if __name__ == "__main__":
     import sys

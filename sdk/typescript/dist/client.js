@@ -430,4 +430,42 @@ export class SheetLicenseClient {
   async getAnomalyStatus() {
     return this.request('GET', '/api/anomaly/status');
   }
+
+  async requestEnclaveChallenge() {
+    const res = await this.request('POST', '/api/enclave/challenge');
+    return res.challenge;
+  }
+
+  async attestEnclaveQuote(params) {
+    const res = await this.request('POST', '/api/enclave/attest', {
+      platform: params.platform,
+      quote: params.quoteHex,
+      nonce: params.nonce,
+      policy_id: params.policyId,
+    });
+    return res.attestation;
+  }
+
+  async establishEnclaveTunnel(params) {
+    return this.request('POST', '/api/enclave/tunnel/handshake', {
+      platform: params.platform,
+      quote: params.quoteHex,
+      nonce: params.nonce,
+      policy_id: params.policyId,
+      client_public_key: params.clientPublicKey,
+    });
+  }
+
+  async evaluateEnclaveLicense(msg) {
+    return this.request('POST', '/api/enclave/tunnel/evaluate', {
+      session_id: msg.session_id,
+      sequence: msg.sequence,
+      nonce: msg.nonce,
+      payload: msg.payload,
+    });
+  }
+
+  async getEnclaveStatus() {
+    return this.request('GET', '/api/enclave/status');
+  }
 }

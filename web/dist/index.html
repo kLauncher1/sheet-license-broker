@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v1.5.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v1.6.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -204,6 +204,8 @@
       <span id="security-badge" style="color: var(--accent-blue);">HMAC Anti-Tamper: Active</span>
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
+      <span>•</span>
+      <span id="enclave-badge" style="color: #34d399;">Enclaves: SGX/SEV-SNP</span>
       <span>•</span>
       <span id="cache-badge">Cache: 0 items</span>
     </div>
@@ -253,6 +255,7 @@
       <button class="tab-btn" id="tab-btn-sso" onclick="switchTab('sso')">Enterprise SSO & SCIM</button>
       <button class="tab-btn" id="tab-btn-pqc" onclick="switchTab('pqc')">Post-Quantum Cryptography (PQC)</button>
       <button class="tab-btn" id="tab-btn-anomaly" onclick="switchTab('anomaly')">Behavioral Anomaly & Risk</button>
+      <button class="tab-btn" id="tab-btn-enclave" onclick="switchTab('enclave')">Confidential Enclaves</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -922,6 +925,80 @@
 
       <div id="anomaly-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 15: Confidential Computing Enclaves -->
+    <div id="panel-enclave" style="display: none;">
+      <div class="grid-stats">
+        <div class="card">
+          <div class="card-title">Attested Quotes</div>
+          <div class="card-value" id="val-enclave-quotes" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">Intel SGX &amp; AMD SEV-SNP</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Encrypted Tunnels</div>
+          <div class="card-value" id="val-enclave-tunnels" style="color: var(--accent-blue);">0</div>
+          <div class="card-subtext">Ephemeral ECDH P-256 + HKDF</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Zero-Plaintext Evaluations</div>
+          <div class="card-value" id="val-enclave-evals" style="color: #c084fc;">0</div>
+          <div class="card-subtext">Confidential In-Enclave Queries</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Enclave Policies</div>
+          <div class="card-value" id="val-enclave-policies" style="color: #38bdf8;">0</div>
+          <div class="card-subtext">MREnclave / SVN / Debug Gate</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Attestation Failures</div>
+          <div class="card-value" id="val-enclave-failures" style="color: var(--accent-red);">0</div>
+          <div class="card-subtext">Rejected Untrusted Enclaves</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="btn-action" onclick="promptRequestEnclaveChallenge()">🔑 Request Challenge Nonce</button>
+        <button class="btn-action btn-secondary" onclick="promptAttestEnclaveQuote()">🛡️ Attest Enclave Quote</button>
+        <button class="btn-action btn-secondary" onclick="promptEstablishEnclaveTunnel()">🔒 Establish Encrypted Tunnel</button>
+        <button class="btn-action btn-secondary" onclick="promptEvaluateEnclaveLicense()">⚡ Zero-Plaintext Evaluate</button>
+        <button class="btn-action btn-secondary" onclick="promptCreateEnclavePolicy()">📋 Register Enclave Policy</button>
+        <button class="btn-action btn-secondary" onclick="refreshEnclaveTab()">🔄 Refresh Enclave Telemetry</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <div class="panel-title">🔒 Hardware Enclave Architecture &amp; Zero-Plaintext Guarantee</div>
+        <div class="panel-desc">
+          Enforces hardware-rooted trust via Intel SGX Quote v3/v4 ECDSA P-256 signatures and AMD SEV-SNP 1184-byte cryptographically signed attestation reports.
+          Following mutual attestation, an ephemeral ECDH tunnel with RFC 5869 HKDF-SHA256 and AES-256-GCM is established.
+          License tokens, entitlement tiers, and feature flags are evaluated inside the secure enclave memory with strictly monotonic sequence counters — the host hypervisor and broker transit layers never observe plaintext keys.
+        </div>
+        <div style="display: flex; gap: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+          <div><span style="color: #34d399;">● Intel SGX:</span> MREnclave (SHA-256) &amp; MRSigner Verification</div>
+          <div><span style="color: #38bdf8;">● AMD SEV-SNP:</span> Launch Measurement &amp; Guest Policy Bit 17 Enforcement</div>
+          <div><span style="color: #c084fc;">● Zero-Plaintext:</span> Memory-Barrier Zeroization (`subtle.ConstantTimeCompare`)</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Active Enclave Security Policies</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Policy ID</th>
+            <th>Name</th>
+            <th>Platform</th>
+            <th>Min SVN</th>
+            <th>Debug Allowed</th>
+            <th>Required Tiers</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="enclave-policies-body">
+          <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading registered enclave policies...</td></tr>
+        </tbody>
+      </table>
+
+      <div id="enclave-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -929,7 +1006,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -949,6 +1026,7 @@
       document.getElementById('panel-sso').style.display = tab === 'sso' ? 'block' : 'none';
       document.getElementById('panel-pqc').style.display = tab === 'pqc' ? 'block' : 'none';
       document.getElementById('panel-anomaly').style.display = tab === 'anomaly' ? 'block' : 'none';
+      document.getElementById('panel-enclave').style.display = tab === 'enclave' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -966,6 +1044,7 @@
       if (tab === 'sso') refreshSSOTab();
       if (tab === 'pqc') refreshPQCTab();
       if (tab === 'anomaly') refreshAnomalyTab();
+      if (tab === 'enclave') refreshEnclaveTab();
     }
 
     async function refresh() {
@@ -2390,6 +2469,184 @@
         refreshAnomalyTab();
       } catch (e) {
         out.textContent = 'Challenge verification failed: ' + e.message;
+      }
+    }
+
+    async function refreshEnclaveTab() {
+      try {
+        const res = await fetch('/api/enclave/status').then(r => r.json());
+        const telem = res.telemetry || {};
+        document.getElementById('val-enclave-quotes').textContent = telem.verified_quotes || 0;
+        document.getElementById('val-enclave-tunnels').textContent = telem.active_tunnels || 0;
+        document.getElementById('val-enclave-evals').textContent = telem.total_evaluations || 0;
+        document.getElementById('val-enclave-policies').textContent = telem.active_policies_count || 0;
+        document.getElementById('val-enclave-failures').textContent = telem.failed_attestations || 0;
+
+        const pols = res.policies || [];
+        const tbody = document.getElementById('enclave-policies-body');
+        if (!pols || pols.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No registered enclave policies found. Standard policies loaded.</td></tr>';
+        } else {
+          tbody.innerHTML = pols.map(p => `
+            <tr>
+              <td><span style="font-family: monospace; color: #38bdf8;">${p.policy_id}</span></td>
+              <td>${p.name || 'Default Enclave Policy'}</td>
+              <td><span class="pill pill-active" style="text-transform: uppercase;">${p.platform || 'intel_sgx'}</span></td>
+              <td>${p.min_svn || 0}</td>
+              <td><span class="pill ${p.allow_debug ? 'pill-banned' : 'pill-active'}">${p.allow_debug ? 'ALLOWED (UNSAFE)' : 'BLOCKED (SECURE)'}</span></td>
+              <td>${(p.required_features || []).join(', ') || 'Any'}</td>
+              <td><span class="pill pill-active">ACTIVE</span></td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        console.error('Failed to refresh enclave telemetry:', e);
+      }
+    }
+
+    async function promptRequestEnclaveChallenge() {
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Requesting single-use cryptographically random attestation nonce...';
+
+      try {
+        const res = await fetch('/api/enclave/challenge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }).then(r => r.json());
+
+        out.textContent = 'Attestation Nonce Generated (Valid for 300s):\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'Challenge request failed: ' + e.message;
+      }
+    }
+
+    async function promptAttestEnclaveQuote() {
+      const platform = prompt('Enter hardware enclave platform (intel_sgx or amd_sev_snp):', 'intel_sgx') || 'intel_sgx';
+      const quoteHex = prompt('Enter quote hex string (or mock sample hex):', 'aabbccddeeff00112233445566778899') || 'aabbccddeeff00112233445566778899';
+      const nonce = prompt('Enter single-use challenge nonce:') || '';
+      if (!nonce) {
+        alert('Challenge nonce is required.');
+        return;
+      }
+      const policyId = prompt('Enter optional policy ID (or leave blank):', '') || '';
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Submitting enclave quote for cryptographic attestation...';
+
+      try {
+        const payload = { platform: platform.trim(), quote: quoteHex.trim(), nonce: nonce.trim() };
+        if (policyId.trim()) payload.policy_id = policyId.trim();
+
+        const res = await fetch('/api/enclave/attest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+
+        out.textContent = 'Hardware Attestation Quote Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'Quote attestation failed: ' + e.message;
+      }
+    }
+
+    async function promptEstablishEnclaveTunnel() {
+      const platform = prompt('Enter platform (intel_sgx or amd_sev_snp):', 'intel_sgx') || 'intel_sgx';
+      const quoteHex = prompt('Enter quote hex string:', 'aabbccddeeff00112233445566778899') || 'aabbccddeeff00112233445566778899';
+      const nonce = prompt('Enter challenge nonce:') || '';
+      if (!nonce) {
+        alert('Challenge nonce is required.');
+        return;
+      }
+      const clientPubKey = prompt('Enter client ephemeral P-256 public key hex (65 bytes 04...):', '04' + '00'.repeat(64)) || ('04' + '00'.repeat(64));
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Initiating mutual ECDH handshake & encrypted tunnel establishment...';
+
+      try {
+        const res = await fetch('/api/enclave/tunnel/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: platform.trim(),
+            quote: quoteHex.trim(),
+            nonce: nonce.trim(),
+            client_public_key: clientPubKey.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Encrypted Tunnel Session Established:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'Tunnel handshake failed: ' + e.message;
+      }
+    }
+
+    async function promptEvaluateEnclaveLicense() {
+      const sessionId = prompt('Enter active Enclave Tunnel Session ID:');
+      if (!sessionId) return;
+      const seqStr = prompt('Enter monotonic sequence number:', '1') || '1';
+      const nonceHex = prompt('Enter AES-GCM 12-byte IV nonce hex (24 hex characters):', '0102030405060708090a0b0c') || '0102030405060708090a0b0c';
+      const payloadHex = prompt('Enter AES-GCM ciphertext payload hex:', 'deadbeefcafebabe') || 'deadbeefcafebabe';
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Transmitting encrypted evaluation payload inside enclave tunnel...';
+
+      try {
+        const res = await fetch('/api/enclave/tunnel/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId.trim(),
+            sequence: parseInt(seqStr, 10),
+            nonce: nonceHex.trim(),
+            payload: payloadHex.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Zero-Plaintext In-Enclave Evaluation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'In-enclave evaluation failed: ' + e.message;
+      }
+    }
+
+    async function promptCreateEnclavePolicy() {
+      const polId = prompt('Enter Policy ID (e.g. pol-prod-sgx-01):', 'pol-prod-sgx-01');
+      if (!polId) return;
+      const name = prompt('Enter Policy Description:', 'Production Enclave Baseline') || polId;
+      const platform = prompt('Enter Platform (intel_sgx or amd_sev_snp):', 'intel_sgx') || 'intel_sgx';
+      const minSvn = prompt('Enter minimum security version (SVN):', '1') || '1';
+      const allowDebug = confirm('Allow Enclave Debug mode? (Cancel = Secure/No, OK = Debug/Yes)');
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Registering new hardware enclave policy...';
+
+      try {
+        const res = await fetch('/api/enclave/policy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            policy_id: polId.trim(),
+            name: name.trim(),
+            platform: platform.trim(),
+            min_svn: parseInt(minSvn, 10) || 0,
+            allow_debug: allowDebug,
+            required_features: ['zero_plaintext', 'enclave_attestation']
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Enclave Policy Registered:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'Policy registration failed: ' + e.message;
       }
     }
 

@@ -508,6 +508,71 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/enclave/challenge' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            challenge: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff',
+            expires_in: 300
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/attest' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            valid: true,
+            attestation: {
+              valid: true,
+              platform: 'intel_sgx',
+              mr_enclave: 'aabbccddeeff',
+              mr_signer: '112233445566',
+              svn: 2,
+              debug: false,
+              report_data_hex: '00112233',
+              verified_at: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/tunnel/handshake' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            established: true,
+            session_id: 'enclave-sess-ts-001',
+            broker_public_key: 'abcdef0123456789abcdef0123456789',
+            expires_at: '2030-01-01T00:00:00Z'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/tunnel/evaluate' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            session_id: 'enclave-sess-ts-001',
+            sequence: 1,
+            nonce: '0102030405060708090a0b0c',
+            payload: 'deadbeefcafebabe'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            telemetry: {
+              verified_quotes: 12,
+              active_tunnels: 3,
+              total_evaluations: 25,
+              failed_attestations: 1,
+              quotes_by_platform: { intel_sgx: 10, amd_sev_snp: 2 },
+              active_policies_count: 2
+            },
+            policies: []
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -780,6 +845,42 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const status = await client.getAnomalyStatus();
     assert.strictEqual(status.total_observations, 50);
     assert.strictEqual(status.active_monitored_entities, 10);
+  });
+
+  it('requests enclave challenge, attests quote, establishes tunnel, evaluates zero-plaintext license, and queries status', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const challenge = await client.requestEnclaveChallenge();
+    assert.strictEqual(challenge.length, 64);
+
+    const attest = await client.attestEnclaveQuote({
+      platform: 'intel_sgx',
+      quoteHex: 'deadbeef',
+      nonce: challenge,
+    });
+    assert.strictEqual(attest.valid, true);
+    assert.strictEqual(attest.platform, 'intel_sgx');
+
+    const handshake = await client.establishEnclaveTunnel({
+      platform: 'intel_sgx',
+      quoteHex: 'deadbeef',
+      nonce: challenge,
+      clientPublicKey: 'abcdef0123456789',
+    });
+    assert.strictEqual(handshake.established, true);
+    assert.strictEqual(handshake.session_id, 'enclave-sess-ts-001');
+
+    const evalResult = await client.evaluateEnclaveLicense({
+      session_id: handshake.session_id,
+      sequence: 1,
+      nonce: '0102030405060708090a0b0c',
+      payload: 'aabbccdd',
+    });
+    assert.strictEqual(evalResult.payload, 'deadbeefcafebabe');
+
+    const status = await client.getEnclaveStatus();
+    assert.strictEqual(status.telemetry.verified_quotes, 12);
+    assert.strictEqual(status.telemetry.active_tunnels, 3);
   });
 });
 

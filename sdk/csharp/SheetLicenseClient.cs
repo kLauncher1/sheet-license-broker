@@ -572,6 +572,54 @@ namespace SheetLicenseBroker
         public async Task<string> GetAnomalyStatusAsync() =>
             await SendRequestAsync("GET", "/api/anomaly/status", null).ConfigureAwait(false);
 
+        /// <summary>
+        /// Requests a cryptographically random 32-byte single-use attestation challenge nonce.
+        /// </summary>
+        public async Task<string> RequestEnclaveChallengeAsync() =>
+            await SendRequestAsync("POST", "/api/enclave/challenge", "{}").ConfigureAwait(false);
+
+        /// <summary>
+        /// Submits an Intel SGX or AMD SEV-SNP attestation quote for policy verification.
+        /// </summary>
+        public async Task<string> AttestEnclaveQuoteAsync(string platform, string quoteHex, string nonce, string policyId = null)
+        {
+            string body = string.IsNullOrEmpty(policyId)
+                ? string.Format("{{\"platform\":\"{0}\",\"quote\":\"{1}\",\"nonce\":\"{2}\"}}",
+                    EscapeJson(platform), EscapeJson(quoteHex), EscapeJson(nonce))
+                : string.Format("{{\"platform\":\"{0}\",\"quote\":\"{1}\",\"nonce\":\"{2}\",\"policy_id\":\"{3}\"}}",
+                    EscapeJson(platform), EscapeJson(quoteHex), EscapeJson(nonce), EscapeJson(policyId));
+            return await SendRequestAsync("POST", "/api/enclave/attest", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Validates an enclave quote and establishes an ephemeral ECDH encrypted tunnel session.
+        /// </summary>
+        public async Task<string> EstablishEnclaveTunnelAsync(string platform, string quoteHex, string nonce, string clientPublicKey, string policyId = null)
+        {
+            string body = string.IsNullOrEmpty(policyId)
+                ? string.Format("{{\"platform\":\"{0}\",\"quote\":\"{1}\",\"nonce\":\"{2}\",\"client_public_key\":\"{3}\"}}",
+                    EscapeJson(platform), EscapeJson(quoteHex), EscapeJson(nonce), EscapeJson(clientPublicKey))
+                : string.Format("{{\"platform\":\"{0}\",\"quote\":\"{1}\",\"nonce\":\"{2}\",\"client_public_key\":\"{3}\",\"policy_id\":\"{4}\"}}",
+                    EscapeJson(platform), EscapeJson(quoteHex), EscapeJson(nonce), EscapeJson(clientPublicKey), EscapeJson(policyId));
+            return await SendRequestAsync("POST", "/api/enclave/tunnel/handshake", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Submits an encrypted license query inside the zero-plaintext confidential computing enclave tunnel.
+        /// </summary>
+        public async Task<string> EvaluateEnclaveLicenseAsync(string sessionId, long sequence, string nonceHex, string payloadHex)
+        {
+            string body = string.Format("{{\"session_id\":\"{0}\",\"sequence\":{1},\"nonce\":\"{2}\",\"payload\":\"{3}\"}}",
+                EscapeJson(sessionId), sequence, EscapeJson(nonceHex), EscapeJson(payloadHex));
+            return await SendRequestAsync("POST", "/api/enclave/tunnel/evaluate", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries confidential computing operational telemetry and registered policies.
+        /// </summary>
+        public async Task<string> GetEnclaveStatusAsync() =>
+            await SendRequestAsync("GET", "/api/enclave/status", null).ConfigureAwait(false);
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";
