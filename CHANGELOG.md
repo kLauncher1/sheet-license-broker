@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-10-18
+
+### Added
+- Confidential Computing & Hardware Enclave Attestation Bridge (`internal/enclave/types.go`, `internal/enclave/zeroize.go`, `internal/enclave/sgx.go`, `internal/enclave/sev.go`, `internal/enclave/tunnel.go`, `internal/enclave/manager.go`, `internal/enclave/enclave_test.go`) implemented in pure Go standard library with zero third-party dependencies.
+- Intel SGX Quote v3/v4 remote attestation verifier with ECDSA P-256 signature checks over SHA-256 quote headers, report data hash matching, and configurable MREnclave, MRSigner, and ISVSVN security version policies.
+- AMD SEV-SNP 1184-byte signed attestation report parser and ECDSA verifier with launch measurement matching, guest SVN checks, and strict guest policy debug bit 17 enforcement.
+- Cryptographic memory-barrier zeroization (`SecureBuffer`) with deterministic wiping and constant-time comparisons (`subtle.ConstantTimeCompare`) guaranteeing zero-plaintext memory remnants.
+- Ephemeral ECDH (NIST P-256) session tunnel handshake with native RFC 5869 HKDF Extract-and-Expand with SHA-256, authenticated AES-256-GCM encryption, and strictly monotonic 64-bit sequence counters to prevent replay and out-of-order injection attacks.
+- Zero-plaintext in-enclave license evaluation wrapper (`internal/enclave/manager.go`, `internal/proxy/enclave.go`) evaluating license tokens, subscription tiers, and feature flags inside secure enclave memory where neither untrusted host hypervisors nor transit brokers observe cleartext keys.
+- Proxy modularization (`internal/proxy/types.go`) extracting configuration structs and error definitions to preserve the 300–500 line soft limit architectural guideline.
+- Dedicated modular Enclave REST routing layer (`routes_enclave.go`, `routes_enclave_test.go`) exposing `POST /api/enclave/challenge`, `POST /api/enclave/attest`, `POST /api/enclave/tunnel/handshake`, `POST /api/enclave/tunnel/evaluate`, `POST /api/enclave/policy`, and `GET /api/enclave/status`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and logging for `Enclave_Attestations` and `Enclave_Policies` sheets, with `enclave_attest_log`, `enclave_attest_list`, `enclave_policy_save`, and `enclave_policy_list` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/enclave.go`, `sdk/go/enclave_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) adding challenge requests, quote attestation, tunnel establishment, zero-plaintext evaluation, and status queries with 100% test coverage.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Confidential Enclaves" tab with live telemetry cards, policy registry, quote attestation simulators, and encrypted tunnel evaluators.
+- Version bump to 1.6.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.5.0] - 2026-10-16
 
 ### Added

@@ -1,11 +1,3 @@
-<div align="center">
-
-<!-- 10-Language Navigation Bar -->
-<p align="center">
-  <b>🇺🇸 English</b> · <a href="./docs/locales/ko.md">🇰🇷 한국어</a> · <a href="./docs/locales/zh-CN.md">🇨🇳 简体中文</a> · <a href="./docs/locales/ja.md">🇯🇵 日本語</a> · <a href="./docs/locales/es.md">🇪🇸 Español</a><br />
-  <a href="./docs/locales/fr.md">🇫🇷 Français</a> · <a href="./docs/locales/ru.md">🇷🇺 Русский</a> · <a href="./docs/locales/pt-BR.md">🇧🇷 Português</a> · <a href="./docs/locales/ar.md">🇸🇦 العربية</a> · <a href="./docs/locales/hi.md">🇮🇳 हिन्दी</a>
-</p>
-
 # Sheet-License-Broker
 
 <p align="center">
@@ -14,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.5.0-emerald.svg" alt="Version: v1.5.0">
+  <img src="https://img.shields.io/badge/version-v1.6.0-emerald.svg" alt="Version: v1.6.0">
+  <img src="https://img.shields.io/badge/enclave-Intel%20SGX%20%26%20AMD%20SEV--SNP-059669.svg" alt="Confidential Enclaves">
   <img src="https://img.shields.io/badge/anomaly-Z--Score%20%26%20SIEM%20Topology-F59E0B.svg" alt="Behavioral Anomaly & SIEM Graph">
   <img src="https://img.shields.io/badge/pqc-NIST%20FIPS%20204%20ML--DSA-7C3AED.svg" alt="Post-Quantum Cryptography">
   <img src="https://img.shields.io/badge/sso-SAML%202.0%20%26%20OIDC-blueviolet.svg" alt="SAML & OIDC SSO">
@@ -33,18 +26,17 @@
   <img src="https://img.shields.io/badge/hosting-0%24%2Fmo-10B981.svg" alt="Hosting Cost">
 </p>
 
-</div>
-
 ---
 
 ## 💡 Overview
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, confidential computing Intel SGX / AMD SEV-SNP enclave bridges, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Confidential Computing & Hardware Enclave Attestation Bridge**: Cryptographically validates Intel SGX Quote v3/v4 ECDSA P-256 signatures and AMD SEV-SNP 1184-byte signed attestation reports against MREnclave/MRSigner/ISVSVN policies. Negotiates ephemeral ECDH P-256 encrypted tunnels with RFC 5869 HKDF-SHA256 key expansion and AES-256-GCM, enabling zero-plaintext in-enclave evaluation where the host OS, hypervisor, and broker transit layers never observe cleartext keys.
 - **Post-Quantum Cryptography & ML-DSA Signature Chains (NIST FIPS 204)**: Quantum-resistant module-lattice digital signature verification (ML-DSA-44 / ML-DSA-65) with dual classical ECDSA / lattice hybrid signature chains (`Hybrid-P256-MLDSA65`), zero-downtime key rotation grace windows, and instant emergency revocation kill-switch broadcasts.
 - **Behavioral Anomaly Detection & Adaptive Risk Scoring**: Statistical sliding-window Z-Score heartbeat drift tracking (&plusmn;15% jitter tolerance), Haversine velocity impossible travel detection (&gt;950 km/h or concurrent /24 subnets), adaptive risk score calculation with progressive nominal decay, automated re-attestation challenge escalation at risk score &ge; 50, zero-trust automatic quarantine at risk score &ge; 85, and standardized security incident topology graph exporter (`siem-topology-v1`) for enterprise SIEM ingestion.
 - **Enterprise Single Sign-On (SSO) & SCIM 2.0 Directory Provisioning**: SAML 2.0 & OIDC identity federation, RFC 7643/7644 directory synchronization, automated license seat allocation, and instant deprovisioning revocation.
@@ -1003,6 +995,110 @@ GET /api/anomaly/graph?min_score=50&limit=50
 #### Engine Telemetry Status
 ```http
 GET /api/anomaly/status
+```
+
+---
+
+### 🔒 Confidential Computing & Hardware Enclave Attestation Bridge
+
+`sheet-license-broker` includes a hardware-rooted confidential computing bridge supporting Intel SGX Quote v3/v4 and AMD SEV-SNP 1184-byte cryptographically signed attestation reports with ephemeral ECDH P-256 encrypted tunnels.
+
+#### Architectural Guarantees
+- **Hardware-Rooted Trust**: Verifies Intel SGX Quote v3/v4 ECDSA P-256 signatures against MREnclave, MRSigner, and ISVSVN security version policies. Verifies AMD SEV-SNP ECDSA P-384 / P-256 reports against launch measurement digests and guest debug policies (bit 17 enforcement).
+- **Ephemeral ECDH Tunnel & HKDF Expansion**: Derives independent client and server 32-byte session keys using native RFC 5869 HKDF Extract-and-Expand with SHA-256 and authenticated AES-256-GCM encryption.
+- **Replay Protection**: Strictly monotonic 64-bit sequence counters reject out-of-order or duplicate requests.
+- **Zero-Plaintext In-Enclave Evaluation**: Sensitive license keys, hardware identifiers, and feature entitlement policies are evaluated inside secure memory. Neither untrusted host OS, hypervisors, nor intermediary broker transit networks observe cleartext license keys.
+
+#### Request Single-Use Challenge Nonce
+```http
+POST /api/enclave/challenge
+Content-Type: application/json
+
+{}
+```
+**Response:**
+```json
+{
+  "challenge": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "expires_in": 300
+}
+```
+
+#### Attest Hardware Enclave Quote
+```http
+POST /api/enclave/attest
+Content-Type: application/json
+
+{
+  "platform": "intel_sgx",
+  "quote": "<quote-hex-bytes>",
+  "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "policy_id": "pol-prod-sgx-01"
+}
+```
+**Response:**
+```json
+{
+  "valid": true,
+  "attestation": {
+    "valid": true,
+    "platform": "intel_sgx",
+    "mr_enclave": "aabbccddeeff...",
+    "mr_signer": "112233445566...",
+    "svn": 2,
+    "debug": false,
+    "report_data_hex": "..."
+  }
+}
+```
+
+#### Establish Mutual Ephemeral ECDH Encrypted Tunnel
+```http
+POST /api/enclave/tunnel/handshake
+Content-Type: application/json
+
+{
+  "platform": "intel_sgx",
+  "quote": "<quote-hex-bytes>",
+  "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "client_public_key": "04..."
+}
+```
+**Response:**
+```json
+{
+  "established": true,
+  "session_id": "enclave-sess-...",
+  "broker_public_key": "04...",
+  "expires_at": "2026-10-18T20:30:00Z"
+}
+```
+
+#### Submit Zero-Plaintext Encrypted Evaluation Query
+```http
+POST /api/enclave/tunnel/evaluate
+Content-Type: application/json
+
+{
+  "session_id": "enclave-sess-...",
+  "sequence": 1,
+  "nonce": "<12-byte-hex-iv>",
+  "payload": "<aes-256-gcm-ciphertext-hex>"
+}
+```
+**Response:**
+```json
+{
+  "session_id": "enclave-sess-...",
+  "sequence": 1,
+  "nonce": "<12-byte-hex-iv>",
+  "payload": "<aes-256-gcm-encrypted-result-hex>"
+}
+```
+
+#### Query Enclave Status & Telemetry
+```http
+GET /api/enclave/status
 ```
 
 ---

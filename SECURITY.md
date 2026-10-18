@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.6.x   | :white_check_mark: |
 | 1.5.x   | :white_check_mark: |
 | 1.4.x   | :white_check_mark: |
 | 1.3.x   | :white_check_mark: |
@@ -124,6 +125,13 @@
       - Risk score $\ge 50$ (Suspicious): Enforces single-use 5-minute cryptographic re-attestation challenge tokens. Unchallenged or expired tokens block privilege escalation.
       - Risk score $\ge 85$ (High Risk / Compromised): Automatically triggers zero-trust quarantine isolation. The unified proxy layer strictly rejects `VerifyLicense` requests for quarantined entities with HTTP 403 Forbidden, and alerts are dispatched to security webhooks.
     - **SIEM Topology Graph Export (`siem-topology-v1`)**: Exports standardized topological nodes (`CLIENT`, `SUBNET`, `GEO_LOCATION`, `CHALLENGE`) and weighted relationship edges for ingestion into enterprise SIEM platforms (Splunk, Datadog, Elastic, Sentinel).
+
+22. **Confidential Computing Enclave Attestation & Zero-Plaintext Tunnels**:
+    - **Hardware-Rooted Trust**: Intel SGX Quote v3/v4 ECDSA P-256 signatures and AMD SEV-SNP 1184-byte cryptographically signed attestation reports are verified against expected MREnclave, MRSigner, and ISVSVN security version policies.
+    - **Enclave Debug Mode Enforcement**: Enclave policies reject quotes running in Debug mode (such as AMD SEV-SNP policy bit 17 or SGX attributes flag) unless explicitly whitelisted in development testing profiles.
+    - **Memory-Barrier Zeroization**: Sensitive cryptographic credentials, ephemeral private keys, and intermediate plaintexts are managed inside `SecureBuffer` wrappers with deterministic zeroing on disposal (`Destroy()`). Memory buffers are compared using constant-time equality checks (`subtle.ConstantTimeCompare`) to mitigate side-channel timing leaks.
+    - **Ephemeral Forward Secrecy**: Tunnels negotiate single-use NIST P-256 elliptic curve keys combined via RFC 5869 HKDF Extract-and-Expand with SHA-256. All communications are sealed with authenticated AES-256-GCM encryption.
+    - **Monotonic Replay Sequence Guards**: 64-bit strictly monotonic sequence counters reject duplicate or out-of-order encrypted payloads within each active tunnel session.
 
 ## Reporting a Vulnerability
 

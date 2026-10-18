@@ -241,6 +241,31 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"total_observations\":200,\"active_monitored_entities\":20,\"anomalies_detected\":4}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/challenge")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"challenge\":\"11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff\",\"expires_in\":300}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/attest")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"attestation\":{\"valid\":true,\"platform\":\"intel_sgx\",\"mr_enclave\":\"aabbccddeeff\",\"mr_signer\":\"112233445566\",\"svn\":1,\"debug\":false}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/tunnel/handshake")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"established\":true,\"session_id\":\"enclave-sess-cs-01\",\"broker_public_key\":\"abcdef0123456789abcdef0123456789\",\"expires_at\":\"2030-01-01T00:00:00Z\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/tunnel/evaluate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"session_id\":\"enclave-sess-cs-01\",\"sequence\":1,\"nonce\":\"0102030405060708090a0b0c\",\"payload\":\"cafebabedeadbeef\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"telemetry\":{\"verified_quotes\":5,\"active_tunnels\":2,\"total_evaluations\":12,\"failed_attestations\":0},\"policies\":[]}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -535,7 +560,40 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Anomaly observation, risk score, challenge, graph, and status");
 
-                Console.WriteLine("=== All 18 C# Client Tests Passed Successfully! ===");
+                // Test 19: Confidential Enclave Attestation & Zero-Plaintext Tunnels
+                string encChRaw = client.RequestEnclaveChallengeAsync().GetAwaiter().GetResult();
+                if (!encChRaw.Contains("11223344556677889900aabbccddeeff"))
+                {
+                    Console.Error.WriteLine("FAIL: Enclave challenge failed: " + encChRaw);
+                    return 1;
+                }
+                string encAttestRaw = client.AttestEnclaveQuoteAsync("intel_sgx", "aabbccddeeff", "11223344556677889900aabbccddeeff").GetAwaiter().GetResult();
+                if (!encAttestRaw.Contains("\"valid\":true") || !encAttestRaw.Contains("intel_sgx"))
+                {
+                    Console.Error.WriteLine("FAIL: Enclave attest failed: " + encAttestRaw);
+                    return 1;
+                }
+                string encTunnelRaw = client.EstablishEnclaveTunnelAsync("intel_sgx", "aabbccddeeff", "11223344556677889900aabbccddeeff", "cs_pub_key_hex").GetAwaiter().GetResult();
+                if (!encTunnelRaw.Contains("\"established\":true") || !encTunnelRaw.Contains("enclave-sess-cs-01"))
+                {
+                    Console.Error.WriteLine("FAIL: Enclave tunnel handshake failed: " + encTunnelRaw);
+                    return 1;
+                }
+                string encEvalRaw = client.EvaluateEnclaveLicenseAsync("enclave-sess-cs-01", 1, "0102030405060708090a0b0c", "cafebabedeadbeef").GetAwaiter().GetResult();
+                if (!encEvalRaw.Contains("enclave-sess-cs-01") || !encEvalRaw.Contains("cafebabedeadbeef"))
+                {
+                    Console.Error.WriteLine("FAIL: Enclave evaluate failed: " + encEvalRaw);
+                    return 1;
+                }
+                string encStatusRaw = client.GetEnclaveStatusAsync().GetAwaiter().GetResult();
+                if (!encStatusRaw.Contains("verified_quotes") || !encStatusRaw.Contains("active_tunnels"))
+                {
+                    Console.Error.WriteLine("FAIL: Enclave status failed: " + encStatusRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Enclave challenge, quote attestation, encrypted tunnel, evaluation, and status");
+
+                Console.WriteLine("=== All 19 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

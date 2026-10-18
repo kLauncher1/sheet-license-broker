@@ -22,6 +22,8 @@ const SHEET_SSO_CONFIGS = 'SSO_Configs';
 const SHEET_DIRECTORY_USERS = 'Directory_Users';
 const SHEET_PQC_KEYS = 'PQC_Keys';
 const SHEET_ANOMALY_INCIDENTS = 'Anomaly_Incidents';
+const SHEET_ENCLAVE_ATTESTATIONS = 'Enclave_Attestations';
+const SHEET_ENCLAVE_POLICIES = 'Enclave_Policies';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -169,6 +171,18 @@ function handleRequest(e, method) {
       case 'anomaly_incident_list':
         return handleAnomalyIncidentList(output, payload);
 
+      case 'enclave_attest_log':
+        return handleEnclaveAttestLog(output, payload);
+
+      case 'enclave_attest_list':
+        return handleEnclaveAttestList(output, payload);
+
+      case 'enclave_policy_save':
+        return handleEnclavePolicySave(output, payload);
+
+      case 'enclave_policy_list':
+        return handleEnclavePolicyList(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -196,7 +210,9 @@ function initSheets() {
     { name: SHEET_SSO_CONFIGS, cols: ['idp_id', 'tenant_id', 'name', 'type', 'entity_id', 'sso_endpoint', 'enabled', 'updated_at'] },
     { name: SHEET_DIRECTORY_USERS, cols: ['user_id', 'username', 'display_name', 'email', 'role', 'active', 'license_key', 'tenant_id', 'updated_at'] },
     { name: SHEET_PQC_KEYS, cols: ['key_id', 'algorithm', 'public_hex', 'status', 'reason', 'grace_until', 'created_at', 'updated_at'] },
-    { name: SHEET_ANOMALY_INCIDENTS, cols: ['timestamp', 'license_key', 'hwid', 'ip', 'country', 'risk_score', 'reason'] }
+    { name: SHEET_ANOMALY_INCIDENTS, cols: ['timestamp', 'license_key', 'hwid', 'ip', 'country', 'risk_score', 'reason'] },
+    { name: SHEET_ENCLAVE_ATTESTATIONS, cols: ['timestamp', 'platform', 'mr_enclave', 'mr_signer', 'measurement', 'svn', 'debug', 'report_data', 'status'] },
+    { name: SHEET_ENCLAVE_POLICIES, cols: ['policy_id', 'name', 'platform', 'min_svn', 'allow_debug', 'allowed_measurements', 'created_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1178,3 +1194,88 @@ function handleAnomalyIncidentList(output, payload) {
   }
   return jsonResponse(output, { status: 'success', count: incidents.length, incidents: incidents });
 }
+
+function handleEnclaveAttestLog(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ENCLAVE_ATTESTATIONS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Enclave_Attestations sheet missing' });
+
+  const now = new Date().toISOString();
+  sheet.appendRow([
+    now,
+    payload.platform || 'intel_sgx',
+    payload.mr_enclave || '',
+    payload.mr_signer || '',
+    payload.measurement || '',
+    payload.svn || 0,
+    payload.debug ? 'true' : 'false',
+    payload.report_data || '',
+    payload.status || 'VERIFIED'
+  ]);
+  return jsonResponse(output, { status: 'success', logged_at: now });
+}
+
+function handleEnclaveAttestList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ENCLAVE_ATTESTATIONS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Enclave_Attestations sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const list = [];
+  const limit = payload.limit || 50;
+  for (let i = Math.max(1, data.length - limit); i < data.length; i++) {
+    list.push({
+      timestamp: data[i][0],
+      platform: data[i][1],
+      mr_enclave: data[i][2],
+      mr_signer: data[i][3],
+      measurement: data[i][4],
+      svn: data[i][5],
+      debug: data[i][6] === 'true',
+      report_data: data[i][7],
+      status: data[i][8]
+    });
+  }
+  return jsonResponse(output, { status: 'success', count: list.length, attestations: list });
+}
+
+function handleEnclavePolicySave(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ENCLAVE_POLICIES);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Enclave_Policies sheet missing' });
+
+  const policyId = payload.policy_id || ('pol_' + Utilities.getUuid().substring(0, 8));
+  const now = new Date().toISOString();
+  sheet.appendRow([
+    policyId,
+    payload.name || 'Enclave Policy',
+    payload.platform || 'intel_sgx',
+    payload.min_svn || 1,
+    payload.allow_debug ? 'true' : 'false',
+    JSON.stringify(payload.allowed_measurements || []),
+    now
+  ]);
+  return jsonResponse(output, { status: 'success', policy_id: policyId });
+}
+
+function handleEnclavePolicyList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ENCLAVE_POLICIES);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Enclave_Policies sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const policies = [];
+  for (let i = 1; i < data.length; i++) {
+    policies.push({
+      policy_id: data[i][0],
+      name: data[i][1],
+      platform: data[i][2],
+      min_svn: data[i][3],
+      allow_debug: data[i][4] === 'true',
+      allowed_measurements: data[i][5] ? JSON.parse(data[i][5]) : [],
+      created_at: data[i][6]
+    });
+  }
+  return jsonResponse(output, { status: 'success', count: policies.length, policies: policies });
+}
+

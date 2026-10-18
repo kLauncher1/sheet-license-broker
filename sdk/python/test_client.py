@@ -205,6 +205,23 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/enclave/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "telemetry": {
+                    "verified_quotes": 8,
+                    "active_tunnels": 2,
+                    "total_evaluations": 14,
+                    "failed_attestations": 0,
+                    "quotes_by_platform": {"intel_sgx": 6, "amd_sev_snp": 2},
+                    "active_policies_count": 2
+                },
+                "policies": []
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -504,6 +521,58 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/enclave/challenge":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "challenge": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+                "expires_in": 300
+            }).encode())
+            return
+
+        if self.path == "/api/enclave/attest":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "valid": True,
+                "attestation": {
+                    "valid": True,
+                    "platform": "intel_sgx",
+                    "mr_enclave": "aabbccddeeff",
+                    "mr_signer": "112233445566",
+                    "svn": 2,
+                    "debug": False,
+                    "report_data_hex": "00112233"
+                }
+            }).encode())
+            return
+
+        if self.path == "/api/enclave/tunnel/handshake":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "established": True,
+                "session_id": "enclave-sess-py-01",
+                "broker_public_key": "abcdef0123456789abcdef0123456789",
+                "expires_at": "2030-01-01T00:00:00Z"
+            }).encode())
+            return
+
+        if self.path == "/api/enclave/tunnel/evaluate":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "session_id": "enclave-sess-py-01",
+                "sequence": 1,
+                "nonce": "0102030405060708090a0b0c",
+                "payload": "cafebabedeadbeef"
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -738,6 +807,35 @@ class TestSheetLicenseClient(unittest.TestCase):
         status = client.get_anomaly_status()
         self.assertEqual(status.get("total_observations"), 120)
         self.assertEqual(status.get("active_monitored_entities"), 15)
+
+    def test_enclave_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+
+        # 1. Challenge
+        ch = client.request_enclave_challenge()
+        self.assertEqual(len(ch), 64)
+
+        # 2. Attest Quote
+        attest = client.attest_enclave_quote("intel_sgx", "aabbccddeeff", ch)
+        self.assertTrue(attest.get("valid"))
+        self.assertEqual(attest.get("platform"), "intel_sgx")
+        self.assertEqual(attest.get("mr_enclave"), "aabbccddeeff")
+
+        # 3. Tunnel Handshake
+        handshake = client.establish_enclave_tunnel("intel_sgx", "aabbccddeeff", ch, "client_pub_hex")
+        self.assertTrue(handshake.get("established"))
+        self.assertEqual(handshake.get("session_id"), "enclave-sess-py-01")
+
+        # 4. Evaluate License inside Enclave
+        eval_res = client.evaluate_enclave_license("enclave-sess-py-01", 1, "0102030405060708090a0b0c", "cafebabedeadbeef")
+        self.assertEqual(eval_res.get("session_id"), "enclave-sess-py-01")
+        self.assertEqual(eval_res.get("sequence"), 1)
+        self.assertEqual(eval_res.get("payload"), "cafebabedeadbeef")
+
+        # 5. Enclave Status
+        status = client.get_enclave_status()
+        self.assertEqual(status.get("telemetry", {}).get("verified_quotes"), 8)
+        self.assertEqual(status.get("telemetry", {}).get("active_tunnels"), 2)
 
 
 if __name__ == "__main__":

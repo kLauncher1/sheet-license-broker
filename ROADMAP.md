@@ -123,10 +123,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
 - [x] Embedded admin console Behavioral Anomaly & Risk interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 16: Confidential Computing & Hardware Enclave Attestation Bridge (v1.6.0)
-- [ ] Intel SGX / AMD SEV remote attestation quote validation
-- [ ] End-to-end encrypted payload tunnels between client enclaves and broker
-- [ ] Zero-plaintext memory guarantees during license key evaluation
+## Phase 16: Confidential Computing & Hardware Enclave Attestation Bridge (v1.6.0) - Completed
+- [x] Intel SGX Quote v3/v4 ECDSA P-256 and AMD SEV-SNP 1184-byte report cryptographic verification (`internal/enclave/sgx.go`, `internal/enclave/sev.go`)
+- [x] Ephemeral ECDH (NIST P-256) tunnel handshake with RFC 5869 HKDF-SHA256 and AES-256-GCM authenticated encryption (`internal/enclave/tunnel.go`)
+- [x] Zero-plaintext memory guarantees with constant-time comparisons and zeroization barriers (`internal/enclave/zeroize.go`)
+- [x] Dedicated enclave REST endpoints (`/api/enclave/*`), full proxy integration, and Apps Script audit sheets (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
+- [x] Embedded admin console Confidential Enclaves interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 17: Multi-Cloud Object Storage Archive & Continuous Ledger Auditing (v1.7.0)
 - [ ] Automated continuous cold-archive streaming to AWS S3, Cloudflare R2, and Google Cloud Storage
@@ -197,6 +200,17 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Platform Security Processor (PSP) and ARM TrustZone cryptographically bound hardware credentials
 - [ ] Measured boot log verification with PCR extension and remote attestation validation
 - [ ] Tamper-proof ephemeral session generation anchored directly to hardware PUF (Physically Unclonable Function)
+
+## Phase 31: Post-Quantum Kyber Key-Encapsulation & Ephemeral Quantum Tunnels (v3.1.0)
+- [ ] NIST FIPS 203 ML-KEM-768/1024 post-quantum key encapsulation mechanism
+- [ ] Hybrid classical/post-quantum ephemeral session tunnels (ECDH P-256 + ML-KEM)
+- [ ] Backward-compatible cryptographic agility negotiation and downgrade prevention
+
+## Phase 32: Decentralized Cryptographic Verifiable Credentials & DID Entitlement Ledger (v3.2.0)
+- [ ] W3C Verifiable Credentials (VC) and Decentralized Identifiers (DID) integration
+- [ ] Self-sovereign entitlement claims with cryptographic revocation accumulator proofs
+- [ ] Multi-tenant decentralized identifier resolution and enterprise issuer governance
+
 
 
 

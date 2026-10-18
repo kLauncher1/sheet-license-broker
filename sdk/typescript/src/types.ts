@@ -451,3 +451,52 @@ export interface AnomalyTelemetrySummary {
   last_anomaly_detected_at?: string;
 }
 
+export interface EnclaveAttestationResult {
+  valid: boolean;
+  platform: 'intel_sgx' | 'amd_sev_snp';
+  mr_enclave?: string;
+  mr_signer?: string;
+  measurement?: string;
+  svn: number;
+  debug: boolean;
+  report_data_hex: string;
+  error_message?: string;
+  verified_at: string;
+}
+
+export interface EnclaveHandshakeResponse {
+  established: boolean;
+  session_id: string;
+  broker_public_key: string;
+  expires_at: string;
+}
+
+export interface EnclaveEncryptedMessage {
+  session_id: string;
+  sequence: number;
+  nonce: string;
+  payload: string;
+}
+
+export interface EnclaveEvalVerdict {
+  valid: boolean;
+  license_key: string;
+  tier?: string;
+  features?: string[];
+  expires_at?: string;
+  enclave_platform: string;
+  zero_plaintext_guarantee: boolean;
+  evaluated_at: string;
+  message?: string;
+}
+
+export interface EnclaveTelemetry {
+  verified_quotes: number;
+  active_tunnels: number;
+  total_evaluations: number;
+  failed_attestations: number;
+  quotes_by_platform: Record<string, number>;
+  active_policies_count: number;
+}
+
+

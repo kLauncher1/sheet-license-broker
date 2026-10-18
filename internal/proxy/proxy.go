@@ -14,6 +14,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/auth"
 	"github.com/kLauncher1/sheet-license-broker/internal/consensus"
 	"github.com/kLauncher1/sheet-license-broker/internal/db"
+	"github.com/kLauncher1/sheet-license-broker/internal/enclave"
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
@@ -28,51 +29,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/zkp"
 )
 
-var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrLicenseInvalid    = errors.New("invalid or expired license")
-)
 
-// ProxyConfig defines construction options for the proxy coordinator.
-type ProxyConfig struct {
-	WebAppURL        string
-	StandbyWebAppURL string
-	OfflineMode      bool
-	CacheTTL         time.Duration
-	GlobalWebhookURL string
-	GlobalSecret     string
-	SpoolPath        string
-	SpoolSecret      string
-	DiscordAlertURL  string
-	SlackAlertURL    string
-	AutoFailover     bool
-	NodeID           string
-	ClusterRegion    string
-	ClusterAddress   string
-	ClusterPeers     []string
-}
-
-// VerifyResult captures the unified result of a license check.
-type VerifyResult struct {
-	Valid      bool     `json:"valid"`
-	LicenseKey string   `json:"license_key"`
-	HWIDBound  string   `json:"hwid_bound"`
-	ExpiresAt  string   `json:"expires_at"`
-	Tier       string   `json:"tier,omitempty"`
-	Features   []string `json:"features,omitempty"`
-	Source     string   `json:"source"` // "cache", "remote_gas", "local_fallback", "offline_cache"
-	Message    string   `json:"message,omitempty"`
-}
-
-// LicenseResult captures unified license creation outcome.
-type LicenseResult struct {
-	LicenseKey string   `json:"license_key"`
-	ExpiresAt  string   `json:"expires_at"`
-	Status     string   `json:"status"`
-	Tier       string   `json:"tier,omitempty"`
-	Features   []string `json:"features,omitempty"`
-	Source     string   `json:"source"`
-}
 
 // Proxy coordinates calls between Google Apps Script, local memory engines, and cache.
 type Proxy struct {
@@ -101,6 +58,7 @@ type Proxy struct {
 	ssoManager         *sso.Manager
 	pqcManager         *pqc.PQCKeyManager
 	anomalyEngine      *anomaly.Engine
+	enclaveManager     *enclave.Manager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -142,6 +100,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initSSO()
 	p.initPQC()
 	p.initAnomaly()
+	p.initEnclave()
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {
