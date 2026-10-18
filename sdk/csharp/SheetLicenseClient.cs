@@ -620,6 +620,51 @@ namespace SheetLicenseBroker
         public async Task<string> GetEnclaveStatusAsync() =>
             await SendRequestAsync("GET", "/api/enclave/status", null).ConfigureAwait(false);
 
+        /// <summary>
+        /// Computes optimal nearest Edge Point of Presence (POP) based on client geo coordinates and latency weighting.
+        /// </summary>
+        public async Task<string> GetAnycastRouteAsync(double lat, double lon, string clientIp = "", string preferredRegion = "")
+        {
+            string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "/api/anycast/route?lat={0}&lon={1}&ip={2}&region={3}",
+                lat, lon, Uri.EscapeDataString(clientIp ?? ""), Uri.EscapeDataString(preferredRegion ?? ""));
+            return await SendRequestAsync("GET", url, null).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Ingests dynamic active telemetry probes to refine global edge routing decisions.
+        /// </summary>
+        public async Task<string> ReportAnycastProbeAsync(string targetPopId, double rttMs, double jitterMs = 0, double packetLoss = 0, string sourceIp = "")
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"target_pop_id\":\"{0}\",\"rtt_ms\":{1},\"jitter_ms\":{2},\"packet_loss\":{3},\"source_ip\":\"{4}\"}}",
+                EscapeJson(targetPopId ?? ""), rttMs, jitterMs, packetLoss, EscapeJson(sourceIp ?? ""));
+            return await SendRequestAsync("POST", "/api/anycast/probe", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Queries global POP point of presence health, latency metrics, and partition states.
+        /// </summary>
+        public async Task<string> GetAnycastStatusAsync() =>
+            await SendRequestAsync("GET", "/api/anycast/status", null).ConfigureAwait(false);
+
+        /// <summary>
+        /// Retrieves telemetry metrics for sub-millisecond in-memory L1 cache hits, misses, and revalidations.
+        /// </summary>
+        public async Task<string> GetEdgeCacheStatsAsync() =>
+            await SendRequestAsync("GET", "/api/anycast/cache/stats", null).ConfigureAwait(false);
+
+        /// <summary>
+        /// Validates license key with sub-millisecond edge cache lookups and network partition tolerance.
+        /// </summary>
+        public async Task<string> FastVerifyLicenseAsync(string licenseKey, string hwid = "", string preferredPop = "")
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string body = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"preferred_pop\":\"{2}\"}}",
+                EscapeJson(licenseKey ?? ""), EscapeJson(machineHwid ?? ""), EscapeJson(preferredPop ?? ""));
+            return await SendRequestAsync("POST", "/api/anycast/verify", body).ConfigureAwait(false);
+        }
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

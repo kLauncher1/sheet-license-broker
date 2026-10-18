@@ -24,6 +24,8 @@ const SHEET_PQC_KEYS = 'PQC_Keys';
 const SHEET_ANOMALY_INCIDENTS = 'Anomaly_Incidents';
 const SHEET_ENCLAVE_ATTESTATIONS = 'Enclave_Attestations';
 const SHEET_ENCLAVE_POLICIES = 'Enclave_Policies';
+const SHEET_GEO_POPS = 'Geo_POPs';
+const SHEET_PARTITION_EVENTS = 'Partition_Events';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -183,6 +185,15 @@ function handleRequest(e, method) {
       case 'enclave_policy_list':
         return handleEnclavePolicyList(output, payload);
 
+      case 'anycast_pop_heartbeat':
+        return handleAnycastPOPHeartbeat(output, payload);
+
+      case 'anycast_pop_list':
+        return handleAnycastPOPList(output, payload);
+
+      case 'partition_event_log':
+        return handlePartitionEventLog(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -212,7 +223,9 @@ function initSheets() {
     { name: SHEET_PQC_KEYS, cols: ['key_id', 'algorithm', 'public_hex', 'status', 'reason', 'grace_until', 'created_at', 'updated_at'] },
     { name: SHEET_ANOMALY_INCIDENTS, cols: ['timestamp', 'license_key', 'hwid', 'ip', 'country', 'risk_score', 'reason'] },
     { name: SHEET_ENCLAVE_ATTESTATIONS, cols: ['timestamp', 'platform', 'mr_enclave', 'mr_signer', 'measurement', 'svn', 'debug', 'report_data', 'status'] },
-    { name: SHEET_ENCLAVE_POLICIES, cols: ['policy_id', 'name', 'platform', 'min_svn', 'allow_debug', 'allowed_measurements', 'created_at'] }
+    { name: SHEET_ENCLAVE_POLICIES, cols: ['policy_id', 'name', 'platform', 'min_svn', 'allow_debug', 'allowed_measurements', 'created_at'] },
+    { name: SHEET_GEO_POPS, cols: ['pop_id', 'name', 'region', 'country', 'latitude', 'longitude', 'status', 'weight', 'rtt_ms', 'last_seen'] },
+    { name: SHEET_PARTITION_EVENTS, cols: ['timestamp', 'region_id', 'status', 'mitigation_token', 'details'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1278,4 +1291,95 @@ function handleEnclavePolicyList(output, payload) {
   }
   return jsonResponse(output, { status: 'success', count: policies.length, policies: policies });
 }
+
+function handleAnycastPOPHeartbeat(output, payload) {
+  const popId = payload.pop_id;
+  if (!popId) return jsonResponse(output, { status: 'error', message: 'pop_id required' });
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_GEO_POPS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Geo_POPs sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const now = new Date().toISOString();
+
+  let rowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === popId) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  const row = [
+    popId,
+    payload.name || ('POP-' + popId),
+    payload.region || 'global',
+    payload.country || 'US',
+    Number(payload.latitude || 0),
+    Number(payload.longitude || 0),
+    payload.status || 'healthy',
+    Number(payload.weight || 1.0),
+    Number(payload.rtt_ms || 0),
+    now
+  ];
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+
+  logAudit('anycast_pop_heartbeat', popId, 'Updated Anycast POP ' + popId, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', pop_id: popId, updated_at: now });
+}
+
+function handleAnycastPOPList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_GEO_POPS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Geo_POPs sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const pops = [];
+
+  for (let i = 1; i < data.length; i++) {
+    pops.push({
+      id: data[i][0],
+      name: data[i][1],
+      region: data[i][2],
+      country: data[i][3],
+      latitude: Number(data[i][4]),
+      longitude: Number(data[i][5]),
+      status: data[i][6],
+      weight: Number(data[i][7]),
+      rtt_ms: Number(data[i][8]),
+      last_seen: data[i][9]
+    });
+  }
+
+  return jsonResponse(output, { status: 'success', count: pops.length, pops: pops });
+}
+
+function handlePartitionEventLog(output, payload) {
+  const regionId = payload.region_id;
+  if (!regionId) return jsonResponse(output, { status: 'error', message: 'region_id required' });
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_PARTITION_EVENTS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Partition_Events sheet missing' });
+
+  const now = new Date().toISOString();
+
+  sheet.appendRow([
+    now,
+    regionId,
+    payload.status || 'partitioned',
+    payload.mitigation_token || '',
+    payload.details || ''
+  ]);
+
+  logAudit('partition_event_log', regionId, 'Recorded partition event for ' + regionId + ': ' + (payload.status || 'partitioned'), 'SUCCESS');
+  return jsonResponse(output, { status: 'success', region_id: regionId, timestamp: now });
+}
+
 

@@ -499,4 +499,56 @@ export interface EnclaveTelemetry {
   active_policies_count: number;
 }
 
+export interface AnycastPOP {
+  id: string;
+  name: string;
+  region: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  endpoint_url?: string;
+  weight?: number;
+  status: 'healthy' | 'degraded' | 'offline';
+  last_seen?: string;
+  average_rtt_ms?: number;
+}
+
+export interface AnycastRoutingDecision {
+  selected_pop: AnycastPOP;
+  fallback_pops?: AnycastPOP[];
+  estimated_latency_ms: number;
+  signed_routing_token: string;
+  timestamp: string;
+  client_ip?: string;
+}
+
+export interface EdgeCacheTelemetry {
+  hits: number;
+  misses: number;
+  revalidations: number;
+  lookup_latency_us: number;
+  cached_tier_entries: number;
+  hit_ratio: number;
+}
+
+export interface PartitionStateInfo {
+  region_id: string;
+  status: 'normal' | 'partitioned' | 'healing';
+  isolated_since?: string;
+  local_lease_duration: number;
+  recovery_sync_status: string;
+  last_probe_time: string;
+  mitigation_token?: string;
+}
+
+export interface AnycastStatusResponse {
+  pops: AnycastPOP[];
+  pop_count: number;
+  cache_stats: EdgeCacheTelemetry;
+  is_partitioned: boolean;
+  partition_states: PartitionStateInfo[];
+  edge_routing_enabled: boolean;
+}
+
+
 

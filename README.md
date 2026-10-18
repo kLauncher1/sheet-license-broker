@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.6.0-emerald.svg" alt="Version: v1.6.0">
+  <img src="https://img.shields.io/badge/version-v1.7.0-emerald.svg" alt="Version: v1.7.0">
+  <img src="https://img.shields.io/badge/anycast-Global%20POPs%20%26%20Sub--ms%20Cache-0284C7.svg" alt="Geo Anycast & Sub-ms Cache">
   <img src="https://img.shields.io/badge/enclave-Intel%20SGX%20%26%20AMD%20SEV--SNP-059669.svg" alt="Confidential Enclaves">
   <img src="https://img.shields.io/badge/anomaly-Z--Score%20%26%20SIEM%20Topology-F59E0B.svg" alt="Behavioral Anomaly & SIEM Graph">
   <img src="https://img.shields.io/badge/pqc-NIST%20FIPS%20204%20ML--DSA-7C3AED.svg" alt="Post-Quantum Cryptography">
@@ -32,10 +33,11 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, confidential computing Intel SGX / AMD SEV-SNP enclave bridges, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, geo-distributed Anycast edge routing & sub-millisecond L1 cache, confidential computing Intel SGX / AMD SEV-SNP enclave bridges, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Geo-Distributed Edge CDN Anycast Routing & Sub-Millisecond L1 Cache**: Routes global requests to the nearest healthy Point of Presence (POP across Ashburn, San Jose, Frankfurt, Tokyo, Singapore, Sao Paulo) via Haversine spherical distance and dynamic active RTT telemetry. Delivers cached license lookups in under 100 microseconds with asynchronous Stale-While-Revalidate (SWR) and issues HMAC-signed emergency mitigation leases during network partitions.
 - **Confidential Computing & Hardware Enclave Attestation Bridge**: Cryptographically validates Intel SGX Quote v3/v4 ECDSA P-256 signatures and AMD SEV-SNP 1184-byte signed attestation reports against MREnclave/MRSigner/ISVSVN policies. Negotiates ephemeral ECDH P-256 encrypted tunnels with RFC 5869 HKDF-SHA256 key expansion and AES-256-GCM, enabling zero-plaintext in-enclave evaluation where the host OS, hypervisor, and broker transit layers never observe cleartext keys.
 - **Post-Quantum Cryptography & ML-DSA Signature Chains (NIST FIPS 204)**: Quantum-resistant module-lattice digital signature verification (ML-DSA-44 / ML-DSA-65) with dual classical ECDSA / lattice hybrid signature chains (`Hybrid-P256-MLDSA65`), zero-downtime key rotation grace windows, and instant emergency revocation kill-switch broadcasts.
 - **Behavioral Anomaly Detection & Adaptive Risk Scoring**: Statistical sliding-window Z-Score heartbeat drift tracking (&plusmn;15% jitter tolerance), Haversine velocity impossible travel detection (&gt;950 km/h or concurrent /24 subnets), adaptive risk score calculation with progressive nominal decay, automated re-attestation challenge escalation at risk score &ge; 50, zero-trust automatic quarantine at risk score &ge; 85, and standardized security incident topology graph exporter (`siem-topology-v1`) for enterprise SIEM ingestion.
@@ -1099,6 +1101,94 @@ Content-Type: application/json
 #### Query Enclave Status & Telemetry
 ```http
 GET /api/enclave/status
+```
+
+---
+
+### 🌐 Geo-Distributed Edge CDN Anycast Routing & Sub-Millisecond L1 Cache
+
+`sheet-license-broker` includes an enterprise-grade Geo-Distributed Anycast Edge Routing and Sub-Millisecond L1 Cache engine (`internal/anycast/`) designed to route incoming global license queries to the lowest-latency healthy Point of Presence (POP) and deliver cached verifications in under 100 microseconds.
+
+#### Architectural Capabilities
+- **Global 6-Node POP Registry**: Ashburn (IAD / us-east), San Jose (SJC / us-west), Frankfurt (FRA / eu-central), Tokyo (NRT / ap-northeast), Singapore (SIN / ap-southeast), and Sao Paulo (GRU / sa-east).
+- **Great-Circle Haversine Routing**: Computes spherical distances from client coordinates (`lat`, `lon`), blends active dynamic telemetry probes (RTT latency, jitter, packet loss), and outputs optimal healthy POP selections with alternative fallbacks.
+- **Cryptographically Signed Routing Tokens**: Issues and verifies HMAC-SHA256 signed routing tokens guaranteeing edge affinity and tamper protection.
+- **Sub-Millisecond In-Memory L1 Cache**: Serves license checks in <100 microseconds with asynchronous Stale-While-Revalidate (SWR) background cache refreshes to eliminate latency spikes.
+- **Geographic Partition Mitigation & Emergency Leases**: During upstream cloud outages or localized network disconnects, automatically issues HMAC-signed emergency lease tokens to keep client applications running smoothly without lockouts.
+
+#### Compute Nearest Anycast Route
+```http
+GET /api/anycast/route?lat=37.7749&lon=-122.4194&ip=198.51.100.1&region=us-west
+```
+**Response:**
+```json
+{
+  "selected_pop": {
+    "id": "sjc",
+    "name": "San Jose SJC",
+    "region": "us-west",
+    "country": "US",
+    "latitude": 37.3382,
+    "longitude": -121.8863,
+    "endpoint_url": "https://sjc.edge.broker.internal",
+    "weight": 100,
+    "avg_rtt_ms": 12.4,
+    "status": "healthy"
+  },
+  "fallback_pops": [
+    { "id": "iad", "name": "Ashburn IAD", "region": "us-east", "status": "healthy" }
+  ],
+  "estimated_latency_ms": 12.4,
+  "signed_routing_token": "anycast-tok-7f2a...",
+  "timestamp": "2026-10-18T21:40:00Z"
+}
+```
+
+#### Ingest Dynamic Latency Health Probe
+```http
+POST /api/anycast/probe
+Content-Type: application/json
+
+{
+  "target_pop_id": "sjc",
+  "rtt_ms": 14.2,
+  "jitter_ms": 0.8,
+  "packet_loss": 0.0,
+  "source_ip": "198.51.100.1"
+}
+```
+
+#### Sub-Millisecond Fast License Verification (L1 Cache Fast-Path)
+```http
+POST /api/anycast/verify
+Content-Type: application/json
+
+{
+  "license_key": "SLB-PRO-2026-99",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "preferred_pop": "sjc"
+}
+```
+
+#### Query Edge Cache Telemetry & Hit/Miss Ratios
+```http
+GET /api/anycast/cache/stats
+```
+**Response:**
+```json
+{
+  "hits": 1420,
+  "misses": 38,
+  "revalidations": 12,
+  "lookup_latency_us": 84.5,
+  "hit_ratio": 0.973,
+  "cached_tier_entries": 4
+}
+```
+
+#### Query Global Anycast Status
+```http
+GET /api/anycast/status
 ```
 
 ---

@@ -222,6 +222,46 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path.startswith("/api/anycast/route"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "selected_pop": {
+                    "id": "iad",
+                    "name": "Ashburn IAD",
+                    "region": "us-east",
+                    "status": "healthy"
+                },
+                "estimated_latency_ms": 7.2,
+                "signed_routing_token": "py-anycast-token-123",
+                "timestamp": "2026-10-18T12:00:00Z"
+            }).encode())
+            return
+
+        if self.path == "/api/anycast/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "pop_count": 6,
+                "edge_routing_enabled": True,
+                "is_partitioned": False
+            }).encode())
+            return
+
+        if self.path == "/api/anycast/cache/stats":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "hits": 25,
+                "misses": 2,
+                "lookup_latency_us": 95.5,
+                "hit_ratio": 0.926
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -573,7 +613,28 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/anycast/probe":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "recorded"}).encode())
+            return
+
+        if self.path == "/api/anycast/verify":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "valid": True,
+                "license_key": "LIC-PY-ANYCAST",
+                "hwid_bound": "HWID-PY-01",
+                "tier": "enterprise",
+                "message": "Fast verify L1 cache hit"
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
+
 
 
 class TestSheetLicenseClient(unittest.TestCase):
@@ -836,6 +897,33 @@ class TestSheetLicenseClient(unittest.TestCase):
         status = client.get_enclave_status()
         self.assertEqual(status.get("telemetry", {}).get("verified_quotes"), 8)
         self.assertEqual(status.get("telemetry", {}).get("active_tunnels"), 2)
+
+    def test_anycast_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+
+        # 1. Anycast Route
+        route = client.get_anycast_route(lat=39.0438, lon=-77.4874, country="US")
+        self.assertEqual(route.get("selected_pop", {}).get("id"), "iad")
+        self.assertEqual(route.get("signed_routing_token"), "py-anycast-token-123")
+
+        # 2. Anycast Probe
+        probe_res = client.report_anycast_probe("iad", 7.2)
+        self.assertEqual(probe_res.get("status"), "recorded")
+
+        # 3. Anycast Status
+        status = client.get_anycast_status()
+        self.assertEqual(status.get("pop_count"), 6)
+        self.assertTrue(status.get("edge_routing_enabled"))
+
+        # 4. Edge Cache Stats
+        cache_stats = client.get_edge_cache_stats()
+        self.assertEqual(cache_stats.get("hits"), 25)
+        self.assertEqual(cache_stats.get("hit_ratio"), 0.926)
+
+        # 5. Fast Verify
+        fast_verify = client.fast_verify_license("LIC-PY-ANYCAST", "HWID-PY-01")
+        self.assertTrue(fast_verify.get("valid"))
+        self.assertEqual(fast_verify.get("tier"), "enterprise")
 
 
 if __name__ == "__main__":

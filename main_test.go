@@ -51,6 +51,7 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 	server.registerConsensusRoutes(apiMux)
 	server.registerStreamRoutes(apiMux, mux)
 	server.registerZKPRoutes(apiMux)
+	server.registerAnycastRoutes(apiMux)
 
 	return server, mux
 }
@@ -72,8 +73,8 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "1.6.0" {
-		t.Fatalf("expected version 1.6.0, got: %v", res["version"])
+	if res["version"] != "1.7.0" {
+		t.Fatalf("expected version 1.7.0, got: %v", res["version"])
 	}
 	if res["consensus"] == nil {
 		t.Fatalf("expected consensus telemetry in health response")
@@ -92,6 +93,9 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 	}
 	if res["enclave"] == nil {
 		t.Fatalf("expected enclave telemetry in health response")
+	}
+	if res["anycast"] == nil {
+		t.Fatalf("expected anycast telemetry in health response")
 	}
 }
 
