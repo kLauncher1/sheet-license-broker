@@ -573,6 +573,68 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url.startsWith('/api/anycast/route') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            selected_pop: {
+              id: 'iad',
+              name: 'Ashburn IAD',
+              region: 'us-east',
+              country: 'US',
+              status: 'healthy'
+            },
+            estimated_latency_ms: 8.5,
+            signed_routing_token: 'ts-signed-token-123',
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/anycast/probe' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'recorded' }));
+          return;
+        }
+
+        if (req.url === '/api/anycast/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            pop_count: 6,
+            edge_routing_enabled: true,
+            is_partitioned: false,
+            pops: [],
+            cache_stats: { hits: 10, misses: 1, revalidations: 0, lookup_latency_us: 120, cached_tier_entries: 5, hit_ratio: 0.909 },
+            partition_states: []
+          }));
+          return;
+        }
+
+        if (req.url === '/api/anycast/cache/stats' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            hits: 10,
+            misses: 1,
+            revalidations: 0,
+            lookup_latency_us: 120,
+            cached_tier_entries: 5,
+            hit_ratio: 0.909
+          }));
+          return;
+        }
+
+        if (req.url === '/api/anycast/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            valid: true,
+            license_key: 'LIC-ANYCAST-TS',
+            hwid_bound: 'HWID-TS-01',
+            tier: 'enterprise',
+            message: 'Fast verify L1 cache hit'
+          }));
+          return;
+        }
+
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -882,6 +944,30 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     assert.strictEqual(status.telemetry.verified_quotes, 12);
     assert.strictEqual(status.telemetry.active_tunnels, 3);
   });
+
+  it('queries anycast route, reports probe, queries status, edge cache stats, and fast verifies license', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const route = await client.getAnycastRoute({ lat: 39.0438, lon: -77.4874, country: 'US' });
+    assert.strictEqual(route.selected_pop.id, 'iad');
+    assert.strictEqual(route.signed_routing_token, 'ts-signed-token-123');
+
+    const probeRes = await client.reportAnycastProbe({ targetPopId: 'iad', rttLatencyMs: 12.5 });
+    assert.strictEqual(probeRes.status, 'recorded');
+
+    const status = await client.getAnycastStatus();
+    assert.strictEqual(status.pop_count, 6);
+    assert.strictEqual(status.edge_routing_enabled, true);
+
+    const cacheStats = await client.getEdgeCacheStats();
+    assert.strictEqual(cacheStats.hits, 10);
+    assert.strictEqual(cacheStats.hit_ratio, 0.909);
+
+    const fastVerify = await client.fastVerifyLicense('LIC-ANYCAST-TS', 'HWID-TS-01');
+    assert.strictEqual(fastVerify.valid, true);
+    assert.strictEqual(fastVerify.tier, 'enterprise');
+  });
 });
+
 
 

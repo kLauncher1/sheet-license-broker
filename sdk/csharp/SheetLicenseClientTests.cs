@@ -266,6 +266,31 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"telemetry\":{\"verified_quotes\":5,\"active_tunnels\":2,\"total_evaluations\":12,\"failed_attestations\":0},\"policies\":[]}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath.StartsWith("/api/anycast/route"))
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"selected_pop\":{\"id\":\"iad\",\"name\":\"Ashburn IAD\",\"region\":\"us-east\",\"status\":\"healthy\"},\"estimated_latency_ms\":8.5,\"signed_routing_token\":\"cs-anycast-token-123\",\"timestamp\":\"2026-10-18T12:00:00Z\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anycast/probe")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"recorded\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anycast/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"pop_count\":6,\"edge_routing_enabled\":true,\"is_partitioned\":false}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anycast/cache/stats")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"hits\":42,\"misses\":3,\"lookup_latency_us\":88.2,\"hit_ratio\":0.933}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/anycast/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"license_key\":\"LIC-CS-ANYCAST\",\"hwid_bound\":\"HWID-CS-01\",\"tier\":\"enterprise\",\"message\":\"Fast verify L1 cache hit\"}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -593,7 +618,40 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Enclave challenge, quote attestation, encrypted tunnel, evaluation, and status");
 
-                Console.WriteLine("=== All 19 C# Client Tests Passed Successfully! ===");
+                // Test 20: Geo-Distributed Anycast Edge Routing and Sub-Millisecond L1 Cache
+                string routeRaw = client.GetAnycastRouteAsync(38.9072, -77.0369, "198.51.100.1", "us-east").GetAwaiter().GetResult();
+                if (!routeRaw.Contains("iad") || !routeRaw.Contains("cs-anycast-token-123"))
+                {
+                    Console.Error.WriteLine("FAIL: Anycast route failed: " + routeRaw);
+                    return 1;
+                }
+                string probeRaw = client.ReportAnycastProbeAsync("iad", 8.5, 0.5, 0.0, "198.51.100.1").GetAwaiter().GetResult();
+                if (!probeRaw.Contains("recorded"))
+                {
+                    Console.Error.WriteLine("FAIL: Anycast probe report failed: " + probeRaw);
+                    return 1;
+                }
+                string anycastStatusRaw = client.GetAnycastStatusAsync().GetAwaiter().GetResult();
+                if (!anycastStatusRaw.Contains("pop_count") || !anycastStatusRaw.Contains("edge_routing_enabled"))
+                {
+                    Console.Error.WriteLine("FAIL: Anycast status failed: " + anycastStatusRaw);
+                    return 1;
+                }
+                string cacheStatsRaw = client.GetEdgeCacheStatsAsync().GetAwaiter().GetResult();
+                if (!cacheStatsRaw.Contains("lookup_latency_us") || !cacheStatsRaw.Contains("hits"))
+                {
+                    Console.Error.WriteLine("FAIL: Edge cache stats failed: " + cacheStatsRaw);
+                    return 1;
+                }
+                string fastVerifyRaw = client.FastVerifyLicenseAsync("LIC-CS-ANYCAST").GetAwaiter().GetResult();
+                if (!fastVerifyRaw.Contains("\"valid\":true") || !fastVerifyRaw.Contains("LIC-CS-ANYCAST"))
+                {
+                    Console.Error.WriteLine("FAIL: Fast verify license failed: " + fastVerifyRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Anycast route, probe, status, edge cache stats, and fast verify");
+
+                Console.WriteLine("=== All 20 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

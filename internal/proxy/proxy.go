@@ -26,6 +26,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/stream"
 	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
+	"github.com/kLauncher1/sheet-license-broker/internal/anycast"
 	"github.com/kLauncher1/sheet-license-broker/internal/zkp"
 )
 
@@ -59,6 +60,9 @@ type Proxy struct {
 	pqcManager         *pqc.PQCKeyManager
 	anomalyEngine      *anomaly.Engine
 	enclaveManager     *enclave.Manager
+	anycastRouter      *anycast.AnycastRouter
+	anycastCache       *anycast.SubMillisecondEdgeCache
+	partitionMitigator *anycast.PartitionMitigator
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -101,6 +105,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initPQC()
 	p.initAnomaly()
 	p.initEnclave()
+	p.initAnycast(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

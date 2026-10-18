@@ -606,6 +606,62 @@ class SheetLicenseClient:
         """Queries confidential computing operational telemetry and registered policies."""
         return self._request("GET", "/api/enclave/status")
 
+    def get_anycast_route(
+        self,
+        lat: float = 0.0,
+        lon: float = 0.0,
+        country: str = "",
+        region: str = "",
+    ) -> Dict[str, Any]:
+        """Queries the nearest edge Anycast Point of Presence based on coordinates, country, or region."""
+        params = []
+        if lat != 0.0 or lon != 0.0:
+            params.append(f"lat={lat}")
+            params.append(f"lon={lon}")
+        if country:
+            params.append(f"country={country}")
+        if region:
+            params.append(f"region={region}")
+        query = ("?" + "&".join(params)) if params else ""
+        return self._request("GET", f"/api/anycast/route{query}")
+
+    def report_anycast_probe(
+        self,
+        target_pop_id: str,
+        rtt_latency_ms: float,
+        source_region: str = "global",
+        source_ip: str = "",
+        packet_loss: float = 0.0,
+        jitter_ms: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Reports an edge latency and packet loss probe to the Anycast routing engine."""
+        payload = {
+            "target_pop_id": target_pop_id,
+            "rtt_latency_ms": rtt_latency_ms,
+            "source_region": source_region,
+            "source_ip": source_ip,
+            "packet_loss": packet_loss,
+            "jitter_ms": jitter_ms,
+        }
+        return self._request("POST", "/api/anycast/probe", payload)
+
+    def get_anycast_status(self) -> Dict[str, Any]:
+        """Retrieves overall Anycast status including POP health, partition isolation, and cache metrics."""
+        return self._request("GET", "/api/anycast/status")
+
+    def get_edge_cache_stats(self) -> Dict[str, Any]:
+        """Retrieves microsecond-level L1 edge cache performance telemetry."""
+        return self._request("GET", "/api/anycast/cache/stats")
+
+    def fast_verify_license(self, license_key: str, hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Executes a fast sub-millisecond license check against the edge L1 cache."""
+        machine_hwid = hwid or get_machine_hwid()
+        payload = {
+            "license_key": license_key,
+            "hwid": machine_hwid,
+        }
+        return self._request("POST", "/api/anycast/verify", payload)
+
 
 if __name__ == "__main__":
     import sys

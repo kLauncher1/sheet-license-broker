@@ -45,6 +45,10 @@ import type {
   EnclaveHandshakeResponse,
   EnclaveEncryptedMessage,
   EnclaveTelemetry,
+  AnycastPOP,
+  AnycastRoutingDecision,
+  EdgeCacheTelemetry,
+  AnycastStatusResponse,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -674,4 +678,70 @@ export class SheetLicenseClient {
   public async getEnclaveStatus(): Promise<{ telemetry: EnclaveTelemetry; policies: any[] }> {
     return this.request<{ telemetry: EnclaveTelemetry; policies: any[] }>('GET', '/api/enclave/status');
   }
+
+  /**
+   * Queries the nearest edge Anycast Point of Presence based on coordinates, country, or region.
+   */
+  public async getAnycastRoute(options?: {
+    lat?: number;
+    lon?: number;
+    country?: string;
+    region?: string;
+  }): Promise<AnycastRoutingDecision> {
+    const params = new URLSearchParams();
+    if (options?.lat !== undefined) params.set('lat', String(options.lat));
+    if (options?.lon !== undefined) params.set('lon', String(options.lon));
+    if (options?.country) params.set('country', options.country);
+    if (options?.region) params.set('region', options.region);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<AnycastRoutingDecision>('GET', `/api/anycast/route${query}`);
+  }
+
+  /**
+   * Reports an edge latency and packet loss probe to the Anycast routing engine.
+   */
+  public async reportAnycastProbe(probe: {
+    targetPopId: string;
+    rttLatencyMs: number;
+    sourceRegion?: string;
+    sourceIp?: string;
+    packetLoss?: number;
+    jitterMs?: number;
+  }): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('POST', '/api/anycast/probe', {
+      target_pop_id: probe.targetPopId,
+      rtt_latency_ms: probe.rttLatencyMs,
+      source_region: probe.sourceRegion || 'global',
+      source_ip: probe.sourceIp || '',
+      packet_loss: probe.packetLoss || 0,
+      jitter_ms: probe.jitterMs || 0,
+    });
+  }
+
+  /**
+   * Retrieves overall Anycast status including POP health, partition isolation, and cache metrics.
+   */
+  public async getAnycastStatus(): Promise<AnycastStatusResponse> {
+    return this.request<AnycastStatusResponse>('GET', '/api/anycast/status');
+  }
+
+  /**
+   * Retrieves microsecond-level L1 edge cache performance telemetry.
+   */
+  public async getEdgeCacheStats(): Promise<EdgeCacheTelemetry> {
+    return this.request<EdgeCacheTelemetry>('GET', '/api/anycast/cache/stats');
+  }
+
+  /**
+   * Executes a fast sub-millisecond license check against the edge L1 cache.
+   */
+  public async fastVerifyLicense(licenseKey: string, hwid?: string): Promise<LicenseValidationResponse> {
+    const machineHwid = hwid || (await getMachineHwid());
+    return this.request<LicenseValidationResponse>('POST', '/api/anycast/verify', {
+      license_key: licenseKey,
+      hwid: machineHwid,
+    });
+  }
 }
+

@@ -192,4 +192,23 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test('resolves nearest Anycast edge POP from coordinates or country header', async () => {
+    // 1. Query with Tokyo coordinates
+    const reqTokyo = new Request('https://edge.example.com/edge/anycast/route?lat=35.6762&lon=139.6503');
+    const respTokyo = await worker.fetch(reqTokyo, {});
+    assert.equal(respTokyo.status, 200);
+    const dataTokyo = await respTokyo.json();
+    assert.equal(dataTokyo.selected_pop.id, 'nrt');
+    assert.equal(respTokyo.headers.get('X-Edge-POP'), 'nrt');
+
+    // 2. Query with Germany country fallback
+    const reqDE = new Request('https://edge.example.com/edge/anycast/route?country=DE');
+    const respDE = await worker.fetch(reqDE, {});
+    assert.equal(respDE.status, 200);
+    const dataDE = await respDE.json();
+    assert.equal(dataDE.selected_pop.id, 'fra');
+    assert.equal(respDE.headers.get('X-Edge-POP'), 'fra');
+  });
 });
+

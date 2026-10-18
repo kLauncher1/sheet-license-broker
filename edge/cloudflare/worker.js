@@ -25,12 +25,17 @@ export default {
       });
     }
 
-    // 2. Intercept and accelerate license validation
+    // 2. Edge Anycast nearest-broker route lookup
+    if (url.pathname === '/edge/anycast/route' || url.pathname === '/api/anycast/route') {
+      return handleEdgeAnycastRoute(request, env);
+    }
+
+    // 3. Intercept and accelerate license validation
     if (url.pathname === '/api/licenses/validate' && request.method === 'POST') {
       return handleEdgeLicenseValidation(request, env);
     }
 
-    // 3. Forward all other routes to origin
+    // 4. Forward all other routes to origin
     return forwardToOrigin(request, env);
   }
 };
@@ -285,3 +290,75 @@ async function forwardToOrigin(request, env, preloadedBody = null) {
     });
   }
 }
+
+export const EDGE_POPS = [
+  { id: 'iad', name: 'Ashburn IAD', region: 'us-east', country: 'US', lat: 39.0438, lon: -77.4874 },
+  { id: 'sjc', name: 'San Jose SJC', region: 'us-west', country: 'US', lat: 37.3382, lon: -121.8863 },
+  { id: 'fra', name: 'Frankfurt FRA', region: 'eu-central', country: 'DE', lat: 50.1109, lon: 8.6821 },
+  { id: 'nrt', name: 'Tokyo NRT', region: 'ap-northeast', country: 'JP', lat: 35.7720, lon: 140.3929 },
+  { id: 'sin', name: 'Singapore SIN', region: 'ap-southeast', country: 'SG', lat: 1.3521, lon: 103.8198 },
+  { id: 'gru', name: 'Sao Paulo GRU', region: 'sa-east', country: 'BR', lat: -23.5505, lon: -46.6333 },
+];
+
+export function haversineDistanceKM(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export async function handleEdgeAnycastRoute(request, env) {
+  const url = new URL(request.url);
+  const q = url.searchParams;
+  let lat = parseFloat(q.get('lat') || request.cf?.latitude || 0);
+  let lon = parseFloat(q.get('lon') || request.cf?.longitude || 0);
+  const country = (q.get('country') || request.cf?.country || 'US').toUpperCase();
+  const colo = request.cf?.colo || 'EDGE';
+
+  if (!lat && !lon) {
+    if (country === 'JP') { lat = 35.6762; lon = 139.6503; }
+    else if (country === 'DE' || country === 'FR' || country === 'GB') { lat = 50.1109; lon = 8.6821; }
+    else if (country === 'SG') { lat = 1.3521; lon = 103.8198; }
+    else if (country === 'BR') { lat = -23.5505; lon = -46.6333; }
+    else { lat = 39.0438; lon = -77.4874; }
+  }
+
+  let bestPOP = EDGE_POPS[0];
+  let minDistance = Infinity;
+  for (const pop of EDGE_POPS) {
+    const d = haversineDistanceKM(lat, lon, pop.lat, pop.lon);
+    if (d < minDistance) {
+      minDistance = d;
+      bestPOP = pop;
+    }
+  }
+
+  const decision = {
+    selected_pop: {
+      id: bestPOP.id,
+      name: bestPOP.name,
+      region: bestPOP.region,
+      country: bestPOP.country,
+      status: 'healthy'
+    },
+    edge_colo: colo,
+    distance_km: Math.round(minDistance),
+    timestamp: new Date().toISOString()
+  };
+
+  return new Response(JSON.stringify(decision), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Edge-POP': bestPOP.id,
+      'X-Edge-Colo': colo,
+      'X-Edge-Country': country,
+      'X-Broker-Edge': 'cloudflare-worker'
+    }
+  });
+}
+

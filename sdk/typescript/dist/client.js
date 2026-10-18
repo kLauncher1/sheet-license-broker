@@ -468,4 +468,42 @@ export class SheetLicenseClient {
   async getEnclaveStatus() {
     return this.request('GET', '/api/enclave/status');
   }
+
+  async getAnycastRoute(options) {
+    const params = new URLSearchParams();
+    if (options?.lat !== undefined) params.set('lat', String(options.lat));
+    if (options?.lon !== undefined) params.set('lon', String(options.lon));
+    if (options?.country) params.set('country', options.country);
+    if (options?.region) params.set('region', options.region);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request('GET', `/api/anycast/route${query}`);
+  }
+
+  async reportAnycastProbe(probe) {
+    return this.request('POST', '/api/anycast/probe', {
+      target_pop_id: probe.targetPopId,
+      rtt_latency_ms: probe.rttLatencyMs,
+      source_region: probe.sourceRegion || 'global',
+      source_ip: probe.sourceIp || '',
+      packet_loss: probe.packetLoss || 0,
+      jitter_ms: probe.jitterMs || 0,
+    });
+  }
+
+  async getAnycastStatus() {
+    return this.request('GET', '/api/anycast/status');
+  }
+
+  async getEdgeCacheStats() {
+    return this.request('GET', '/api/anycast/cache/stats');
+  }
+
+  async fastVerifyLicense(licenseKey, hwid) {
+    const machineHwid = hwid || (await getMachineHwid());
+    return this.request('POST', '/api/anycast/verify', {
+      license_key: licenseKey,
+      hwid: machineHwid,
+    });
+  }
 }

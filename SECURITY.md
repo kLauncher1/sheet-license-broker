@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.7.x   | :white_check_mark: |
 | 1.6.x   | :white_check_mark: |
 | 1.5.x   | :white_check_mark: |
 | 1.4.x   | :white_check_mark: |
@@ -132,6 +133,11 @@
     - **Memory-Barrier Zeroization**: Sensitive cryptographic credentials, ephemeral private keys, and intermediate plaintexts are managed inside `SecureBuffer` wrappers with deterministic zeroing on disposal (`Destroy()`). Memory buffers are compared using constant-time equality checks (`subtle.ConstantTimeCompare`) to mitigate side-channel timing leaks.
     - **Ephemeral Forward Secrecy**: Tunnels negotiate single-use NIST P-256 elliptic curve keys combined via RFC 5869 HKDF Extract-and-Expand with SHA-256. All communications are sealed with authenticated AES-256-GCM encryption.
     - **Monotonic Replay Sequence Guards**: 64-bit strictly monotonic sequence counters reject duplicate or out-of-order encrypted payloads within each active tunnel session.
+
+23. **Geo-Distributed Anycast Edge Routing & Partition Mitigation Security**:
+    - **Signed Routing Tokens**: Anycast routing decisions generate HMAC-SHA256 tokens encoding selected POP, client IP, coordinates, and expiration timestamps. In-memory and edge verifiers validate tokens with constant-time comparison (`subtle.ConstantTimeCompare`) to prevent forged edge affinity claims.
+    - **Sub-Millisecond L1 Cache Invariants**: Cached license entitlements enforce atomic thread-safe access with monotonic TTL clocks. Asynchronous Stale-While-Revalidate (SWR) background refreshes ensure clients never experience cache stampedes while ensuring evicted or revoked licenses are cleared within seconds.
+    - **Partition Tolerance & Offline Emergency Leases**: During cloud network partitions or upstream outages, the partition mitigator issues cryptographically signed emergency lease tokens (`EmergencyLeaseToken`) with bounded validity, preventing client lockouts while recording all emergency events for automatic reconciliation when connectivity is restored.
 
 ## Reporting a Vulnerability
 

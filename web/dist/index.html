@@ -256,6 +256,7 @@
       <button class="tab-btn" id="tab-btn-pqc" onclick="switchTab('pqc')">Post-Quantum Cryptography (PQC)</button>
       <button class="tab-btn" id="tab-btn-anomaly" onclick="switchTab('anomaly')">Behavioral Anomaly & Risk</button>
       <button class="tab-btn" id="tab-btn-enclave" onclick="switchTab('enclave')">Confidential Enclaves</button>
+      <button class="tab-btn" id="tab-btn-anycast" onclick="switchTab('anycast')">Geo Anycast & Edge CDN</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -999,6 +1000,84 @@
 
       <div id="enclave-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 16: Geo Anycast & Edge CDN -->
+    <div id="panel-anycast" style="display: none;">
+      <div class="grid-stats">
+        <div class="card">
+          <div class="card-title">Edge POP Nodes</div>
+          <div class="card-value" id="val-anycast-pops" style="color: var(--accent-green);">6 / 6</div>
+          <div class="card-subtext">Global Anycast PoPs</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Routing Engine</div>
+          <div class="card-value" id="val-anycast-routing" style="color: var(--accent-blue);">Active</div>
+          <div class="card-subtext">Haversine + Weighted RTT</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sub-ms L1 Cache</div>
+          <div class="card-value" id="val-anycast-cache-hits" style="color: #c084fc;">0 (0.0%)</div>
+          <div class="card-subtext">SWR Background Revalidation</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Lookup Latency</div>
+          <div class="card-value" id="val-anycast-latency" style="color: #38bdf8;">-- µs</div>
+          <div class="card-subtext">In-Memory Cache Speed</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Partition Tolerance</div>
+          <div class="card-value" id="val-anycast-partition" style="color: var(--accent-green);">Normal</div>
+          <div class="card-subtext">HMAC Emergency Leases</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="btn-action" onclick="promptSimulateAnycastRoute()">🌐 Simulate Geo Route</button>
+        <button class="btn-action btn-secondary" onclick="promptReportAnycastProbe()">⚡ Ingest Latency Probe</button>
+        <button class="btn-action btn-secondary" onclick="promptFastVerifyLicense()">⚡ Fast-Verify License (L1)</button>
+        <button class="btn-action btn-secondary" onclick="promptSimulatePartition()">🛡️ Partition Mitigation</button>
+        <button class="btn-action btn-secondary" onclick="refreshAnycastTab()">🔄 Refresh Anycast Telemetry</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <div class="panel-title">🌐 Geo-Distributed Anycast Edge Routing &amp; Sub-Millisecond L1 Cache</div>
+        <div class="panel-desc">
+          Dispatches global license verifications to the nearest healthy Point of Presence (POP) using Haversine spherical distance and dynamic active RTT telemetry.
+          Sub-millisecond in-memory L1 cache serves license lookups under 100 microseconds with asynchronous Stale-While-Revalidate (SWR).
+          During network partitions or upstream cloud outages, local emergency leases are generated with HMAC-SHA256 signatures, ensuring zero customer downtime.
+        </div>
+        <div style="display: flex; gap: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+          <div><span style="color: #34d399;">● Ashburn (IAD):</span> us-east</div>
+          <div><span style="color: #38bdf8;">● San Jose (SJC):</span> us-west</div>
+          <div><span style="color: #60a5fa;">● Frankfurt (FRA):</span> eu-central</div>
+          <div><span style="color: #f472b6;">● Tokyo (NRT):</span> ap-northeast</div>
+          <div><span style="color: #fbbf24;">● Singapore (SIN):</span> ap-southeast</div>
+          <div><span style="color: #a78bfa;">● Sao Paulo (GRU):</span> sa-east</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Global Point of Presence (POP) Registry</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>POP ID</th>
+            <th>Name</th>
+            <th>Region</th>
+            <th>Country / Lat, Lon</th>
+            <th>Endpoint URL</th>
+            <th>Weight</th>
+            <th>Avg RTT</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="anycast-pops-body">
+          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading global POPs...</td></tr>
+        </tbody>
+      </table>
+
+      <div id="anycast-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1006,7 +1085,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1027,6 +1106,7 @@
       document.getElementById('panel-pqc').style.display = tab === 'pqc' ? 'block' : 'none';
       document.getElementById('panel-anomaly').style.display = tab === 'anomaly' ? 'block' : 'none';
       document.getElementById('panel-enclave').style.display = tab === 'enclave' ? 'block' : 'none';
+      document.getElementById('panel-anycast').style.display = tab === 'anycast' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1045,6 +1125,7 @@
       if (tab === 'pqc') refreshPQCTab();
       if (tab === 'anomaly') refreshAnomalyTab();
       if (tab === 'enclave') refreshEnclaveTab();
+      if (tab === 'anycast') refreshAnycastTab();
     }
 
     async function refresh() {
@@ -2647,6 +2728,171 @@
         refreshEnclaveTab();
       } catch (e) {
         out.textContent = 'Policy registration failed: ' + e.message;
+      }
+    }
+
+    async function refreshAnycastTab() {
+      try {
+        const [statusRes, popsRes, cacheRes] = await Promise.all([
+          fetch('/api/anycast/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/anycast/pops').then(r => r.json()).catch(() => []),
+          fetch('/api/anycast/cache/stats').then(r => r.json()).catch(() => ({}))
+        ]);
+
+        const popList = Array.isArray(popsRes) ? popsRes : (statusRes.pops || []);
+        const totalPops = popList.length || statusRes.pop_count || 6;
+        const healthyPops = popList.filter(p => p.status === 'healthy').length || totalPops;
+
+        const valPops = document.getElementById('val-anycast-pops');
+        if (valPops) valPops.textContent = `${healthyPops} / ${totalPops}`;
+
+        const valRouting = document.getElementById('val-anycast-routing');
+        if (valRouting) {
+          valRouting.textContent = statusRes.edge_routing_enabled ? 'Active' : 'Disabled';
+          valRouting.style.color = statusRes.edge_routing_enabled ? 'var(--accent-blue)' : 'var(--accent-red)';
+        }
+
+        const valCache = document.getElementById('val-anycast-cache-hits');
+        if (valCache && cacheRes.hits !== undefined) {
+          const ratioPct = ((cacheRes.hit_ratio || 0) * 100).toFixed(1);
+          valCache.textContent = `${cacheRes.hits || 0} (${ratioPct}%)`;
+        }
+
+        const valLatency = document.getElementById('val-anycast-latency');
+        if (valLatency && cacheRes.lookup_latency_us !== undefined) {
+          valLatency.textContent = `${(cacheRes.lookup_latency_us || 0).toFixed(1)} µs`;
+        }
+
+        const valPart = document.getElementById('val-anycast-partition');
+        if (valPart) {
+          const isPart = statusRes.is_partitioned || false;
+          valPart.textContent = isPart ? 'Partitioned (Mitigated)' : 'Normal';
+          valPart.style.color = isPart ? 'var(--accent-amber)' : 'var(--accent-green)';
+        }
+
+        const tbody = document.getElementById('anycast-pops-body');
+        if (tbody) {
+          if (popList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 16px;">No POPs registered.</td></tr>';
+          } else {
+            tbody.innerHTML = popList.map(p => `
+              <tr>
+                <td><strong>${escapeHtml(p.id)}</strong></td>
+                <td>${escapeHtml(p.name)}</td>
+                <td><span class="pill" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${escapeHtml(p.region)}</span></td>
+                <td style="font-family: monospace; font-size: 11px;">${p.country || ''} (${p.latitude ? p.latitude.toFixed(2) : ''}, ${p.longitude ? p.longitude.toFixed(2) : ''})</td>
+                <td style="font-family: monospace; font-size: 11px; max-width: 180px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(p.endpoint_url || '')}</td>
+                <td>${p.weight || 100}</td>
+                <td><span style="color: ${p.avg_rtt_ms < 50 ? '#10b981' : p.avg_rtt_ms < 150 ? '#f59e0b' : '#ef4444'}; font-weight: 600;">${p.avg_rtt_ms ? p.avg_rtt_ms.toFixed(1) + ' ms' : '--'}</span></td>
+                <td><span class="pill pill-${p.status === 'healthy' ? 'active' : 'revoked'}">${escapeHtml(p.status)}</span></td>
+                <td><button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="promptSendProbeForPop('${escapeHtml(p.id)}')">Probe</button></td>
+              </tr>
+            `).join('');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to refresh anycast telemetry:', e);
+      }
+    }
+
+    async function promptSimulateAnycastRoute() {
+      const latStr = prompt('Enter client latitude (-90 to 90):', '37.7749') || '37.7749';
+      const lonStr = prompt('Enter client longitude (-180 to 180):', '-122.4194') || '-122.4194';
+      const ip = prompt('Enter optional client IP address:', '198.51.100.1') || '';
+      const region = prompt('Enter optional preferred region (e.g. us-west, eu-central, ap-northeast):', '') || '';
+
+      const out = document.getElementById('anycast-output');
+      out.style.display = 'block';
+      out.textContent = 'Calculating optimal nearest POP via Haversine and dynamic latency telemetry...';
+
+      try {
+        const url = `/api/anycast/route?lat=${encodeURIComponent(latStr)}&lon=${encodeURIComponent(lonStr)}&ip=${encodeURIComponent(ip)}&region=${encodeURIComponent(region)}`;
+        const res = await fetch(url).then(r => r.json());
+        out.textContent = 'Geo Anycast Routing Decision:\n\n' + JSON.stringify(res, null, 2);
+        refreshAnycastTab();
+      } catch (e) {
+        out.textContent = 'Anycast routing failed: ' + e.message;
+      }
+    }
+
+    async function promptSendProbeForPop(popId) {
+      const rttStr = prompt(`Enter measured RTT latency in milliseconds for POP [${popId}]:`, '24.5') || '24.5';
+      const jitterStr = prompt('Enter measured jitter in ms:', '1.2') || '1.2';
+      const lossStr = prompt('Enter measured packet loss percentage (0.0 to 1.0):', '0.0') || '0.0';
+
+      try {
+        await fetch('/api/anycast/probe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target_pop_id: popId,
+            rtt_ms: parseFloat(rttStr) || 0,
+            jitter_ms: parseFloat(jitterStr) || 0,
+            packet_loss: parseFloat(lossStr) || 0,
+            source_ip: '127.0.0.1'
+          })
+        });
+        refreshAnycastTab();
+      } catch (e) {
+        alert('Probe report failed: ' + e.message);
+      }
+    }
+
+    async function promptReportAnycastProbe() {
+      const popId = prompt('Enter Target POP ID (iad, sjc, fra, nrt, sin, gru):', 'sjc') || 'sjc';
+      await promptSendProbeForPop(popId);
+    }
+
+    async function promptFastVerifyLicense() {
+      const key = prompt('Enter License Key for Sub-Millisecond L1 Cache Verification:', 'LIC-TEST-001');
+      if (!key) return;
+      const pop = prompt('Enter preferred Edge POP ID (optional, e.g. iad):', '') || '';
+
+      const out = document.getElementById('anycast-output');
+      out.style.display = 'block';
+      out.textContent = 'Executing sub-millisecond edge cache verification with partition mitigation...';
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch('/api/anycast/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: key.trim(),
+            preferred_pop: pop.trim()
+          })
+        }).then(r => r.json());
+        const tDiff = (performance.now() - t0).toFixed(2);
+
+        out.textContent = `Fast Verify Result (Roundtrip: ${tDiff} ms):\n\n` + JSON.stringify(res, null, 2);
+        refreshAnycastTab();
+      } catch (e) {
+        out.textContent = 'Fast verify failed: ' + e.message;
+      }
+    }
+
+    async function promptSimulatePartition() {
+      const region = prompt('Enter Region ID to simulate partition (e.g. us-east, eu-central, ap-northeast):', 'us-east') || 'us-east';
+      const isPart = confirm(`Simulate network partition for region [${region}]?\n\nOK = Disconnect / Partitioned\nCancel = Reconnect / Normal`);
+
+      const out = document.getElementById('anycast-output');
+      out.style.display = 'block';
+      out.textContent = `Updating network partition state for [${region}]...`;
+
+      try {
+        const res = await fetch('/api/anycast/partition/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            region: region.trim(),
+            partitioned: isPart
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Partition State Updated:\n\n' + JSON.stringify(res, null, 2);
+        refreshAnycastTab();
+      } catch (e) {
+        out.textContent = 'Partition simulation failed: ' + e.message;
       }
     }
 
