@@ -143,10 +143,15 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
 - [x] Embedded admin console Geo Anycast & Edge CDN interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 18: Zero-Trust Ephemeral Peer Mesh & Mutual TLS Enclave Mesh (v1.8.0)
-- [ ] Strict mutual TLS (mTLS) with automated X.509 certificate rotation for broker-to-broker RPC
-- [ ] Ephemeral WireGuard/Noise protocol encrypted overlay mesh across cloud providers
-- [ ] Hardware-enforced mTLS key storage in hardware security modules (HSM) and cloud KMS
+## Phase 18: Automated License Reseller & Marketplace Webhooks Bridge (v1.8.0) - Completed
+- [x] Stripe, Lemon Squeezy, and Paddle webhook listeners with constant-time HMAC signature verification and timestamp drift protection (`internal/marketplace/verifier.go`)
+- [x] Universal payload normalizer mapping heterogeneous webhooks to uniform event actions (`internal/marketplace/normalizer.go`)
+- [x] Thread-safe LRU / capacity-bounded idempotency cache preventing duplicate event processing (`internal/marketplace/idempotency.go`)
+- [x] Webhook coordinator orchestrating automated tier provisioning and seat-count scaling (`internal/marketplace/manager.go`)
+- [x] Zero-touch refund deauthorization and key invalidation coupled with real-time SSE stream kill-switch pushes (`internal/proxy/marketplace.go`)
+- [x] Dedicated marketplace REST endpoints (`/api/marketplace/*`), GAS audit sheets (`Marketplace_Transactions`), and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
+- [x] Embedded admin console Marketplace & Resellers interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 19: High-Throughput Batch Issuance & Bulk Entitlement Sharding (v1.9.0)
 - [ ] High-throughput bulk license generation pipeline (>10,000 licenses/sec)
@@ -227,3 +232,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Zero-knowledge range proofs for selective disclosure of licensing compliance metrics
 - [ ] Blinded cryptographic audit attestations without disclosing client identifiers or raw logs
 - [ ] Verifiable compliance certificates compatible with ISO 27001 and SOC 2 Type II frameworks
+
+## Phase 35: Autonomous AI-Driven Anomaly Defense & Adaptive Cryptographic Honeytokens (v3.5.0)
+- [ ] Synthetic license honeytoken injection for automated credential scraper traps
+- [ ] Behavioral entropy scoring for automated client blacklisting
+- [ ] Real-time cryptographic forensic chain generation on active reverse-engineering attacks
+
+## Phase 36: Quantum-Resistant Stateful Hash-Based Signatures & LMS/HSS Verification (v3.6.0)
+- [ ] NIST SP 800-208 Leighton-Micali Signature (LMS) and Hierarchical Signature System (HSS) stateful hash-based signature engine
+- [ ] Immutable hardware-attested firmware and license package signing
+- [ ] Real-time zero-downtime key state synchronization across high-availability clusters
+

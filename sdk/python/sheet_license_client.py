@@ -662,6 +662,54 @@ class SheetLicenseClient:
         }
         return self._request("POST", "/api/anycast/verify", payload)
 
+    def get_marketplace_status(self) -> Dict[str, Any]:
+        """Retrieves diagnostic telemetry from the automated marketplace webhooks bridge."""
+        return self._request("GET", "/api/marketplace/status")
+
+    def simulate_marketplace_webhook(
+        self,
+        customer_email: str,
+        provider: str = "stripe",
+        action: str = "provision",
+        tier: str = "pro",
+        seats: int = 1,
+        days_valid: int = 30,
+        order_id: str = "",
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Sends a synthetic purchase or cancellation webhook to test automated provisioning."""
+        payload = {
+            "provider": provider,
+            "action": action,
+            "customer_email": customer_email,
+            "tier": tier,
+            "seats": seats,
+            "days_valid": days_valid,
+            "order_id": order_id,
+            "metadata": metadata or {},
+        }
+        return self._request("POST", "/api/marketplace/simulate", payload)
+
+    def list_marketplace_transactions(
+        self,
+        provider: Optional[str] = None,
+        customer_email: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieves the transaction audit ledger of processed marketplace webhook events."""
+        params = []
+        if provider:
+            params.append(f"provider={urllib.parse.quote(provider)}")
+        if customer_email:
+            params.append(f"customer_email={urllib.parse.quote(customer_email)}")
+        if status:
+            params.append(f"status={urllib.parse.quote(status)}")
+        if limit is not None and limit > 0:
+            params.append(f"limit={limit}")
+        qs = ("?" + "&".join(params)) if params else ""
+        return self._request("GET", f"/api/marketplace/transactions{qs}")
+
 
 if __name__ == "__main__":
     import sys

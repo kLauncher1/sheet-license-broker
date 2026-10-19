@@ -262,6 +262,38 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/marketplace/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "enabled": True,
+                "supported_providers": ["stripe", "lemonsqueezy", "paddle"],
+                "total_processed_events": 8,
+                "total_provisioned": 5,
+                "stripe_configured": True,
+            }).encode())
+            return
+
+        if self.path == "/api/marketplace/transactions":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps([
+                {
+                    "id": "tx_py_101",
+                    "event_id": "sim_py_1",
+                    "provider": "stripe",
+                    "action": "provision",
+                    "customer_email": "py_buyer@test.com",
+                    "license_key": "KEY-PY-MKT-1",
+                    "tier": "enterprise",
+                    "seats": 3,
+                    "status": "PROVISIONED",
+                }
+            ]).encode())
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -633,6 +665,26 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
+        if self.path == "/api/marketplace/simulate":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "transaction": {
+                    "id": "tx_py_101",
+                    "event_id": "sim_py_1",
+                    "provider": "stripe",
+                    "action": "provision",
+                    "customer_email": "py_buyer@test.com",
+                    "license_key": "KEY-PY-MKT-1",
+                    "tier": "enterprise",
+                    "seats": 3,
+                    "status": "PROVISIONED",
+                }
+            }).encode())
+            return
+
         self.send_error(404, "Not Found")
 
 
@@ -924,6 +976,32 @@ class TestSheetLicenseClient(unittest.TestCase):
         fast_verify = client.fast_verify_license("LIC-PY-ANYCAST", "HWID-PY-01")
         self.assertTrue(fast_verify.get("valid"))
         self.assertEqual(fast_verify.get("tier"), "enterprise")
+
+    def test_marketplace_workflow(self):
+        client = SheetLicenseClient(self.base_url)
+
+        # 1. Marketplace Status
+        status = client.get_marketplace_status()
+        self.assertTrue(status.get("enabled"))
+        self.assertEqual(status.get("total_provisioned"), 5)
+        self.assertTrue(status.get("stripe_configured"))
+
+        # 2. Simulate Webhook
+        sim_res = client.simulate_marketplace_webhook(
+            customer_email="py_buyer@test.com",
+            provider="stripe",
+            tier="enterprise",
+            seats=3,
+        )
+        self.assertEqual(sim_res.get("status"), "success")
+        tx = sim_res.get("transaction", {})
+        self.assertEqual(tx.get("license_key"), "KEY-PY-MKT-1")
+        self.assertEqual(tx.get("status"), "PROVISIONED")
+
+        # 3. List Transactions
+        tx_list = client.list_marketplace_transactions()
+        self.assertEqual(len(tx_list), 1)
+        self.assertEqual(tx_list[0].get("customer_email"), "py_buyer@test.com")
 
 
 if __name__ == "__main__":

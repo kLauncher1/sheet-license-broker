@@ -27,4 +27,9 @@ export type {
   ZKPStatusResponse,
   ZKPVerificationResult,
   ZKPVerifyResponse,
+  MarketplaceTransaction,
+  MarketplaceStatus,
+  MarketplaceSimulateRequest,
+  MarketplaceSimulateResponse,
+  MarketplaceTransactionFilter,
 } from './types.js';

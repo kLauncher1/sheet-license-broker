@@ -634,6 +634,64 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/marketplace/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            enabled: true,
+            supported_providers: ['stripe', 'lemonsqueezy', 'paddle'],
+            total_processed_events: 5,
+            total_provisioned: 3,
+            total_revoked: 1,
+            total_duplicates: 1,
+            total_failed: 0,
+            recent_transactions: 3,
+            stripe_configured: true,
+            lemon_squeezy_configured: true,
+            paddle_configured: true,
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/marketplace/simulate' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            event: { provider: 'stripe', action: 'provision' },
+            transaction: {
+              id: 'tx_ts_123',
+              event_id: 'sim_ts_1',
+              provider: 'stripe',
+              action: 'provision',
+              customer_email: 'ts_buyer@example.com',
+              license_key: 'KEY-TS-MKT-01',
+              tier: 'enterprise',
+              seats: 4,
+              status: 'PROVISIONED',
+              processed_at: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/marketplace/transactions' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify([
+            {
+              id: 'tx_ts_123',
+              event_id: 'sim_ts_1',
+              provider: 'stripe',
+              action: 'provision',
+              customer_email: 'ts_buyer@example.com',
+              license_key: 'KEY-TS-MKT-01',
+              tier: 'enterprise',
+              seats: 4,
+              status: 'PROVISIONED',
+              processed_at: new Date().toISOString()
+            }
+          ]));
+          return;
+        }
 
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
@@ -966,6 +1024,30 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const fastVerify = await client.fastVerifyLicense('LIC-ANYCAST-TS', 'HWID-TS-01');
     assert.strictEqual(fastVerify.valid, true);
     assert.strictEqual(fastVerify.tier, 'enterprise');
+  });
+
+  it('queries marketplace status, simulates webhook, and lists transactions', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const status = await client.getMarketplaceStatus();
+    assert.strictEqual(status.enabled, true);
+    assert.strictEqual(status.total_provisioned, 3);
+    assert.strictEqual(status.stripe_configured, true);
+
+    const simRes = await client.simulateMarketplaceWebhook({
+      provider: 'stripe',
+      action: 'provision',
+      customer_email: 'ts_buyer@example.com',
+      tier: 'enterprise',
+      seats: 4,
+    });
+    assert.strictEqual(simRes.status, 'success');
+    assert.strictEqual(simRes.transaction.license_key, 'KEY-TS-MKT-01');
+    assert.strictEqual(simRes.transaction.status, 'PROVISIONED');
+
+    const txList = await client.listMarketplaceTransactions();
+    assert.strictEqual(txList.length, 1);
+    assert.strictEqual(txList[0].customer_email, 'ts_buyer@example.com');
   });
 });
 

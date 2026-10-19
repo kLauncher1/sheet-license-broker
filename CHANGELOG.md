@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-10-19
+
+### Added
+- Automated License Reseller & Marketplace Webhooks Bridge (`internal/marketplace/types.go`, `internal/marketplace/verifier.go`, `internal/marketplace/normalizer.go`, `internal/marketplace/idempotency.go`, `internal/marketplace/manager.go`, `internal/marketplace/marketplace_test.go`) implemented in pure Go standard library with zero external dependencies.
+- Constant-time HMAC signature verification for Stripe (`Stripe-Signature: t=...,v1=...`), Lemon Squeezy (`X-Signature: <hex>`), and Paddle Billing (`Paddle-Signature: ts=...;h1=...`) with `crypto/subtle.ConstantTimeCompare` and `hmac.Equal` to defeat timing side-channel attacks.
+- Anti-replay timestamp clock drift protection rejecting inbound webhooks outside a configurable &plusmn;300-second window.
+- Thread-safe, capacity-bounded LRU idempotency cache (`IdempotencyCache`) preventing duplicate webhook processing during reseller network retries.
+- Webhook normalizer converting heterogeneous provider event payloads into uniform actions (`provision`, `revoke`, `refund`, `renew`) with automatic customer email and seat tier parsing.
+- Webhook manager orchestrating customer-to-license mapping, automated license generation, and instant license revocation callbacks.
+- Integrated SSE stream kill-switch pushes (`stream_revocation`) during refund and cancellation events, instantly terminating running client sessions in real-time.
+- Proxy integration layer (`internal/proxy/marketplace.go`, `internal/proxy/marketplace_test.go`) and dedicated modular REST router (`routes_marketplace.go`, `routes_marketplace_test.go`) exposing `/api/marketplace/webhook/stripe`, `/api/marketplace/webhook/lemonsqueezy`, `/api/marketplace/webhook/paddle`, `/api/marketplace/webhook/:provider`, `/api/marketplace/status`, `/api/marketplace/transactions`, and `/api/marketplace/simulate`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and logging for `Marketplace_Transactions` sheet, with `marketplace_record_transaction`, `marketplace_list_transactions`, and `marketplace_get_status` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/marketplace.go`, `sdk/go/marketplace_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) adding marketplace status inspection, webhook simulation, and transaction ledger querying with 100% test coverage.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Marketplace & Resellers" tab with provider status cards, interactive webhook simulator, endpoint guidance, and real-time transaction ledger.
+- Version bump to 1.8.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.7.0] - 2026-10-18
 
 ### Added

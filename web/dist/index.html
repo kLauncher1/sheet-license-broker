@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v1.6.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v1.8.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -202,6 +202,8 @@
       <span id="backend-badge">Backend: Detecting...</span>
       <span>•</span>
       <span id="security-badge" style="color: var(--accent-blue);">HMAC Anti-Tamper: Active</span>
+      <span>•</span>
+      <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
       <span>•</span>
@@ -257,6 +259,7 @@
       <button class="tab-btn" id="tab-btn-anomaly" onclick="switchTab('anomaly')">Behavioral Anomaly & Risk</button>
       <button class="tab-btn" id="tab-btn-enclave" onclick="switchTab('enclave')">Confidential Enclaves</button>
       <button class="tab-btn" id="tab-btn-anycast" onclick="switchTab('anycast')">Geo Anycast & Edge CDN</button>
+      <button class="tab-btn" id="tab-btn-marketplace" onclick="switchTab('marketplace')">Marketplace & Resellers</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1078,6 +1081,80 @@
 
       <div id="anycast-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 17: Marketplace & Resellers -->
+    <div id="panel-marketplace" style="display: none;">
+      <div class="grid-stats">
+        <div class="card">
+          <div class="card-title">Total Transactions</div>
+          <div class="card-value" id="val-marketplace-total" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">Verified Webhooks</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Stripe</div>
+          <div class="card-value" id="val-marketplace-stripe" style="color: #635bff;">Active</div>
+          <div class="card-subtext">Signature: t=...,v1=...</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Lemon Squeezy</div>
+          <div class="card-value" id="val-marketplace-lemon" style="color: #facc15;">Active</div>
+          <div class="card-subtext">X-Signature: HMAC-SHA256</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Paddle Billing</div>
+          <div class="card-value" id="val-marketplace-paddle" style="color: #38bdf8;">Active</div>
+          <div class="card-subtext">Paddle-Signature: ts=...;h1=...</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Idempotency Cache</div>
+          <div class="card-value" id="val-marketplace-cache" style="color: #a78bfa;">10,000</div>
+          <div class="card-subtext">Bounded Replay Defense</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="btn-action" onclick="promptSimulateWebhook()">⚡ Simulate Inbound Webhook</button>
+        <button class="btn-action btn-secondary" onclick="showWebhookEndpoints()">📋 Webhook Endpoints</button>
+        <button class="btn-action btn-secondary" onclick="refreshMarketplaceTab()">🔄 Refresh Transactions</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <div class="panel-title">🛒 Marketplace &amp; Reseller Webhooks Bridge (v1.8.0)</div>
+        <div class="panel-desc">
+          Automated payment and subscription lifecycle management for Stripe, Lemon Squeezy, and Paddle.
+          Inbound webhooks undergo constant-time HMAC signature verification (<code>crypto/subtle.ConstantTimeCompare</code> / <code>hmac.Equal</code>),
+          timestamp replay drift mitigation (&plusmn;300s window), and thread-safe LRU idempotency caching.
+          Successful purchases auto-provision licenses with instant tier and seat allocation; refunds, cancellations, and disputes trigger automated license revocation
+          coupled with zero-latency Server-Sent Events (SSE) stream kill-switch pushes to sever running client sessions instantly.
+        </div>
+        <div style="display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+          <div><span style="color: #635bff;">● Stripe:</span> <code>/api/marketplace/webhook/stripe</code></div>
+          <div><span style="color: #facc15;">● Lemon Squeezy:</span> <code>/api/marketplace/webhook/lemonsqueezy</code></div>
+          <div><span style="color: #38bdf8;">● Paddle:</span> <code>/api/marketplace/webhook/paddle</code></div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Marketplace Transaction Ledger</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Tx ID</th>
+            <th>Provider</th>
+            <th>Event Action</th>
+            <th>Customer Email</th>
+            <th>License Key</th>
+            <th>Tier / Seats</th>
+            <th>Status</th>
+            <th>Processed At</th>
+          </tr>
+        </thead>
+        <tbody id="marketplace-tx-body">
+          <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading marketplace transactions...</td></tr>
+        </tbody>
+      </table>
+
+      <div id="marketplace-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1085,7 +1162,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1107,6 +1184,7 @@
       document.getElementById('panel-anomaly').style.display = tab === 'anomaly' ? 'block' : 'none';
       document.getElementById('panel-enclave').style.display = tab === 'enclave' ? 'block' : 'none';
       document.getElementById('panel-anycast').style.display = tab === 'anycast' ? 'block' : 'none';
+      document.getElementById('panel-marketplace').style.display = tab === 'marketplace' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1126,6 +1204,7 @@
       if (tab === 'anomaly') refreshAnomalyTab();
       if (tab === 'enclave') refreshEnclaveTab();
       if (tab === 'anycast') refreshAnycastTab();
+      if (tab === 'marketplace') refreshMarketplaceTab();
     }
 
     async function refresh() {
@@ -1157,6 +1236,15 @@
         if (health && health.pqc) {
           const algo = health.pqc.primary_algorithm || 'ML-DSA-65';
           document.getElementById('pqc-badge').textContent = `PQC: ${algo} Active`;
+        }
+
+        if (health && health.marketplace) {
+          const m = health.marketplace;
+          const activeCount = [m.stripe_configured, m.lemon_squeezy_configured, m.paddle_configured].filter(Boolean).length;
+          const mb = document.getElementById('marketplace-badge');
+          if (mb) {
+            mb.textContent = `Marketplaces: ${activeCount}/3 Active`;
+          }
         }
 
         const tbody = document.getElementById('licenses-body');
@@ -2894,6 +2982,108 @@
       } catch (e) {
         out.textContent = 'Partition simulation failed: ' + e.message;
       }
+    }
+
+    async function refreshMarketplaceTab() {
+      try {
+        const [statusRes, txRes] = await Promise.all([
+          fetch('/api/marketplace/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/marketplace/transactions?limit=50').then(r => r.json()).catch(() => ([]))
+        ]);
+
+        if (statusRes && (statusRes.status === 'success' || statusRes.enabled !== undefined)) {
+          const total = statusRes.total_processed_events ?? statusRes.total_transactions ?? 0;
+          document.getElementById('val-marketplace-total').textContent = total;
+          const p = statusRes.providers || {};
+          const stripeActive = statusRes.stripe_configured || (p.stripe && p.stripe.active);
+          const lemonActive = statusRes.lemon_squeezy_configured || (p.lemonsqueezy && p.lemonsqueezy.active);
+          const paddleActive = statusRes.paddle_configured || (p.paddle && p.paddle.active);
+          document.getElementById('val-marketplace-stripe').textContent = stripeActive ? 'Active' : 'Disabled';
+          document.getElementById('val-marketplace-lemon').textContent = lemonActive ? 'Active' : 'Disabled';
+          document.getElementById('val-marketplace-paddle').textContent = paddleActive ? 'Active' : 'Disabled';
+          if (statusRes.idempotency_cache && statusRes.idempotency_cache.capacity) {
+            document.getElementById('val-marketplace-cache').textContent = statusRes.idempotency_cache.size + ' / ' + statusRes.idempotency_cache.capacity;
+          } else {
+            document.getElementById('val-marketplace-cache').textContent = (statusRes.recent_transactions || 0) + ' / 10,000';
+          }
+        }
+
+        const tbody = document.getElementById('marketplace-tx-body');
+        const txs = Array.isArray(txRes) ? txRes : ((txRes && txRes.transactions) || []);
+        if (!Array.isArray(txs) || txs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 16px;">No marketplace transactions recorded yet.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = txs.map(t => {
+          let statusBadge = (t.status === 'PROVISIONED' || t.status === 'success') 
+            ? '<span class="pill pill-active">' + t.status + '</span>'
+            : (t.status === 'REVOKED' || t.status === 'FAILED'
+              ? '<span class="pill pill-revoked">' + (t.status || 'FAILED') + '</span>'
+              : '<span class="pill" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">' + (t.status || 'INFO') + '</span>');
+          let providerColor = t.provider === 'stripe' ? '#635bff' : (t.provider === 'lemonsqueezy' ? '#facc15' : '#38bdf8');
+          return `
+            <tr>
+              <td style="font-family: monospace; font-size: 11px; color: var(--text-muted);">${t.id || ''}</td>
+              <td><span style="font-weight: 700; color: ${providerColor}; text-transform: capitalize;">${t.provider || ''}</span></td>
+              <td><code>${t.action || ''}</code></td>
+              <td>${t.customer_email || ''}</td>
+              <td style="font-family: monospace; font-weight: 600; color: var(--accent-green);">${t.license_key || '—'}</td>
+              <td>${t.tier || 'pro'} (${t.seats || 1} seat${(t.seats || 1) > 1 ? 's' : ''})</td>
+              <td>${statusBadge}</td>
+              <td style="font-size: 12px; color: var(--text-muted);">${t.processed_at ? new Date(t.processed_at).toLocaleString() : ''}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Failed to load marketplace status:', e);
+      }
+    }
+
+    async function promptSimulateWebhook() {
+      const provider = prompt('Select Provider (stripe / lemonsqueezy / paddle):', 'stripe');
+      if (!provider) return;
+      const action = prompt('Select Action (provision / revoke / refund / renew):', 'provision');
+      if (!action) return;
+      const email = prompt('Customer Email:', 'customer@example.com');
+      if (!email) return;
+      const tier = prompt('License Tier (starter / pro / enterprise):', 'pro') || 'pro';
+      const seats = parseInt(prompt('Seat Count:', '5') || '1', 10);
+
+      const out = document.getElementById('marketplace-output');
+      out.style.display = 'block';
+      out.textContent = `Simulating inbound webhook for [${provider}] action [${action}]...`;
+
+      try {
+        const res = await fetch('/api/marketplace/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: provider.trim().toLowerCase(),
+            action: action.trim().toLowerCase(),
+            customer_email: email.trim(),
+            tier: tier.trim(),
+            seats: seats
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Webhook Simulation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshMarketplaceTab();
+      } catch (e) {
+        out.textContent = 'Simulation failed: ' + e.message;
+      }
+    }
+
+    function showWebhookEndpoints() {
+      const origin = window.location.origin;
+      const msg = `Marketplace Inbound Webhook Endpoints:\n\n` +
+        `1. Stripe:\n   ${origin}/api/marketplace/webhook/stripe\n   Header: Stripe-Signature (t=...,v1=...)\n\n` +
+        `2. Lemon Squeezy:\n   ${origin}/api/marketplace/webhook/lemonsqueezy\n   Header: X-Signature (HMAC-SHA256 hex)\n\n` +
+        `3. Paddle Billing:\n   ${origin}/api/marketplace/webhook/paddle\n   Header: Paddle-Signature (ts=...;h1=...)\n\n` +
+        `4. Universal Endpoint:\n   ${origin}/api/marketplace/webhook/:provider\n`;
+      const out = document.getElementById('marketplace-output');
+      out.style.display = 'block';
+      out.textContent = msg;
     }
 
     refresh();

@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.8.x   | :white_check_mark: |
 | 1.7.x   | :white_check_mark: |
 | 1.6.x   | :white_check_mark: |
 | 1.5.x   | :white_check_mark: |
@@ -138,6 +139,12 @@
     - **Signed Routing Tokens**: Anycast routing decisions generate HMAC-SHA256 tokens encoding selected POP, client IP, coordinates, and expiration timestamps. In-memory and edge verifiers validate tokens with constant-time comparison (`subtle.ConstantTimeCompare`) to prevent forged edge affinity claims.
     - **Sub-Millisecond L1 Cache Invariants**: Cached license entitlements enforce atomic thread-safe access with monotonic TTL clocks. Asynchronous Stale-While-Revalidate (SWR) background refreshes ensure clients never experience cache stampedes while ensuring evicted or revoked licenses are cleared within seconds.
     - **Partition Tolerance & Offline Emergency Leases**: During cloud network partitions or upstream outages, the partition mitigator issues cryptographically signed emergency lease tokens (`EmergencyLeaseToken`) with bounded validity, preventing client lockouts while recording all emergency events for automatic reconciliation when connectivity is restored.
+
+24. **Automated License Reseller & Marketplace Webhooks Bridge Security**:
+    - **Timing Attack Resistance**: All webhook signatures (Stripe `t=...,v1=...`, Lemon Squeezy `X-Signature`, Paddle `Paddle-Signature: ts=...;h1=...`) are verified using constant-time comparison (`crypto/subtle.ConstantTimeCompare` and `hmac.Equal`) to eliminate timing side-channel attacks.
+    - **Clock Drift Mitigation**: Webhooks carrying timestamps outside a configurable &plusmn;300-second window are rejected to protect against replay attacks.
+    - **Idempotency Replay Protection**: Inbound webhooks are indexed by provider-specific event identifiers (`event_id`) in a thread-safe, capacity-bounded LRU cache (default 10,000 entries). Duplicate events are acknowledged gracefully without re-executing provisioning or revocation logic.
+    - **Instant Real-Time Revocation Kill-Switch**: Upon receiving refund or dispute events, license entitlements are immediately revoked in storage and an instant SSE/WebSocket stream kill-switch (`stream_revocation`) is pushed to active client connections, terminating compromised sessions in sub-second time.
 
 ## Reporting a Vulnerability
 

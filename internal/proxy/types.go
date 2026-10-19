@@ -27,6 +27,9 @@ type ProxyConfig struct {
 	ClusterRegion    string
 	ClusterAddress   string
 	ClusterPeers     []string
+	StripeWebhookSecret       string
+	LemonSqueezyWebhookSecret string
+	PaddleWebhookSecret       string
 }
 
 // VerifyResult captures the unified result of a license check.

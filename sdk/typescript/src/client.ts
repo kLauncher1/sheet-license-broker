@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
-import { getMachineHwid } from './hwid.ts';
+import { getMachineHwid } from './hwid.js';
 import type {
   AttestationChallengeResponse,
   AttestationVerifyResponse,
@@ -49,6 +49,11 @@ import type {
   AnycastRoutingDecision,
   EdgeCacheTelemetry,
   AnycastStatusResponse,
+  MarketplaceTransaction,
+  MarketplaceStatus,
+  MarketplaceSimulateRequest,
+  MarketplaceSimulateResponse,
+  MarketplaceTransactionFilter,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -128,6 +133,11 @@ export class SheetLicenseClient {
 
       if (!res.ok) {
         const errMsg = data.error || data.message || `HTTP ${res.status}`;
+        if (res.status === 429) {
+          const retryHeader = res.headers.get('retry-after');
+          const retryVal = retryHeader ? parseInt(retryHeader, 10) : (Number(data.retry_after) || 0);
+          throw new RateLimitError(`Rate limit exceeded: ${errMsg}`, res.status, data, retryVal);
+        }
         if (res.status === 401) {
           if (String(errMsg).toLowerCase().includes('signature')) {
             throw new AuthenticationError(`Security signature failed: ${errMsg}`, res.status, data);
@@ -742,6 +752,38 @@ export class SheetLicenseClient {
       license_key: licenseKey,
       hwid: machineHwid,
     });
+  }
+
+  /**
+   * Retrieves diagnostic telemetry from the automated marketplace webhooks bridge.
+   */
+  public async getMarketplaceStatus(): Promise<MarketplaceStatus> {
+    return this.request<MarketplaceStatus>('GET', '/api/marketplace/status');
+  }
+
+  /**
+   * Sends a synthetic purchase or cancellation webhook to test automated provisioning and revocation.
+   */
+  public async simulateMarketplaceWebhook(req: MarketplaceSimulateRequest): Promise<MarketplaceSimulateResponse> {
+    return this.request<MarketplaceSimulateResponse>('POST', '/api/marketplace/simulate', req);
+  }
+
+  /**
+   * Retrieves the transaction audit ledger of processed marketplace webhook events.
+   */
+  public async listMarketplaceTransactions(filter?: MarketplaceTransactionFilter): Promise<MarketplaceTransaction[]> {
+    let path = '/api/marketplace/transactions';
+    if (filter) {
+      const params = new URLSearchParams();
+      if (filter.provider) params.set('provider', filter.provider);
+      const email = filter.customer_email || filter.email;
+      if (email) params.set('customer_email', email);
+      if (filter.status) params.set('status', filter.status);
+      if (filter.limit && filter.limit > 0) params.set('limit', String(filter.limit));
+      const qs = params.toString();
+      if (qs) path += `?${qs}`;
+    }
+    return this.request<MarketplaceTransaction[]>('GET', path);
   }
 }
 

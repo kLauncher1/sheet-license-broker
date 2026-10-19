@@ -665,6 +665,49 @@ namespace SheetLicenseBroker
             return await SendRequestAsync("POST", "/api/anycast/verify", body).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Retrieves diagnostic telemetry from the automated marketplace webhooks bridge.
+        /// </summary>
+        public async Task<string> GetMarketplaceStatusAsync() =>
+            await SendRequestAsync("GET", "/api/marketplace/status", null).ConfigureAwait(false);
+
+        public string GetMarketplaceStatus() =>
+            GetMarketplaceStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Sends a synthetic purchase or cancellation webhook to test automated provisioning and revocation.
+        /// </summary>
+        public async Task<string> SimulateMarketplaceWebhookAsync(string customerEmail, string provider = "stripe", string action = "provision", string tier = "pro", int seats = 1, int daysValid = 30)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"customer_email\":\"{0}\",\"provider\":\"{1}\",\"action\":\"{2}\",\"tier\":\"{3}\",\"seats\":{4},\"days_valid\":{5}}}",
+                EscapeJson(customerEmail ?? ""), EscapeJson(provider ?? "stripe"), EscapeJson(action ?? "provision"),
+                EscapeJson(tier ?? "pro"), seats, daysValid);
+            return await SendRequestAsync("POST", "/api/marketplace/simulate", body).ConfigureAwait(false);
+        }
+
+        public string SimulateMarketplaceWebhook(string customerEmail, string provider = "stripe", string action = "provision", string tier = "pro", int seats = 1, int daysValid = 30) =>
+            SimulateMarketplaceWebhookAsync(customerEmail, provider, action, tier, seats, daysValid).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Retrieves the transaction audit ledger of processed marketplace webhook events.
+        /// </summary>
+        public async Task<string> ListMarketplaceTransactionsAsync(string provider = null, string customerEmail = null, string status = null, int limit = 0)
+        {
+            var queryParams = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrEmpty(provider)) queryParams.Add("provider=" + Uri.EscapeDataString(provider));
+            if (!string.IsNullOrEmpty(customerEmail)) queryParams.Add("customer_email=" + Uri.EscapeDataString(customerEmail));
+            if (!string.IsNullOrEmpty(status)) queryParams.Add("status=" + Uri.EscapeDataString(status));
+            if (limit > 0) queryParams.Add("limit=" + limit);
+
+            string path = "/api/marketplace/transactions";
+            if (queryParams.Count > 0) path += "?" + string.Join("&", queryParams);
+            return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
+        }
+
+        public string ListMarketplaceTransactions(string provider = null, string customerEmail = null, string status = null, int limit = 0) =>
+            ListMarketplaceTransactionsAsync(provider, customerEmail, status, limit).GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";
