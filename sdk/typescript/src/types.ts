@@ -550,5 +550,62 @@ export interface AnycastStatusResponse {
   edge_routing_enabled: boolean;
 }
 
+export interface MarketplaceTransaction {
+  id: string;
+  event_id: string;
+  provider: string;
+  action: string;
+  customer_email: string;
+  license_key: string;
+  tier: string;
+  seats: number;
+  status: string;
+  error_message?: string;
+  processed_at: string;
+}
+
+export interface MarketplaceStatus {
+  enabled: boolean;
+  supported_providers: string[];
+  total_processed_events: number;
+  total_provisioned: number;
+  total_revoked: number;
+  total_duplicates: number;
+  total_failed: number;
+  recent_transactions: number;
+  stripe_configured: boolean;
+  lemon_squeezy_configured: boolean;
+  paddle_configured: boolean;
+  timestamp: string;
+}
+
+export interface MarketplaceSimulateRequest {
+  provider?: string;
+  event_type?: string;
+  action?: 'provision' | 'revoke' | string;
+  customer_email: string;
+  customer_name?: string;
+  license_key?: string;
+  tier?: string;
+  seats?: number;
+  days_valid?: number;
+  order_id?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface MarketplaceSimulateResponse {
+  status: string;
+  event?: Record<string, any>;
+  transaction: MarketplaceTransaction;
+}
+
+export interface MarketplaceTransactionFilter {
+  provider?: string;
+  customer_email?: string;
+  email?: string;
+  status?: string;
+  limit?: number;
+}
+
 
 

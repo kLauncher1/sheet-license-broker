@@ -26,6 +26,7 @@ const SHEET_ENCLAVE_ATTESTATIONS = 'Enclave_Attestations';
 const SHEET_ENCLAVE_POLICIES = 'Enclave_Policies';
 const SHEET_GEO_POPS = 'Geo_POPs';
 const SHEET_PARTITION_EVENTS = 'Partition_Events';
+const SHEET_MARKETPLACE_TRANSACTIONS = 'Marketplace_Transactions';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -194,6 +195,15 @@ function handleRequest(e, method) {
       case 'partition_event_log':
         return handlePartitionEventLog(output, payload);
 
+      case 'marketplace_record_transaction':
+        return handleMarketplaceRecordTransaction(output, payload);
+
+      case 'marketplace_list_transactions':
+        return handleMarketplaceListTransactions(output, payload);
+
+      case 'marketplace_get_status':
+        return handleMarketplaceGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -225,7 +235,8 @@ function initSheets() {
     { name: SHEET_ENCLAVE_ATTESTATIONS, cols: ['timestamp', 'platform', 'mr_enclave', 'mr_signer', 'measurement', 'svn', 'debug', 'report_data', 'status'] },
     { name: SHEET_ENCLAVE_POLICIES, cols: ['policy_id', 'name', 'platform', 'min_svn', 'allow_debug', 'allowed_measurements', 'created_at'] },
     { name: SHEET_GEO_POPS, cols: ['pop_id', 'name', 'region', 'country', 'latitude', 'longitude', 'status', 'weight', 'rtt_ms', 'last_seen'] },
-    { name: SHEET_PARTITION_EVENTS, cols: ['timestamp', 'region_id', 'status', 'mitigation_token', 'details'] }
+    { name: SHEET_PARTITION_EVENTS, cols: ['timestamp', 'region_id', 'status', 'mitigation_token', 'details'] },
+    { name: SHEET_MARKETPLACE_TRANSACTIONS, cols: ['id', 'event_id', 'provider', 'action', 'customer_email', 'license_key', 'tier', 'seats', 'status', 'error_message', 'processed_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1381,5 +1392,133 @@ function handlePartitionEventLog(output, payload) {
   logAudit('partition_event_log', regionId, 'Recorded partition event for ' + regionId + ': ' + (payload.status || 'partitioned'), 'SUCCESS');
   return jsonResponse(output, { status: 'success', region_id: regionId, timestamp: now });
 }
+
+function handleMarketplaceRecordTransaction(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MARKETPLACE_TRANSACTIONS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Marketplace_Transactions sheet missing' });
+
+  const id = payload.id || ('tx_' + Utilities.getUuid());
+  const eventId = payload.event_id || '';
+  const provider = payload.provider || 'unknown';
+  const action = payload.action_type || payload.action || 'provision';
+  const customerEmail = payload.customer_email || '';
+  const licenseKey = payload.license_key || '';
+  const tier = payload.tier || 'pro';
+  const seats = Number(payload.seats) || 1;
+  const status = payload.status || 'success';
+  const errorMessage = payload.error_message || '';
+  const processedAt = payload.processed_at || new Date().toISOString();
+
+  sheet.appendRow([
+    id,
+    eventId,
+    provider,
+    action,
+    customerEmail,
+    licenseKey,
+    tier,
+    seats,
+    status,
+    errorMessage,
+    processedAt
+  ]);
+
+  logAudit('marketplace_record_tx', provider + ':' + eventId, 'Recorded ' + provider + ' tx ' + id + ' for ' + customerEmail, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', id: id, processed_at: processedAt });
+}
+
+function handleMarketplaceListTransactions(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MARKETPLACE_TRANSACTIONS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Marketplace_Transactions sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const txs = [];
+  const filterProvider = (payload.provider || '').toString().toLowerCase().trim();
+  const filterEmail = (payload.customer_email || payload.email || '').toString().toLowerCase().trim();
+  const filterStatus = (payload.status || '').toString().toUpperCase().trim();
+  const limit = Number(payload.limit) || 0;
+
+  // Iterate backwards so newest transactions appear first
+  for (let i = data.length - 1; i >= 1; i--) {
+    const row = data[i];
+    if (filterProvider && (row[2] || '').toString().toLowerCase().trim() !== filterProvider) continue;
+    if (filterEmail && (row[4] || '').toString().toLowerCase().trim() !== filterEmail) continue;
+    if (filterStatus && (row[8] || '').toString().toUpperCase().trim() !== filterStatus) continue;
+
+    txs.push({
+      id: row[0],
+      event_id: row[1],
+      provider: row[2],
+      action: row[3],
+      customer_email: row[4],
+      license_key: row[5],
+      tier: row[6],
+      seats: Number(row[7]),
+      status: row[8],
+      error_message: row[9],
+      processed_at: row[10]
+    });
+
+    if (limit > 0 && txs.length >= limit) {
+      break;
+    }
+  }
+
+  return jsonResponse(output, { status: 'success', count: txs.length, transactions: txs });
+}
+
+function handleMarketplaceGetStatus(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MARKETPLACE_TRANSACTIONS);
+  
+  let totalCount = 0;
+  const providerCounts = { stripe: 0, lemonsqueezy: 0, paddle: 0 };
+  let totalProvisioned = 0;
+  let totalRevoked = 0;
+  let totalDuplicates = 0;
+  let totalFailed = 0;
+  let lastProcessedAt = '';
+
+  if (sheet) {
+    const data = sheet.getDataRange().getValues();
+    totalCount = Math.max(0, data.length - 1);
+    for (let i = 1; i < data.length; i++) {
+      const p = (data[i][2] || '').toString().toLowerCase().trim();
+      if (providerCounts.hasOwnProperty(p)) {
+        providerCounts[p]++;
+      }
+      const st = (data[i][8] || '').toString().toUpperCase().trim();
+      if (st === 'PROVISIONED') totalProvisioned++;
+      else if (st === 'REVOKED') totalRevoked++;
+      else if (st === 'DUPLICATE') totalDuplicates++;
+      else if (st === 'FAILED') totalFailed++;
+
+      if (data[i][10]) {
+        lastProcessedAt = data[i][10];
+      }
+    }
+  }
+
+  return jsonResponse(output, {
+    status: 'success',
+    providers: {
+      stripe: { active: true, count: providerCounts.stripe },
+      lemonsqueezy: { active: true, count: providerCounts.lemonsqueezy },
+      paddle: { active: true, count: providerCounts.paddle }
+    },
+    total_transactions: totalCount,
+    total_processed_events: totalCount,
+    total_provisioned: totalProvisioned,
+    total_revoked: totalRevoked,
+    total_duplicates: totalDuplicates,
+    total_failed: totalFailed,
+    last_processed_at: lastProcessedAt
+  });
+}
+
 
 

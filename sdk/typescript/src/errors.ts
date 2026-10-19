@@ -25,8 +25,11 @@ export class LicenseValidationError extends BrokerError {
 }
 
 export class RateLimitError extends BrokerError {
-  constructor(message: string, statusCode?: number, details?: Record<string, unknown>) {
+  public retryAfter: number;
+
+  constructor(message: string, statusCode?: number, details?: Record<string, unknown>, retryAfter: number = 0) {
     super(message, statusCode, details);
     this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
   }
 }

@@ -291,6 +291,21 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"license_key\":\"LIC-CS-ANYCAST\",\"hwid_bound\":\"HWID-CS-01\",\"tier\":\"enterprise\",\"message\":\"Fast verify L1 cache hit\"}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/marketplace/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"enabled\":true,\"supported_providers\":[\"stripe\",\"lemonsqueezy\",\"paddle\"],\"total_provisioned\":7,\"stripe_configured\":true}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/marketplace/simulate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"transaction\":{\"id\":\"tx_cs_1\",\"event_id\":\"sim_cs_1\",\"provider\":\"stripe\",\"action\":\"provision\",\"customer_email\":\"cs_buyer@test.com\",\"license_key\":\"KEY-CS-MKT-01\",\"tier\":\"enterprise\",\"seats\":2,\"status\":\"PROVISIONED\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/marketplace/transactions")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("[{\"id\":\"tx_cs_1\",\"event_id\":\"sim_cs_1\",\"provider\":\"stripe\",\"action\":\"provision\",\"customer_email\":\"cs_buyer@test.com\",\"license_key\":\"KEY-CS-MKT-01\",\"tier\":\"enterprise\",\"seats\":2,\"status\":\"PROVISIONED\"}]");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -651,7 +666,28 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Anycast route, probe, status, edge cache stats, and fast verify");
 
-                Console.WriteLine("=== All 20 C# Client Tests Passed Successfully! ===");
+                // 21. Marketplace status, simulate, and transactions
+                string mktStatusRaw = client.GetMarketplaceStatusAsync().GetAwaiter().GetResult();
+                if (!mktStatusRaw.Contains("\"enabled\":true") || !mktStatusRaw.Contains("total_provisioned"))
+                {
+                    Console.Error.WriteLine("FAIL: Marketplace status failed: " + mktStatusRaw);
+                    return 1;
+                }
+                string simRaw = client.SimulateMarketplaceWebhookAsync("cs_buyer@test.com", "stripe", "provision", "enterprise", 2).GetAwaiter().GetResult();
+                if (!simRaw.Contains("KEY-CS-MKT-01") || !simRaw.Contains("PROVISIONED"))
+                {
+                    Console.Error.WriteLine("FAIL: Marketplace simulate failed: " + simRaw);
+                    return 1;
+                }
+                string txListRaw = client.ListMarketplaceTransactionsAsync().GetAwaiter().GetResult();
+                if (!txListRaw.Contains("cs_buyer@test.com") || !txListRaw.Contains("KEY-CS-MKT-01"))
+                {
+                    Console.Error.WriteLine("FAIL: Marketplace transactions failed: " + txListRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Marketplace status, simulate webhook, and transactions");
+
+                Console.WriteLine("=== All 21 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

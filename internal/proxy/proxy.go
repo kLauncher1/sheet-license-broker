@@ -27,10 +27,9 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 	"github.com/kLauncher1/sheet-license-broker/internal/anycast"
+	"github.com/kLauncher1/sheet-license-broker/internal/marketplace"
 	"github.com/kLauncher1/sheet-license-broker/internal/zkp"
 )
-
-
 
 // Proxy coordinates calls between Google Apps Script, local memory engines, and cache.
 type Proxy struct {
@@ -63,6 +62,7 @@ type Proxy struct {
 	anycastRouter      *anycast.AnycastRouter
 	anycastCache       *anycast.SubMillisecondEdgeCache
 	partitionMitigator *anycast.PartitionMitigator
+	marketplaceMgr     *marketplace.Manager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -106,6 +106,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initAnomaly()
 	p.initEnclave()
 	p.initAnycast(cfg)
+	p.initMarketplace(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {
@@ -348,6 +349,49 @@ func (p *Proxy) CreateLicense(ctx context.Context, days, maxDevices int) (*Licen
 		ExpiresAt:  lic.ExpiresAt.Format(time.RFC3339),
 		Status:     lic.Status,
 		Tier:       string(tier),
+		Features:   feats,
+		Source:     "local_fallback",
+	}, nil
+}
+
+// CreateLicenseWithTier generates a new license key with custom tier and features in remote GAS or local store.
+func (p *Proxy) CreateLicenseWithTier(ctx context.Context, days, maxDevices int, tier string, features []string) (*LicenseResult, error) {
+	if p.IsRemoteEnabled() {
+		resp, err := p.gasClient.CreateLicense(ctx, "", days, maxDevices)
+		if err == nil {
+			tVal := tier
+			if tVal == "" {
+				tVal = resp.Tier
+			}
+			if tVal == "" {
+				tVal = "pro"
+			}
+			feats := features
+			if len(feats) == 0 {
+				feats = resp.Features
+			}
+			if len(feats) == 0 {
+				_, feats = p.featureManager.GetEffectiveFeatures(resp.LicenseKey, feature.NormalizeTier(tVal))
+			}
+			return &LicenseResult{
+				LicenseKey: resp.LicenseKey,
+				ExpiresAt:  resp.ExpiresAt,
+				Status:     resp.Status,
+				Tier:       tVal,
+				Features:   feats,
+				Source:     "remote_gas",
+			}, nil
+		}
+		log.Printf("[Proxy] Remote license creation failed: %v. Falling back to local store.", err)
+	}
+
+	lic := p.localLicense.CreateLicenseWithTier(days, maxDevices, tier, features)
+	effTier, feats := p.featureManager.GetEffectiveFeatures(lic.LicenseKey, feature.NormalizeTier(lic.Tier))
+	return &LicenseResult{
+		LicenseKey: lic.LicenseKey,
+		ExpiresAt:  lic.ExpiresAt.Format(time.RFC3339),
+		Status:     lic.Status,
+		Tier:       string(effTier),
 		Features:   feats,
 		Source:     "local_fallback",
 	}, nil
