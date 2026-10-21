@@ -153,15 +153,19 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
 - [x] Embedded admin console Marketplace & Resellers interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 19: High-Throughput Batch Issuance & Bulk Entitlement Sharding (v1.9.0)
-- [ ] High-throughput bulk license generation pipeline (>10,000 licenses/sec)
-- [ ] Consistent hashing key-space partitioning across broker nodes
-- [ ] Parallelized batch validation and aggregated HMAC verification endpoints
+## Phase 19: Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation (v1.9.0) - Completed
+- [x] Cryptographically signed offline time-bound dongle tokens using Ed25519 signatures (`internal/airgap/dongle.go`)
+- [x] Air-gapped QR-code activation protocol (Base45 framing) for isolated SCADA / defense systems (`internal/airgap/qrcode.go`)
+- [x] Monotonic anti-clock-rollback hardware counter verification and administrative unlock (`internal/airgap/monotonic.go`)
+- [x] Dedicated airgap REST routing layer and proxy integration (`routes_airgap.go`, `internal/proxy/airgap.go`)
+- [x] Google Apps Script backend sheet (`AirGap_Vault`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
+- [x] Embedded admin console Air-Gap & Offline Dongles interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 20: Global Anycast Routing & Autonomous Edge Auto-Healing (v2.0.0)
-- [ ] Global BGP Anycast and geo-distributed DNS routing integration
-- [ ] Autonomous split-brain detection and automatic cluster reconciliation
-- [ ] Self-healing multi-region mesh with zero-downtime rolling upgrades
+## Phase 20: Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement (v2.0.0)
+- [ ] Automatic internal certificate authority (CA) generation and rotation
+- [ ] Strict mutual TLS handshake on inter-node consensus RPCs
+- [ ] Hardware-backed private key storage (PKCS#11 / HSM)
 
 ## Phase 21: Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)
 - [ ] Real-time token bucket auto-scaling based on client stream telemetry load
@@ -242,4 +246,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] NIST SP 800-208 Leighton-Micali Signature (LMS) and Hierarchical Signature System (HSS) stateful hash-based signature engine
 - [ ] Immutable hardware-attested firmware and license package signing
 - [ ] Real-time zero-downtime key state synchronization across high-availability clusters
+
+## Phase 37: Decentralized Zero-Knowledge Identity Mesh & Ephemeral Oblivious Attestation (v3.7.0)
+- [ ] BBS+ signature credentials with selective attribute disclosure and blinded unlinkability
+- [ ] Oblivious transfer rate-limiting without revealing license identity or client hardware fingerprints
+- [ ] Ephemeral zero-knowledge threshold signing across multi-cloud confidential enclaves
+
+## Phase 38: Autonomous Self-Securing Supply Chain & Immutable Package Provenance (v3.8.0)
+- [ ] In-toto compliant verifiable software supply chain attestation
+- [ ] Cryptographic SLSA Level 4 provenance verification on client binary startup
+- [ ] Automated binary tamper self-defense with immediate zeroization and cryptographic forensic logging
 

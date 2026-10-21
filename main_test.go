@@ -53,6 +53,7 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 	server.registerZKPRoutes(apiMux)
 	server.registerAnycastRoutes(apiMux)
 	server.registerMarketplaceRoutes(apiMux, mux)
+	server.registerAirgapRoutes(apiMux)
 
 	return server, mux
 }
@@ -74,8 +75,8 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "1.8.0" {
-		t.Fatalf("expected version 1.8.0, got: %v", res["version"])
+	if res["version"] != "1.9.0" {
+		t.Fatalf("expected version 1.9.0, got: %v", res["version"])
 	}
 	if res["consensus"] == nil {
 		t.Fatalf("expected consensus telemetry in health response")
@@ -320,3 +321,51 @@ func TestWebhookTestEndpoint(t *testing.T) {
 		t.Errorf("expected mock webhook endpoint to receive probe event")
 	}
 }
+
+func TestAirgapEndpoints(t *testing.T) {
+	server, handler := setupTestServer(t, "test-secret", false)
+	defer server.proxy.Close()
+
+	// 1. Check health includes airgap
+	hReq := httptest.NewRequest("GET", "/api/health", nil)
+	hW := httptest.NewRecorder()
+	handler.ServeHTTP(hW, hReq)
+	if hW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on health, got %d", hW.Code)
+	}
+
+	var healthRes map[string]interface{}
+	_ = json.Unmarshal(hW.Body.Bytes(), &healthRes)
+	if healthRes["version"] != "1.9.0" {
+		t.Errorf("expected version 1.9.0, got %v", healthRes["version"])
+	}
+	if airgapVal, ok := healthRes["airgap"].(map[string]interface{}); !ok || airgapVal["vault_active"] != true {
+		t.Errorf("expected active airgap status in health response")
+	}
+
+	// 2. Issue airgap token
+	issueBody := `{"license_key":"LIC-MAIN-AIRGAP","hwid":"HWID-MAIN-NODE","tier":"enterprise","days_valid":45,"max_devices":1}`
+	req := httptest.NewRequest("POST", "/api/airgap/token/issue", bytes.NewBufferString(issueBody))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /api/airgap/token/issue, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var issueRes map[string]interface{}
+	_ = json.Unmarshal(w.Body.Bytes(), &issueRes)
+	dongleToken, _ := issueRes["dongle_token"].(string)
+	if dongleToken == "" {
+		t.Fatalf("expected non-empty dongle_token")
+	}
+
+	// 3. Verify issued token
+	verifyBody := fmt.Sprintf(`{"token":"%s","hwid":"HWID-MAIN-NODE"}`, dongleToken)
+	vReq := httptest.NewRequest("POST", "/api/airgap/token/verify", bytes.NewBufferString(verifyBody))
+	vW := httptest.NewRecorder()
+	handler.ServeHTTP(vW, vReq)
+	if vW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /api/airgap/token/verify, got %d: %s", vW.Code, vW.Body.String())
+	}
+}
+

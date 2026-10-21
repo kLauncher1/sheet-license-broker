@@ -708,6 +708,99 @@ namespace SheetLicenseBroker
         public string ListMarketplaceTransactions(string provider = null, string customerEmail = null, string status = null, int limit = 0) =>
             ListMarketplaceTransactionsAsync(provider, customerEmail, status, limit).GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Queries operational telemetry for the air-gapped license vault.
+        /// </summary>
+        public async Task<string> GetAirgapStatusAsync() =>
+            await SendRequestAsync("GET", "/api/airgap/status", null).ConfigureAwait(false);
+
+        public string GetAirgapStatus() =>
+            GetAirgapStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Issues a cryptographically signed offline dongle token.
+        /// </summary>
+        public async Task<string> IssueAirgapDongleTokenAsync(string licenseKey, string hwid = null, string tier = "enterprise", int daysValid = 30, int maxDevices = 1)
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"license_key\":\"{0}\",\"hwid\":\"{1}\",\"tier\":\"{2}\",\"days_valid\":{3},\"max_devices\":{4}}}",
+                EscapeJson(licenseKey ?? ""), EscapeJson(machineHwid ?? ""), EscapeJson(tier ?? "enterprise"), daysValid, maxDevices);
+            return await SendRequestAsync("POST", "/api/airgap/token/issue", body).ConfigureAwait(false);
+        }
+
+        public string IssueAirgapDongleToken(string licenseKey, string hwid = null, string tier = "enterprise", int daysValid = 30, int maxDevices = 1) =>
+            IssueAirgapDongleTokenAsync(licenseKey, hwid, tier, daysValid, maxDevices).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Verifies an offline dongle token against master keys and monotonic clocks.
+        /// </summary>
+        public async Task<string> VerifyAirgapDongleTokenAsync(string token, string hwid = null, long timestamp = 0)
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            if (timestamp <= 0) timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"token\":\"{0}\",\"hwid\":\"{1}\",\"timestamp\":{2}}}",
+                EscapeJson(token ?? ""), EscapeJson(machineHwid ?? ""), timestamp);
+            return await SendRequestAsync("POST", "/api/airgap/token/verify", body).ConfigureAwait(false);
+        }
+
+        public string VerifyAirgapDongleToken(string token, string hwid = null, long timestamp = 0) =>
+            VerifyAirgapDongleTokenAsync(token, hwid, timestamp).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Requests an offline machine activation challenge with QR payload.
+        /// </summary>
+        public async Task<string> RequestAirgapActivationAsync(string licenseKey, string hwid = null)
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string body = string.Format("{{\"license_key\":\"{0}\",\"hwid\":\"{1}\"}}",
+                EscapeJson(licenseKey ?? ""), EscapeJson(machineHwid ?? ""));
+            return await SendRequestAsync("POST", "/api/airgap/activate/request", body).ConfigureAwait(false);
+        }
+
+        public string RequestAirgapActivation(string licenseKey, string hwid = null) =>
+            RequestAirgapActivationAsync(licenseKey, hwid).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Fulfills an offline activation from a scanned QR payload.
+        /// </summary>
+        public async Task<string> FulfillAirgapActivationAsync(string qrPayload)
+        {
+            string body = string.Format("{{\"qr_payload\":\"{0}\"}}", EscapeJson(qrPayload ?? ""));
+            return await SendRequestAsync("POST", "/api/airgap/activate/fulfill", body).ConfigureAwait(false);
+        }
+
+        public string FulfillAirgapActivation(string qrPayload) =>
+            FulfillAirgapActivationAsync(qrPayload).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries monotonic high-water mark and rollback tamper state.
+        /// </summary>
+        public async Task<string> GetAirgapRollbackStateAsync(string hwid = null)
+        {
+            string machineHwid = string.IsNullOrEmpty(hwid) ? GetMachineHwid() : hwid;
+            string path = "/api/airgap/rollback/state?hwid=" + Uri.EscapeDataString(machineHwid);
+            return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
+        }
+
+        public string GetAirgapRollbackState(string hwid = null) =>
+            GetAirgapRollbackStateAsync(hwid).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Unlocks a tripped airgap vault using an administrative recovery token.
+        /// </summary>
+        public async Task<string> UnlockAirgapRollbackAsync(string vaultId, string hwid, string nonce, long timestamp, string adminSignature)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"vault_id\":\"{0}\",\"hwid\":\"{1}\",\"nonce\":\"{2}\",\"timestamp\":{3},\"admin_signature\":\"{4}\"}}",
+                EscapeJson(vaultId ?? ""), EscapeJson(hwid ?? ""), EscapeJson(nonce ?? ""), timestamp, EscapeJson(adminSignature ?? ""));
+            return await SendRequestAsync("POST", "/api/airgap/rollback/unlock", body).ConfigureAwait(false);
+        }
+
+        public string UnlockAirgapRollback(string vaultId, string hwid, string nonce, long timestamp, string adminSignature) =>
+            UnlockAirgapRollbackAsync(vaultId, hwid, nonce, timestamp, adminSignature).GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

@@ -27,6 +27,7 @@ const SHEET_ENCLAVE_POLICIES = 'Enclave_Policies';
 const SHEET_GEO_POPS = 'Geo_POPs';
 const SHEET_PARTITION_EVENTS = 'Partition_Events';
 const SHEET_MARKETPLACE_TRANSACTIONS = 'Marketplace_Transactions';
+const SHEET_AIRGAP_VAULT = 'AirGap_Vault';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -204,6 +205,15 @@ function handleRequest(e, method) {
       case 'marketplace_get_status':
         return handleMarketplaceGetStatus(output, payload);
 
+      case 'airgap_record_token':
+        return handleAirgapRecordToken(output, payload);
+
+      case 'airgap_list_tokens':
+        return handleAirgapListTokens(output, payload);
+
+      case 'airgap_get_status':
+        return handleAirgapGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -236,7 +246,8 @@ function initSheets() {
     { name: SHEET_ENCLAVE_POLICIES, cols: ['policy_id', 'name', 'platform', 'min_svn', 'allow_debug', 'allowed_measurements', 'created_at'] },
     { name: SHEET_GEO_POPS, cols: ['pop_id', 'name', 'region', 'country', 'latitude', 'longitude', 'status', 'weight', 'rtt_ms', 'last_seen'] },
     { name: SHEET_PARTITION_EVENTS, cols: ['timestamp', 'region_id', 'status', 'mitigation_token', 'details'] },
-    { name: SHEET_MARKETPLACE_TRANSACTIONS, cols: ['id', 'event_id', 'provider', 'action', 'customer_email', 'license_key', 'tier', 'seats', 'status', 'error_message', 'processed_at'] }
+    { name: SHEET_MARKETPLACE_TRANSACTIONS, cols: ['id', 'event_id', 'provider', 'action', 'customer_email', 'license_key', 'tier', 'seats', 'status', 'error_message', 'processed_at'] },
+    { name: SHEET_AIRGAP_VAULT, cols: ['token_id', 'license_key', 'hwid', 'tier', 'issued_at', 'expires_at', 'counter', 'status', 'signature', 'updated_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1517,6 +1528,131 @@ function handleMarketplaceGetStatus(output, payload) {
     total_duplicates: totalDuplicates,
     total_failed: totalFailed,
     last_processed_at: lastProcessedAt
+  });
+}
+
+function handleAirgapRecordToken(output, payload) {
+  payload = payload || {};
+  const tokenId = payload.token_id;
+  const licenseKey = payload.license_key;
+  const hwid = payload.hwid;
+  if (!tokenId || !licenseKey) {
+    return jsonResponse(output, { status: 'error', message: 'token_id and license_key required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_AIRGAP_VAULT);
+  if (!sheet) {
+    return jsonResponse(output, { status: 'error', message: 'AirGap_Vault sheet not found' });
+  }
+
+  const now = new Date().toISOString();
+  const data = sheet.getDataRange().getValues();
+  let updated = false;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === tokenId) {
+      sheet.getRange(i + 1, 7).setValue(payload.counter || data[i][6]);
+      sheet.getRange(i + 1, 8).setValue(payload.status || 'ACTIVE');
+      sheet.getRange(i + 1, 10).setValue(now);
+      updated = true;
+      break;
+    }
+  }
+
+  if (!updated) {
+    sheet.appendRow([
+      tokenId,
+      licenseKey,
+      hwid || '',
+      payload.tier || 'enterprise',
+      payload.issued_at || '',
+      payload.expires_at || '',
+      payload.counter || 1,
+      payload.status || 'ACTIVE',
+      payload.signature || '',
+      now
+    ]);
+  }
+
+  logAudit('airgap_record_token', hwid || 'system', 'Recorded airgap token ' + tokenId, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', token_id: tokenId, updated: updated });
+}
+
+function handleAirgapListTokens(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_AIRGAP_VAULT);
+  const tokens = [];
+
+  if (sheet) {
+    const data = sheet.getDataRange().getValues();
+    const filterHwid = (payload.hwid || '').toString().toUpperCase().trim();
+    const filterLicense = (payload.license_key || '').toString().trim();
+    const limit = parseInt(payload.limit, 10) || 100;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (!row[0]) continue;
+
+      if (filterHwid && (row[2] || '').toString().toUpperCase() !== filterHwid) continue;
+      if (filterLicense && (row[1] || '').toString() !== filterLicense) continue;
+
+      tokens.push({
+        token_id: row[0],
+        license_key: row[1],
+        hwid: row[2],
+        tier: row[3],
+        issued_at: row[4],
+        expires_at: row[5],
+        counter: row[6],
+        status: row[7],
+        signature: row[8],
+        updated_at: row[9]
+      });
+
+      if (limit > 0 && tokens.length >= limit) break;
+    }
+  }
+
+  return jsonResponse(output, { status: 'success', count: tokens.length, tokens: tokens });
+}
+
+function handleAirgapGetStatus(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_AIRGAP_VAULT);
+
+  let totalTokens = 0;
+  let activeTokens = 0;
+  const uniqueDevices = {};
+  let lastIssuedAt = '';
+
+  if (sheet) {
+    const data = sheet.getDataRange().getValues();
+    totalTokens = Math.max(0, data.length - 1);
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (!row[0]) continue;
+
+      const st = (row[7] || '').toString().toUpperCase();
+      if (st === 'ACTIVE') activeTokens++;
+
+      const hwid = (row[2] || '').toString();
+      if (hwid) uniqueDevices[hwid] = true;
+
+      if (row[9]) lastIssuedAt = row[9];
+    }
+  }
+
+  return jsonResponse(output, {
+    status: 'success',
+    vault_active: true,
+    total_tokens: totalTokens,
+    active_tokens: activeTokens,
+    tracked_devices: Object.keys(uniqueDevices).length,
+    last_issued_at: lastIssuedAt
   });
 }
 

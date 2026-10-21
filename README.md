@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.8.0-emerald.svg" alt="Version: v1.8.0">
+  <img src="https://img.shields.io/badge/version-v1.9.0-emerald.svg" alt="Version: v1.9.0">
+  <img src="https://img.shields.io/badge/airgap-Ed25519%20Dongle%20%26%20Anti--Rollback-0284C7.svg" alt="Air-Gapped Vault and Dongle Emulation">
   <img src="https://img.shields.io/badge/marketplace-Stripe%20%26%20Lemon%20%26%20Paddle-F59E0B.svg" alt="Marketplace & Reseller Webhooks">
   <img src="https://img.shields.io/badge/anycast-Global%20POPs%20%26%20Sub--ms%20Cache-0284C7.svg" alt="Geo Anycast & Sub-ms Cache">
   <img src="https://img.shields.io/badge/enclave-Intel%20SGX%20%26%20AMD%20SEV--SNP-059669.svg" alt="Confidential Enclaves">
@@ -39,6 +40,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
 - **Automated License Reseller & Marketplace Webhooks Bridge (v1.8.0)**: Connects Stripe, Lemon Squeezy, and Paddle webhook events directly to automated license provisioning, tier seat scaling, and refund revocations. Inbound webhooks undergo constant-time HMAC signature verification (`hmac.Equal`), timestamp replay drift mitigation (&plusmn;300s window), thread-safe LRU idempotency caching, and real-time SSE stream kill-switch pushes to sever running client sessions immediately upon cancellation or dispute.
+- **Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation (v1.9.0)**: Enables high-assurance cryptographic licensing for mission-critical, completely disconnected environments (SCADA, industrial plants, defense networks). Offline dongle tokens are signed using high-assurance Ed25519 digital signatures and framed in compact Base64/Hex envelopes or Base45-encoded QR code optical payloads. Incorporates a hardware-attested anti-clock-rollback monotonic counter check that trips an immutable emergency lock if the host clock is tampered backwards, unlockable only via administrative cryptographic recovery signatures.
 - **Geo-Distributed Edge CDN Anycast Routing & Sub-Millisecond L1 Cache**: Routes global requests to the nearest healthy Point of Presence (POP across Ashburn, San Jose, Frankfurt, Tokyo, Singapore, Sao Paulo) via Haversine spherical distance and dynamic active RTT telemetry. Delivers cached license lookups in under 100 microseconds with asynchronous Stale-While-Revalidate (SWR) and issues HMAC-signed emergency mitigation leases during network partitions.
 - **Confidential Computing & Hardware Enclave Attestation Bridge**: Cryptographically validates Intel SGX Quote v3/v4 ECDSA P-256 signatures and AMD SEV-SNP 1184-byte signed attestation reports against MREnclave/MRSigner/ISVSVN policies. Negotiates ephemeral ECDH P-256 encrypted tunnels with RFC 5869 HKDF-SHA256 key expansion and AES-256-GCM, enabling zero-plaintext in-enclave evaluation where the host OS, hypervisor, and broker transit layers never observe cleartext keys.
 - **Post-Quantum Cryptography & ML-DSA Signature Chains (NIST FIPS 204)**: Quantum-resistant module-lattice digital signature verification (ML-DSA-44 / ML-DSA-65) with dual classical ECDSA / lattice hybrid signature chains (`Hybrid-P256-MLDSA65`), zero-downtime key rotation grace windows, and instant emergency revocation kill-switch broadcasts.
@@ -1280,6 +1282,109 @@ Content-Type: application/json
 ```
 
 ---
+
+
+---
+
+### 🛡️ Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation (v1.9.0)
+
+For isolated SCADA systems, nuclear plants, avionics, defense hardware, and air-gapped industrial infrastructure with zero outbound internet connectivity, `sheet-license-broker` provides an Ed25519-signed offline dongle emulation and optical QR-code activation subsystem.
+
+#### Issue Cryptographically Signed Offline Dongle Token
+```http
+POST /api/airgap/token/issue
+Content-Type: application/json
+
+{
+  "license_key": "SLB-OFFLINE-XXXX-YYYY",
+  "hwid": "HWID-SCADA-PLC-001",
+  "tier": "enterprise",
+  "days_valid": 90,
+  "max_devices": 1
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "token": {
+    "token_id": "DONGLE-9B0DE626",
+    "license_key": "SLB-OFFLINE-XXXX-YYYY",
+    "hwid": "HWID-SCADA-PLC-001",
+    "tier": "enterprise",
+    "issued_at": 1729300000,
+    "expires_at": 1737076000,
+    "counter": 1,
+    "status": "ACTIVE",
+    "signature": "3a8f4c..."
+  },
+  "dongle_token": "eyJhbGciOiJFZDI1NTE5In0...",
+  "qr_payload": "AIRGAP:B45:9B0DE626:..."
+}
+```
+
+#### Offline Dongle Verification & Monotonic Clock Guard
+```http
+POST /api/airgap/token/verify
+Content-Type: application/json
+
+{
+  "token": "eyJhbGciOiJFZDI1NTE5In0...",
+  "hwid": "HWID-SCADA-PLC-001"
+}
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "valid": true,
+  "token": {
+    "token_id": "DONGLE-9B0DE626",
+    "license_key": "SLB-OFFLINE-XXXX-YYYY",
+    "hwid": "HWID-SCADA-PLC-001",
+    "tier": "enterprise",
+    "counter": 2
+  }
+}
+```
+
+#### Optical QR-Code Activation Protocol (Challenge & Response)
+```http
+# Step 1: Request offline activation challenge
+POST /api/airgap/activate/request
+Content-Type: application/json
+
+{
+  "license_key": "SLB-OFFLINE-XXXX-YYYY",
+  "hwid": "HWID-SCADA-PLC-001"
+}
+
+# Step 2: Fulfill optical QR payload
+POST /api/airgap/activate/fulfill
+Content-Type: application/json
+
+{
+  "qr_payload": "AIRGAP:B45:AABBCCDD:..."
+}
+```
+
+#### Anti-Clock-Rollback State & Administrative Emergency Unlock
+```http
+# Check monotonic high-water mark and tamper status
+GET /api/airgap/rollback/state?hwid=HWID-SCADA-PLC-001
+
+# Administrative recovery unlock if clock manipulation tripped the vault
+POST /api/airgap/rollback/unlock
+Content-Type: application/json
+
+{
+  "vault_id": "VAULT-HWID-SCADA-PLC-001",
+  "hwid": "HWID-SCADA-PLC-001",
+  "nonce": "admin-unlock-1729301000",
+  "timestamp": 1729301000,
+  "admin_signature": "7b8e..."
+}
+```
 
 ## ⚡ Cloudflare Edge Gateway
 
