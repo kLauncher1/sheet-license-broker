@@ -463,3 +463,103 @@ func TestGoClientSSOAndSCIMWorkflow(t *testing.T) {
 		t.Fatalf("expected scim list, got %v (err: %v)", scimList, err)
 	}
 }
+
+func TestGoClientZeroTrustWorkflow(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/zerotrust/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ca_initialized":      true,
+			"ca_root_fingerprint": "zt_ca_go_hex",
+			"mtls_enforced":       true,
+			"active_peers_count":  3,
+		})
+	})
+	mux.HandleFunc("/api/zerotrust/peers", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"peers": []map[string]interface{}{
+				{"node_id": "node-go-1", "role": "cluster_peer", "status": "ACTIVE"},
+			},
+		})
+	})
+	mux.HandleFunc("/api/zerotrust/peers/enroll", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"enrollment": map[string]interface{}{
+				"node_id":       "node-go-1",
+				"serial_number": "go_serial_01",
+			},
+		})
+	})
+	mux.HandleFunc("/api/zerotrust/peers/revoke", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "success",
+			"node_id": "node-go-1",
+			"revoked": true,
+		})
+	})
+	mux.HandleFunc("/api/zerotrust/ca/rotate", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":           "success",
+			"root_fingerprint": "rotated_go_fp_hex",
+		})
+	})
+	mux.HandleFunc("/api/zerotrust/hsm/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"hsm_enabled": true,
+			"slots_count": 3,
+		})
+	})
+	mux.HandleFunc("/api/zerotrust/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid":  true,
+			"reason": "valid",
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := NewClient(ts.URL, nil, 2*time.Second)
+
+	status, err := client.GetZeroTrustStatus(context.Background())
+	if err != nil || status["ca_initialized"] != true {
+		t.Fatalf("expected valid status, got %v (err: %v)", status, err)
+	}
+
+	peers, err := client.ListZeroTrustPeers(context.Background())
+	if err != nil || len(peers) != 1 {
+		t.Fatalf("expected 1 peer, got %v (err: %v)", peers, err)
+	}
+
+	enrolled, err := client.EnrollZeroTrustPeer(context.Background(), "node-go-1", "cluster_peer", 90)
+	if err != nil || enrolled["serial_number"] != "go_serial_01" {
+		t.Fatalf("expected enrolled peer, got %v (err: %v)", enrolled, err)
+	}
+
+	err = client.RevokeZeroTrustPeer(context.Background(), "node-go-1", "Go decomm")
+	if err != nil {
+		t.Fatalf("expected revoke success, got err: %v", err)
+	}
+
+	rotated, err := client.RotateZeroTrustCA(context.Background(), 180)
+	if err != nil || rotated["root_fingerprint"] != "rotated_go_fp_hex" {
+		t.Fatalf("expected ca rotate, got %v (err: %v)", rotated, err)
+	}
+
+	hsm, err := client.GetZeroTrustHSMStatus(context.Background())
+	if err != nil || hsm["hsm_enabled"] != true {
+		t.Fatalf("expected hsm status, got %v (err: %v)", hsm, err)
+	}
+
+	valid, _, err := client.VerifyZeroTrustPeer(context.Background(), map[string]interface{}{"node_id": "node-go-1"})
+	if err != nil || !valid {
+		t.Fatalf("expected valid peer verification, got valid=%v (err: %v)", valid, err)
+	}
+}

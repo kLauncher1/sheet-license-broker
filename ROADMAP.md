@@ -162,10 +162,16 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
 - [x] Embedded admin console Air-Gap & Offline Dongles interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 20: Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement (v2.0.0)
-- [ ] Automatic internal certificate authority (CA) generation and rotation
-- [ ] Strict mutual TLS handshake on inter-node consensus RPCs
-- [ ] Hardware-backed private key storage (PKCS#11 / HSM)
+## Phase 20: Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement (v2.0.0) - Completed
+- [x] Automatic internal Certificate Authority (CA) generation, ECDSA P-256 root issuance, and dual-trust cert pool rotation (`internal/zerotrust/ca.go`)
+- [x] Strict mutual TLS (mTLS) enforcement on inter-node consensus RPCs with SPIFFE identity matching and revocation checking (`internal/zerotrust/mtls.go`, `internal/consensus/mesh.go`)
+- [x] Hardware-backed private key storage and software HSM / PKCS#11 cryptoki emulator with constant-time PIN auth and zeroization barrier (`internal/zerotrust/hsm.go`)
+- [x] Zero-Trust peer registry manager coordinating CA lifecycle, peer rosters, mTLS transport configs, and HSM slot bindings (`internal/zerotrust/mesh.go`)
+- [x] Dedicated Zero-Trust REST routing layer (`routes_zerotrust.go`) and proxy orchestration (`internal/proxy/zerotrust.go`)
+- [x] Google Apps Script backend sheets (`ZeroTrust_Peers`, `ZeroTrust_CA`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, and C# (`sdk/`)
+- [x] Cloudflare Edge Worker Zero-Trust telemetry and cert fingerprint forwarding (`edge/cloudflare/worker.js`)
+- [x] Embedded admin console Zero-Trust & mTLS Mesh interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 21: Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)
 - [ ] Real-time token bucket auto-scaling based on client stream telemetry load
@@ -256,4 +262,15 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] In-toto compliant verifiable software supply chain attestation
 - [ ] Cryptographic SLSA Level 4 provenance verification on client binary startup
 - [ ] Automated binary tamper self-defense with immediate zeroization and cryptographic forensic logging
+
+## Phase 39: Autonomous Decentralized Key Transparency & Witness Gossip (v3.9.0)
+- [ ] Continuous cryptographic log monitoring with multi-party witness gossiping
+- [ ] Automated split-view attack detection and zero-knowledge proof of misbehavior
+- [ ] Tamper-evident transparency ledger distribution over libp2p pubsub channels
+
+## Phase 40: Quantum-Safe Verifiable Delay Functions (VDF) & Temporal Entitlements (v4.0.0)
+- [ ] Time-locked cryptographic license issuance using Wesolowski or Pietrzak VDFs
+- [ ] Provable sequential work verification resistant to parallel quantum acceleration
+- [ ] Trustless temporal entitlement expiration anchored to public entropy beacons
+
 

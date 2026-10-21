@@ -1,4 +1,4 @@
-import type { AttestationChallengeResponse, AttestationVerifyResponse, BrokerClientOptions, ClusterPeer, ClusterStatusResponse, DocumentResponse, EncryptedAuditBundle, HealthResponse, LicenseRecord, LicenseValidationResponse, StreamClientInfo, StreamKillResponse, StreamTelemetryResponse, TelemetryReport, TelemetryResponse, UsageRecord, UsageRecordResponse, UserAuthResponse, PedersenCommitmentPoint, ZKPParamsResponse, ZKPIssueResponse, ZKPProof, ZKPStatusResponse, ZKPVerifyResponse, SSOStatusSummary, SessionTokenIntrospectResult, SCIMListUsersResult, PQCHybridSignature, PQCVerificationResult, PQCStatusSummary, AnomalyObservation, AnomalyRiskScore, AnomalyIncidentGraph, AnomalyTelemetrySummary, EnclaveAttestationResult, EnclaveHandshakeResponse, EnclaveEncryptedMessage, EnclaveTelemetry, AnycastRoutingDecision, EdgeCacheTelemetry, AnycastStatusResponse, MarketplaceTransaction, MarketplaceStatus, MarketplaceSimulateRequest, MarketplaceSimulateResponse, MarketplaceTransactionFilter, AirgapDongleToken, AirgapIssueRequest, AirgapIssueResponse, AirgapVerifyRequest, AirgapVerifyResponse, AirgapActivationRequest, AirgapActivationResponse, AirgapRollbackState, AirgapUnlockRequest, AirgapStatus } from './types.js';
+import type { AttestationChallengeResponse, AttestationVerifyResponse, BrokerClientOptions, ClusterPeer, ClusterStatusResponse, DocumentResponse, EncryptedAuditBundle, HealthResponse, LicenseRecord, LicenseValidationResponse, StreamClientInfo, StreamKillResponse, StreamTelemetryResponse, TelemetryReport, TelemetryResponse, UsageRecord, UsageRecordResponse, UserAuthResponse, PedersenCommitmentPoint, ZKPParamsResponse, ZKPIssueResponse, ZKPProof, ZKPStatusResponse, ZKPVerifyResponse, SSOStatusSummary, SessionTokenIntrospectResult, SCIMListUsersResult, PQCHybridSignature, PQCVerificationResult, PQCStatusSummary, AnomalyObservation, AnomalyRiskScore, AnomalyIncidentGraph, AnomalyTelemetrySummary, EnclaveAttestationResult, EnclaveHandshakeResponse, EnclaveEncryptedMessage, EnclaveTelemetry, AnycastRoutingDecision, EdgeCacheTelemetry, AnycastStatusResponse, MarketplaceTransaction, MarketplaceStatus, MarketplaceSimulateRequest, MarketplaceSimulateResponse, MarketplaceTransactionFilter, AirgapDongleToken, AirgapIssueRequest, AirgapIssueResponse, AirgapVerifyRequest, AirgapVerifyResponse, AirgapActivationRequest, AirgapActivationResponse, AirgapRollbackState, AirgapUnlockRequest, AirgapStatus, ZeroTrustPeerIdentity, ZeroTrustEnrollRequest, ZeroTrustEnrollResponse, ZeroTrustHSMSlotInfo, ZeroTrustStatus, ZeroTrustVerifyResponse } from './types.js';
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
 export declare class SheetLicenseClient {
     private readonly baseUrl;
@@ -296,5 +296,33 @@ export declare class SheetLicenseClient {
      * Unlocks a tripped airgap vault using an administrative recovery token.
      */
     unlockAirgapRollback(req: AirgapUnlockRequest): Promise<AirgapRollbackState>;
+    /**
+     * Retrieves high-level operational status of the Zero-Trust mesh and internal CA.
+     */
+    getZeroTrustStatus(): Promise<ZeroTrustStatus>;
+    /**
+     * Lists all known enrolled Zero-Trust mesh peer nodes.
+     */
+    listZeroTrustPeers(): Promise<ZeroTrustPeerIdentity[]>;
+    /**
+     * Enrolls a new peer node and issues an mTLS certificate signed by the internal CA.
+     */
+    enrollZeroTrustPeer(req: ZeroTrustEnrollRequest): Promise<ZeroTrustEnrollResponse>;
+    /**
+     * Revokes a peer node certificate and marks its status as REVOKED in the internal CRL.
+     */
+    revokeZeroTrustPeer(nodeId: string, reason?: string): Promise<{ status: string; node_id: string; revoked: boolean; reason: string }>;
+    /**
+     * Rotates the internal Root CA while maintaining dual-trust continuity.
+     */
+    rotateZeroTrustCA(validityDays?: number): Promise<{ status: string; message: string; root_fingerprint: string; ca_expires_at: string }>;
+    /**
+     * Queries hardware-backed key slot capabilities and operation counters.
+     */
+    getZeroTrustHSMStatus(): Promise<{ hsm_enabled: boolean; slots_count: number; slots: ZeroTrustHSMSlotInfo[] }>;
+    /**
+     * Cryptographically verifies whether a given peer identity is actively authorized.
+     */
+    verifyZeroTrustPeer(peer: Partial<ZeroTrustPeerIdentity>): Promise<ZeroTrustVerifyResponse>;
 }
 //# sourceMappingURL=client.d.ts.map

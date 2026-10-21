@@ -64,6 +64,14 @@ import type {
   AirgapRollbackState,
   AirgapUnlockRequest,
   AirgapStatus,
+  ZeroTrustPeerRole,
+  ZeroTrustPeerStatus,
+  ZeroTrustPeerIdentity,
+  ZeroTrustEnrollRequest,
+  ZeroTrustEnrollResponse,
+  ZeroTrustHSMSlotInfo,
+  ZeroTrustStatus,
+  ZeroTrustVerifyResponse,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -863,6 +871,62 @@ export class SheetLicenseClient {
   public async unlockAirgapRollback(req: AirgapUnlockRequest): Promise<AirgapRollbackState> {
     const res = await this.request<{ status: string; state: AirgapRollbackState }>('POST', '/api/airgap/rollback/unlock', req);
     return res.state;
+  }
+
+  /**
+   * Retrieves high-level operational status of the Zero-Trust mesh and internal CA.
+   */
+  public async getZeroTrustStatus(): Promise<ZeroTrustStatus> {
+    return this.request<ZeroTrustStatus>('GET', '/api/zerotrust/status');
+  }
+
+  /**
+   * Lists all known enrolled Zero-Trust mesh peer nodes.
+   */
+  public async listZeroTrustPeers(): Promise<ZeroTrustPeerIdentity[]> {
+    const res = await this.request<{ peers: ZeroTrustPeerIdentity[] }>('GET', '/api/zerotrust/peers');
+    return res.peers;
+  }
+
+  /**
+   * Enrolls a new peer node and issues an mTLS certificate signed by the internal CA.
+   */
+  public async enrollZeroTrustPeer(req: ZeroTrustEnrollRequest): Promise<ZeroTrustEnrollResponse> {
+    const res = await this.request<{ status: string; enrollment: ZeroTrustEnrollResponse }>('POST', '/api/zerotrust/peers/enroll', req);
+    return res.enrollment;
+  }
+
+  /**
+   * Revokes a peer node certificate and marks its status as REVOKED in the internal CRL.
+   */
+  public async revokeZeroTrustPeer(nodeId: string, reason?: string): Promise<{ status: string; node_id: string; revoked: boolean; reason: string }> {
+    return this.request<{ status: string; node_id: string; revoked: boolean; reason: string }>('POST', '/api/zerotrust/peers/revoke', {
+      node_id: nodeId,
+      reason: reason || 'Administrative revocation',
+    });
+  }
+
+  /**
+   * Rotates the internal Root CA while maintaining dual-trust continuity.
+   */
+  public async rotateZeroTrustCA(validityDays?: number): Promise<{ status: string; message: string; root_fingerprint: string; ca_expires_at: string }> {
+    return this.request<{ status: string; message: string; root_fingerprint: string; ca_expires_at: string }>('POST', '/api/zerotrust/ca/rotate', {
+      validity_days: validityDays || 365,
+    });
+  }
+
+  /**
+   * Queries hardware-backed key slot capabilities and operation counters.
+   */
+  public async getZeroTrustHSMStatus(): Promise<{ hsm_enabled: boolean; slots_count: number; slots: ZeroTrustHSMSlotInfo[] }> {
+    return this.request<{ hsm_enabled: boolean; slots_count: number; slots: ZeroTrustHSMSlotInfo[] }>('GET', '/api/zerotrust/hsm/status');
+  }
+
+  /**
+   * Cryptographically verifies whether a given peer identity is actively authorized.
+   */
+  public async verifyZeroTrustPeer(peer: Partial<ZeroTrustPeerIdentity>): Promise<ZeroTrustVerifyResponse> {
+    return this.request<ZeroTrustVerifyResponse>('POST', '/api/zerotrust/verify', peer);
   }
 }
 

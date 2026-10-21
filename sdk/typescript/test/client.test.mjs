@@ -823,6 +823,113 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/zerotrust/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            ca_initialized: true,
+            ca_root_fingerprint: 'zt_ca_fingerprint_hex',
+            ca_expires_at: new Date(Date.now() + 86400000 * 365).toISOString(),
+            active_peers_count: 3,
+            revoked_peers_count: 0,
+            mtls_enforced: true,
+            hsm_enabled: true,
+            hsm_slots_count: 3,
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zerotrust/peers' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            peers: [
+              {
+                node_id: 'peer-ts-01',
+                role: 'cluster_peer',
+                common_name: 'peer-ts-01',
+                serial_number: 'serial_01_hex',
+                fingerprint_sha256: 'fp_01_hex',
+                expires_at: new Date(Date.now() + 86400000 * 90).toISOString(),
+                status: 'ACTIVE'
+              }
+            ]
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zerotrust/peers/enroll' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            enrollment: {
+              node_id: body.node_id,
+              role: body.role || 'cluster_peer',
+              certificate_pem: '-----BEGIN CERTIFICATE-----\nTS_CERT\n-----END CERTIFICATE-----',
+              private_key_pem: '-----BEGIN EC PRIVATE KEY-----\nTS_KEY\n-----END EC PRIVATE KEY-----',
+              root_ca_pem: '-----BEGIN CERTIFICATE-----\nTS_ROOT\n-----END CERTIFICATE-----',
+              serial_number: 'serial_enrolled_hex',
+              fingerprint_sha256: 'fp_enrolled_hex',
+              expires_at: new Date(Date.now() + 86400000 * 90).toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zerotrust/peers/revoke' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            node_id: body.node_id,
+            revoked: true,
+            reason: body.reason || 'Revocation test'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zerotrust/ca/rotate' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            message: 'Internal CA successfully rotated',
+            root_fingerprint: 'rotated_ca_fp_hex',
+            ca_expires_at: new Date(Date.now() + 86400000 * 365).toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zerotrust/hsm/status' && (req.method === 'GET' || req.method === 'POST')) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            hsm_enabled: true,
+            slots_count: 3,
+            slots: [
+              {
+                slot_id: 0,
+                label: 'Root CA Master Key Slot',
+                algorithm: 'ECDSA_P256_SHA256',
+                key_present: true,
+                public_key_pem: 'pub_key_0',
+                operations_count: 5,
+                zeroized: false
+              }
+            ]
+          }));
+          return;
+        }
+
+        if (req.url === '/api/zerotrust/verify' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            valid: true,
+            reason: 'valid',
+            node_id: body.node_id
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -1226,6 +1333,48 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     });
     assert.strictEqual(unlockedState.monotonic_counter, 100);
     assert.strictEqual(unlockedState.tampered, false);
+  });
+
+  it('queries zerotrust status, peers, enrolls/revokes peer, rotates CA, and tests HSM', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const status = await client.getZeroTrustStatus();
+    assert.strictEqual(status.ca_initialized, true);
+    assert.strictEqual(status.ca_root_fingerprint, 'zt_ca_fingerprint_hex');
+    assert.strictEqual(status.mtls_enforced, true);
+
+    const peers = await client.listZeroTrustPeers();
+    assert.strictEqual(peers.length, 1);
+    assert.strictEqual(peers[0].node_id, 'peer-ts-01');
+
+    const enrolled = await client.enrollZeroTrustPeer({
+      node_id: 'peer-ts-new',
+      role: 'worker_node',
+      dns_names: ['new.mesh.internal'],
+      ip_addresses: ['10.0.0.99'],
+      validity_days: 90
+    });
+    assert.strictEqual(enrolled.node_id, 'peer-ts-new');
+    assert.strictEqual(enrolled.role, 'worker_node');
+
+    const verifyRes = await client.verifyZeroTrustPeer({
+      node_id: 'peer-ts-new',
+      serial_number: enrolled.serial_number
+    });
+    assert.strictEqual(verifyRes.valid, true);
+
+    const revokeRes = await client.revokeZeroTrustPeer('peer-ts-new', 'Test decomm');
+    assert.strictEqual(revokeRes.status, 'success');
+    assert.strictEqual(revokeRes.revoked, true);
+
+    const rotateRes = await client.rotateZeroTrustCA(180);
+    assert.strictEqual(rotateRes.status, 'success');
+    assert.strictEqual(rotateRes.root_fingerprint, 'rotated_ca_fp_hex');
+
+    const hsmStatus = await client.getZeroTrustHSMStatus();
+    assert.strictEqual(hsmStatus.hsm_enabled, true);
+    assert.strictEqual(hsmStatus.slots.length, 1);
+    assert.strictEqual(hsmStatus.slots[0].slot_id, 0);
   });
 });
 

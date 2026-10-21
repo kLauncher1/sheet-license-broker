@@ -75,8 +75,8 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "1.9.0" {
-		t.Fatalf("expected version 1.9.0, got: %v", res["version"])
+	if res["version"] != "2.0.0" {
+		t.Fatalf("expected version 2.0.0, got: %v", res["version"])
 	}
 	if res["consensus"] == nil {
 		t.Fatalf("expected consensus telemetry in health response")
@@ -101,6 +101,12 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 	}
 	if res["marketplace"] == nil {
 		t.Fatalf("expected marketplace telemetry in health response")
+	}
+	if res["airgap"] == nil {
+		t.Fatalf("expected airgap telemetry in health response")
+	}
+	if res["zerotrust"] == nil {
+		t.Fatalf("expected zerotrust telemetry in health response")
 	}
 }
 
@@ -336,8 +342,8 @@ func TestAirgapEndpoints(t *testing.T) {
 
 	var healthRes map[string]interface{}
 	_ = json.Unmarshal(hW.Body.Bytes(), &healthRes)
-	if healthRes["version"] != "1.9.0" {
-		t.Errorf("expected version 1.9.0, got %v", healthRes["version"])
+	if healthRes["version"] != "2.0.0" {
+		t.Errorf("expected version 2.0.0, got %v", healthRes["version"])
 	}
 	if airgapVal, ok := healthRes["airgap"].(map[string]interface{}); !ok || airgapVal["vault_active"] != true {
 		t.Errorf("expected active airgap status in health response")

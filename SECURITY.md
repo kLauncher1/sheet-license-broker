@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.0.x   | :white_check_mark: |
 | 1.9.x   | :white_check_mark: |
 | 1.8.x   | :white_check_mark: |
 | 1.7.x   | :white_check_mark: |
@@ -152,6 +153,13 @@
     - **Monotonic Anti-Clock-Rollback Protection**: To prevent perpetual offline licensing via local clock rollback, the vault enforces a strictly monotonic counter check against recorded high-water marks. If local system time is rolled backward, the vault trips an emergency immutable lock state.
     - **Optical Base45 QR Activation Framing**: QR activation payloads utilize RFC 9285 Base45 framing with integrated SHA-256 integrity checksums, preventing tampering or truncation during optical camera or physical scanner bridging.
     - **Cryptographic Recovery Gate**: Tripped vaults can be unlocked exclusively through administrative recovery tokens signed by the master Ed25519 keypair, enforcing audit accountability.
+
+26. **Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement Security**:
+    - **Internal Root CA & ECDSA P-256 Key Security**: The broker generates an internal self-signed Root Certificate Authority using ECDSA P-256 with SHA-256. Private keys are bound to software HSM / PKCS#11 key slots and protected by memory zeroization barriers.
+    - **Strict Mutual TLS (mTLS)**: Inter-node consensus RPCs and administrative peer connections enforce strict bidirectional certificate verification with TLS 1.3 (`tls.VersionTLS13`, `tls.RequireAndVerifyClientCert`), eliminating unauthorized plaintext transit.
+    - **SPIFFE Identity & SAN Validation**: Peer certificates are validated against SPIFFE URIs (`spiffe://sheet-license-broker/node/<node-id>`), preventing unauthorized impersonation across cluster nodes.
+    - **Active Certificate Revocation Lists (CRL)**: Revoked peer certificates are added to the internal CRL and verified during TLS handshakes and REST verification checks, instantly invalidating compromised peers.
+    - **Constant-Time PIN Authentication**: Access to software HSM key slots is governed by PIN authorization verified with `crypto/subtle.ConstantTimeCompare` to defeat timing side-channel attacks, with deterministic memory zeroing upon key destruction.
 
 ## Reporting a Vulnerability
 

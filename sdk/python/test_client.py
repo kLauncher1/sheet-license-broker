@@ -356,6 +356,55 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/zerotrust/status":
+            self._send_json(
+                200,
+                {
+                    "ca_initialized": True,
+                    "ca_root_fingerprint": "zt_ca_py_hex",
+                    "mtls_enforced": True,
+                    "active_peers_count": 2,
+                    "hsm_enabled": True,
+                    "hsm_slots_count": 3,
+                },
+            )
+            return
+
+        if path == "/api/zerotrust/peers":
+            self._send_json(
+                200,
+                {
+                    "peers": [
+                        {
+                            "node_id": "peer-py-01",
+                            "role": "cluster_peer",
+                            "status": "ACTIVE",
+                            "serial_number": "py_serial_01",
+                        }
+                    ]
+                },
+            )
+            return
+
+        if path == "/api/zerotrust/hsm/status":
+            self._send_json(
+                200,
+                {
+                    "hsm_enabled": True,
+                    "slots_count": 3,
+                    "slots": [
+                        {
+                            "slot_id": 0,
+                            "label": "Root CA Master Key Slot",
+                            "key_present": True,
+                            "operations_count": 8,
+                            "zeroized": False,
+                        }
+                    ],
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -692,6 +741,58 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/zerotrust/peers/enroll":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "enrollment": {
+                        "node_id": payload.get("node_id"),
+                        "role": payload.get("role", "cluster_peer"),
+                        "serial_number": "py_serial_new",
+                        "fingerprint_sha256": "py_fp_new",
+                        "certificate_pem": "-----BEGIN CERTIFICATE-----\nPY_CERT\n-----END CERTIFICATE-----",
+                        "private_key_pem": "-----BEGIN EC PRIVATE KEY-----\nPY_KEY\n-----END EC PRIVATE KEY-----",
+                        "root_ca_pem": "-----BEGIN CERTIFICATE-----\nPY_ROOT\n-----END CERTIFICATE-----",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/zerotrust/peers/revoke":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "node_id": payload.get("node_id"),
+                    "revoked": True,
+                    "reason": payload.get("reason", "Revocation"),
+                },
+            )
+            return
+
+        if path == "/api/zerotrust/ca/rotate":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "message": "Rotated",
+                    "root_fingerprint": "rotated_py_fp_hex",
+                },
+            )
+            return
+
+        if path == "/api/zerotrust/verify":
+            self._send_json(
+                200,
+                {
+                    "valid": True,
+                    "reason": "valid",
+                    "node_id": payload.get("node_id"),
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -932,6 +1033,35 @@ class TestSheetLicenseClient(unittest.TestCase):
 
         unlock = client.unlock_airgap_rollback("VAULT-01", "HWID-PY-01", "nonce-1", 12345678, "admin_sig")
         self.assertEqual(unlock.get("state", {}).get("monotonic_counter"), 106)
+
+    def test_zerotrust_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_zerotrust_status()
+        self.assertTrue(st.get("ca_initialized"))
+        self.assertEqual(st.get("ca_root_fingerprint"), "zt_ca_py_hex")
+        self.assertTrue(st.get("mtls_enforced"))
+
+        peers = client.list_zerotrust_peers()
+        self.assertEqual(len(peers), 1)
+        self.assertEqual(peers[0].get("node_id"), "peer-py-01")
+
+        enroll = client.enroll_zerotrust_peer("node-py-new", role="worker_node", validity_days=90)
+        self.assertEqual(enroll.get("node_id"), "node-py-new")
+        self.assertEqual(enroll.get("serial_number"), "py_serial_new")
+
+        verify = client.verify_zerotrust_peer({"node_id": "node-py-new", "serial_number": "py_serial_new"})
+        self.assertTrue(verify.get("valid"))
+
+        revoke = client.revoke_zerotrust_peer("node-py-new", "Python decomm")
+        self.assertTrue(revoke.get("revoked"))
+
+        rotate = client.rotate_zerotrust_ca(180)
+        self.assertEqual(rotate.get("root_fingerprint"), "rotated_py_fp_hex")
+
+        hsm = client.get_zerotrust_hsm_status()
+        self.assertTrue(hsm.get("hsm_enabled"))
+        self.assertEqual(len(hsm.get("slots", [])), 1)
 
 
 if __name__ == "__main__":

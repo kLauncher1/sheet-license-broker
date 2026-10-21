@@ -3,6 +3,7 @@ package consensus
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -50,6 +51,24 @@ func (m *P2PMesh) BindEngine(engine *ConsensusEngine) {
 	m.mu.Unlock()
 
 	go m.runGossipLoop()
+}
+
+// SetTLSConfig configures mutual TLS transport on all outbound inter-node consensus RPCs.
+func (m *P2PMesh) SetTLSConfig(tlsCfg *tls.Config) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.httpClient.Transport = &http.Transport{
+		TLSClientConfig: tlsCfg,
+	}
+}
+
+// SetHTTPClient overrides the internal mesh HTTP client.
+func (m *P2PMesh) SetHTTPClient(client *http.Client) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if client != nil {
+		m.httpClient = client
+	}
 }
 
 // Close terminates the P2P background gossip worker.

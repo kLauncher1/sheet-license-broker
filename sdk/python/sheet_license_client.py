@@ -791,6 +791,58 @@ class SheetLicenseClient:
         }
         return self._request("POST", "/api/airgap/rollback/unlock", payload)
 
+    def get_zerotrust_status(self) -> Dict[str, Any]:
+        """Queries operational telemetry for the Zero-Trust mesh and internal CA."""
+        return self._request("GET", "/api/zerotrust/status")
+
+    def list_zerotrust_peers(self) -> List[Dict[str, Any]]:
+        """Lists all enrolled Zero-Trust mesh peer nodes."""
+        res = self._request("GET", "/api/zerotrust/peers")
+        return res.get("peers", [])
+
+    def enroll_zerotrust_peer(
+        self,
+        node_id: str,
+        role: str = "cluster_peer",
+        dns_names: Optional[List[str]] = None,
+        ip_addresses: Optional[List[str]] = None,
+        validity_days: int = 90,
+    ) -> Dict[str, Any]:
+        """Enrolls a new mesh node and issues an mTLS certificate signed by the internal CA."""
+        payload = {
+            "node_id": node_id,
+            "role": role,
+            "dns_names": dns_names or [],
+            "ip_addresses": ip_addresses or [],
+            "validity_days": validity_days,
+        }
+        res = self._request("POST", "/api/zerotrust/peers/enroll", payload)
+        return res.get("enrollment", res)
+
+    def revoke_zerotrust_peer(
+        self,
+        node_id: str,
+        reason: str = "Administrative revocation",
+    ) -> Dict[str, Any]:
+        """Revokes a peer node certificate and updates the internal CRL."""
+        payload = {
+            "node_id": node_id,
+            "reason": reason,
+        }
+        return self._request("POST", "/api/zerotrust/peers/revoke", payload)
+
+    def rotate_zerotrust_ca(self, validity_days: int = 365) -> Dict[str, Any]:
+        """Rotates the internal Root CA while maintaining dual-trust continuity."""
+        return self._request("POST", "/api/zerotrust/ca/rotate", {"validity_days": validity_days})
+
+    def get_zerotrust_hsm_status(self) -> Dict[str, Any]:
+        """Queries hardware-backed key slot capabilities and operation counters."""
+        return self._request("GET", "/api/zerotrust/hsm/status")
+
+    def verify_zerotrust_peer(self, peer: Dict[str, Any]) -> Dict[str, Any]:
+        """Cryptographically verifies whether a given peer identity is actively authorized."""
+        return self._request("POST", "/api/zerotrust/verify", peer)
+
 
 if __name__ == "__main__":
     import sys
