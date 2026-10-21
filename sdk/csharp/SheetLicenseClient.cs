@@ -801,6 +801,86 @@ namespace SheetLicenseBroker
         public string UnlockAirgapRollback(string vaultId, string hwid, string nonce, long timestamp, string adminSignature) =>
             UnlockAirgapRollbackAsync(vaultId, hwid, nonce, timestamp, adminSignature).GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Retrieves operational status for the Zero-Trust mesh and internal Certificate Authority.
+        /// </summary>
+        public async Task<string> GetZeroTrustStatusAsync() =>
+            await SendRequestAsync("GET", "/api/zerotrust/status", null).ConfigureAwait(false);
+
+        public string GetZeroTrustStatus() =>
+            GetZeroTrustStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Lists all enrolled Zero-Trust mesh peer nodes.
+        /// </summary>
+        public async Task<string> ListZeroTrustPeersAsync() =>
+            await SendRequestAsync("GET", "/api/zerotrust/peers", null).ConfigureAwait(false);
+
+        public string ListZeroTrustPeers() =>
+            ListZeroTrustPeersAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Enrolls a new peer node and issues an mTLS certificate signed by the internal CA.
+        /// </summary>
+        public async Task<string> EnrollZeroTrustPeerAsync(string nodeId, string role = "cluster_peer", int validityDays = 90)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"node_id\":\"{0}\",\"role\":\"{1}\",\"validity_days\":{2}}}",
+                EscapeJson(nodeId ?? ""), EscapeJson(role ?? "cluster_peer"), validityDays);
+            return await SendRequestAsync("POST", "/api/zerotrust/peers/enroll", body).ConfigureAwait(false);
+        }
+
+        public string EnrollZeroTrustPeer(string nodeId, string role = "cluster_peer", int validityDays = 90) =>
+            EnrollZeroTrustPeerAsync(nodeId, role, validityDays).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Revokes a peer node certificate and marks its status as REVOKED in the internal CRL.
+        /// </summary>
+        public async Task<string> RevokeZeroTrustPeerAsync(string nodeId, string reason = "Administrative revocation")
+        {
+            string body = string.Format("{{\"node_id\":\"{0}\",\"reason\":\"{1}\"}}",
+                EscapeJson(nodeId ?? ""), EscapeJson(reason ?? ""));
+            return await SendRequestAsync("POST", "/api/zerotrust/peers/revoke", body).ConfigureAwait(false);
+        }
+
+        public string RevokeZeroTrustPeer(string nodeId, string reason = "Administrative revocation") =>
+            RevokeZeroTrustPeerAsync(nodeId, reason).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Rotates the internal Root CA while maintaining dual-trust continuity.
+        /// </summary>
+        public async Task<string> RotateZeroTrustCAAsync(int validityDays = 365)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"validity_days\":{0}}}", validityDays);
+            return await SendRequestAsync("POST", "/api/zerotrust/ca/rotate", body).ConfigureAwait(false);
+        }
+
+        public string RotateZeroTrustCA(int validityDays = 365) =>
+            RotateZeroTrustCAAsync(validityDays).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries hardware-backed key slot capabilities and operation counters.
+        /// </summary>
+        public async Task<string> GetZeroTrustHSMStatusAsync() =>
+            await SendRequestAsync("GET", "/api/zerotrust/hsm/status", null).ConfigureAwait(false);
+
+        public string GetZeroTrustHSMStatus() =>
+            GetZeroTrustHSMStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Cryptographically verifies whether a given peer identity is actively authorized.
+        /// </summary>
+        public async Task<string> VerifyZeroTrustPeerAsync(string nodeId, string serialNumber)
+        {
+            string body = string.Format("{{\"node_id\":\"{0}\",\"serial_number\":\"{1}\"}}",
+                EscapeJson(nodeId ?? ""), EscapeJson(serialNumber ?? ""));
+            return await SendRequestAsync("POST", "/api/zerotrust/verify", body).ConfigureAwait(false);
+        }
+
+        public string VerifyZeroTrustPeer(string nodeId, string serialNumber) =>
+            VerifyZeroTrustPeerAsync(nodeId, serialNumber).GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

@@ -32,4 +32,12 @@ export type {
   MarketplaceSimulateRequest,
   MarketplaceSimulateResponse,
   MarketplaceTransactionFilter,
+  ZeroTrustPeerRole,
+  ZeroTrustPeerStatus,
+  ZeroTrustPeerIdentity,
+  ZeroTrustEnrollRequest,
+  ZeroTrustEnrollResponse,
+  ZeroTrustHSMSlotInfo,
+  ZeroTrustStatus,
+  ZeroTrustVerifyResponse,
 } from './types.js';

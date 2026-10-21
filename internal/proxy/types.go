@@ -30,6 +30,8 @@ type ProxyConfig struct {
 	StripeWebhookSecret       string
 	LemonSqueezyWebhookSecret string
 	PaddleWebhookSecret       string
+	MTLSEnforced              bool
+	HSMPIN                    string
 }
 
 // VerifyResult captures the unified result of a license check.

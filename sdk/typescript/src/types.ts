@@ -703,5 +703,72 @@ export interface AirgapStatus {
   timestamp: string;
 }
 
+export type ZeroTrustPeerRole = 'cluster_peer' | 'worker_node' | 'admin_agent' | 'edge_gateway';
+export type ZeroTrustPeerStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
+
+export interface ZeroTrustPeerIdentity {
+  node_id: string;
+  role: ZeroTrustPeerRole;
+  common_name: string;
+  spiffe_id?: string;
+  serial_number: string;
+  fingerprint_sha256: string;
+  dns_names?: string[];
+  ip_addresses?: string[];
+  issued_at?: string;
+  expires_at: string;
+  status: ZeroTrustPeerStatus;
+  revoked_at?: string;
+  revocation_reason?: string;
+}
+
+export interface ZeroTrustEnrollRequest {
+  node_id: string;
+  role?: ZeroTrustPeerRole;
+  dns_names?: string[];
+  ip_addresses?: string[];
+  validity_days?: number;
+}
+
+export interface ZeroTrustEnrollResponse {
+  node_id: string;
+  role: ZeroTrustPeerRole;
+  certificate_pem: string;
+  private_key_pem: string;
+  root_ca_pem: string;
+  serial_number: string;
+  fingerprint_sha256: string;
+  expires_at: string;
+}
+
+export interface ZeroTrustHSMSlotInfo {
+  slot_id: number;
+  label: string;
+  algorithm: string;
+  key_present: boolean;
+  public_key_pem: string;
+  operations_count: number;
+  zeroized: boolean;
+}
+
+export interface ZeroTrustStatus {
+  ca_initialized: boolean;
+  ca_root_fingerprint: string;
+  ca_expires_at: string;
+  active_peers_count: number;
+  revoked_peers_count: number;
+  mtls_enforced: boolean;
+  hsm_enabled: boolean;
+  hsm_slots_count: number;
+  slots?: ZeroTrustHSMSlotInfo[];
+  timestamp: string;
+}
+
+export interface ZeroTrustVerifyResponse {
+  valid: boolean;
+  reason: string;
+  node_id: string;
+}
+
 
 

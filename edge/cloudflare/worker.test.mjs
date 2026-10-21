@@ -270,5 +270,18 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     const dataHwidMismatch = await respHwidMismatch.json();
     assert.equal(dataHwidMismatch.valid, false);
   });
+
+  test('reports Zero-Trust edge telemetry and forwards client cert fingerprint', async () => {
+    const req = new Request('https://edge.example.com/edge/zerotrust/status', {
+      headers: { 'cf-client-cert-sha256': 'aabbccddeeff112233445566' }
+    });
+    const resp = await worker.fetch(req, { MTLS_ENFORCED: 'true' });
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_zerotrust_enabled, true);
+    assert.equal(data.mtls_enforced, true);
+    assert.equal(data.client_cert_present, true);
+    assert.equal(data.client_cert_sha256, 'aabbccddeeff112233445566');
+  });
 });
 

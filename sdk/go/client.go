@@ -404,3 +404,83 @@ func (c *Client) GetStreamTelemetry(ctx context.Context) (map[string]interface{}
 	return res.Telemetry, nil
 }
 
+// GetZeroTrustStatus queries the Zero-Trust mesh operational status and Root CA health.
+func (c *Client) GetZeroTrustStatus(ctx context.Context) (map[string]interface{}, error) {
+	var status map[string]interface{}
+	if err := c.request(ctx, http.MethodGet, "/api/zerotrust/status", nil, &status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
+// ListZeroTrustPeers retrieves the list of enrolled peer identities from the mesh registry.
+func (c *Client) ListZeroTrustPeers(ctx context.Context) ([]map[string]interface{}, error) {
+	var res struct {
+		Peers []map[string]interface{} `json:"peers"`
+	}
+	if err := c.request(ctx, http.MethodGet, "/api/zerotrust/peers", nil, &res); err != nil {
+		return nil, err
+	}
+	return res.Peers, nil
+}
+
+// EnrollZeroTrustPeer registers a peer node and returns an issued mTLS certificate keypair.
+func (c *Client) EnrollZeroTrustPeer(ctx context.Context, nodeID, role string, validityDays int) (map[string]interface{}, error) {
+	req := map[string]interface{}{
+		"node_id":       nodeID,
+		"role":          role,
+		"validity_days": validityDays,
+	}
+	var res struct {
+		Status     string                 `json:"status"`
+		Enrollment map[string]interface{} `json:"enrollment"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/zerotrust/peers/enroll", req, &res); err != nil {
+		return nil, err
+	}
+	return res.Enrollment, nil
+}
+
+// RevokeZeroTrustPeer revokes a peer's certificate and places its serial on the CRL.
+func (c *Client) RevokeZeroTrustPeer(ctx context.Context, nodeID, reason string) error {
+	req := map[string]interface{}{
+		"node_id": nodeID,
+		"reason":  reason,
+	}
+	var res map[string]interface{}
+	return c.request(ctx, http.MethodPost, "/api/zerotrust/peers/revoke", req, &res)
+}
+
+// RotateZeroTrustCA rotates the internal Root CA while maintaining dual-trust continuity.
+func (c *Client) RotateZeroTrustCA(ctx context.Context, validityDays int) (map[string]interface{}, error) {
+	req := map[string]interface{}{
+		"validity_days": validityDays,
+	}
+	var res map[string]interface{}
+	if err := c.request(ctx, http.MethodPost, "/api/zerotrust/ca/rotate", req, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// GetZeroTrustHSMStatus queries hardware key slot diagnostics and operation counters.
+func (c *Client) GetZeroTrustHSMStatus(ctx context.Context) (map[string]interface{}, error) {
+	var res map[string]interface{}
+	if err := c.request(ctx, http.MethodGet, "/api/zerotrust/hsm/status", nil, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// VerifyZeroTrustPeer cryptographically verifies an active peer certificate identity.
+func (c *Client) VerifyZeroTrustPeer(ctx context.Context, peer map[string]interface{}) (bool, string, error) {
+	var res struct {
+		Valid  bool   `json:"valid"`
+		Reason string `json:"reason"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/api/zerotrust/verify", peer, &res); err != nil {
+		return false, "", err
+	}
+	return res.Valid, res.Reason, nil
+}
+

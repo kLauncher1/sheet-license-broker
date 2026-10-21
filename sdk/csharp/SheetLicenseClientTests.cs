@@ -341,6 +341,41 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"state\":{\"vault_id\":\"VAULT-CS-01\",\"hwid\":\"HWID-CS-01\",\"monotonic_counter\":111,\"tampered\":false}}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"ca_initialized\":true,\"ca_root_fingerprint\":\"zt_ca_cs_hex\",\"mtls_enforced\":true,\"active_peers_count\":2,\"hsm_enabled\":true,\"hsm_slots_count\":3}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/peers")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"peers\":[{\"node_id\":\"node-cs-01\",\"role\":\"cluster_peer\",\"serial_number\":\"cs_serial_01\",\"status\":\"ACTIVE\"}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/peers/enroll")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"enrollment\":{\"node_id\":\"node-cs-01\",\"role\":\"cluster_peer\",\"serial_number\":\"cs_serial_01\",\"fingerprint_sha256\":\"cs_fp_01\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/peers/revoke")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"node_id\":\"node-cs-01\",\"revoked\":true,\"reason\":\"C# decomm\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/ca/rotate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"message\":\"Rotated\",\"root_fingerprint\":\"rotated_cs_fp_hex\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/hsm/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"hsm_enabled\":true,\"slots_count\":3,\"slots\":[{\"slot_id\":0,\"label\":\"Root CA Master Key Slot\",\"operations_count\":10}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/zerotrust/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"reason\":\"valid\",\"node_id\":\"node-cs-01\"}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -767,7 +802,51 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Airgap status, dongle issue/verify, activation request/fulfill, and rollback state/unlock");
 
-                Console.WriteLine("=== All 22 C# Client Tests Passed Successfully! ===");
+                string ztStatusRaw = client.GetZeroTrustStatusAsync().GetAwaiter().GetResult();
+                if (!ztStatusRaw.Contains("\"ca_initialized\":true") || !ztStatusRaw.Contains("zt_ca_cs_hex"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust status failed: " + ztStatusRaw);
+                    return 1;
+                }
+                string ztPeersRaw = client.ListZeroTrustPeersAsync().GetAwaiter().GetResult();
+                if (!ztPeersRaw.Contains("node-cs-01"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust peers list failed: " + ztPeersRaw);
+                    return 1;
+                }
+                string ztEnrollRaw = client.EnrollZeroTrustPeerAsync("node-cs-01").GetAwaiter().GetResult();
+                if (!ztEnrollRaw.Contains("cs_serial_01"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust enroll failed: " + ztEnrollRaw);
+                    return 1;
+                }
+                string ztVerifyRaw = client.VerifyZeroTrustPeerAsync("node-cs-01", "cs_serial_01").GetAwaiter().GetResult();
+                if (!ztVerifyRaw.Contains("\"valid\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust verify failed: " + ztVerifyRaw);
+                    return 1;
+                }
+                string ztRevokeRaw = client.RevokeZeroTrustPeerAsync("node-cs-01", "C# decomm").GetAwaiter().GetResult();
+                if (!ztRevokeRaw.Contains("\"revoked\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust revoke failed: " + ztRevokeRaw);
+                    return 1;
+                }
+                string ztRotateRaw = client.RotateZeroTrustCAAsync(180).GetAwaiter().GetResult();
+                if (!ztRotateRaw.Contains("rotated_cs_fp_hex"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust rotate failed: " + ztRotateRaw);
+                    return 1;
+                }
+                string ztHsmRaw = client.GetZeroTrustHSMStatusAsync().GetAwaiter().GetResult();
+                if (!ztHsmRaw.Contains("Root CA Master Key Slot"))
+                {
+                    Console.Error.WriteLine("FAIL: ZeroTrust HSM status failed: " + ztHsmRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: ZeroTrust status, peers, enroll/verify/revoke, CA rotate, and HSM slot query");
+
+                Console.WriteLine("=== All 23 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

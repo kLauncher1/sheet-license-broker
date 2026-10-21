@@ -670,5 +670,54 @@ export class SheetLicenseClient {
         const res = await this.request('POST', '/api/airgap/rollback/unlock', req);
         return res.state;
     }
+    /**
+     * Retrieves high-level operational status of the Zero-Trust mesh and internal CA.
+     */
+    async getZeroTrustStatus() {
+        return this.request('GET', '/api/zerotrust/status');
+    }
+    /**
+     * Lists all known enrolled Zero-Trust mesh peer nodes.
+     */
+    async listZeroTrustPeers() {
+        const res = await this.request('GET', '/api/zerotrust/peers');
+        return res.peers;
+    }
+    /**
+     * Enrolls a new peer node and issues an mTLS certificate signed by the internal CA.
+     */
+    async enrollZeroTrustPeer(req) {
+        const res = await this.request('POST', '/api/zerotrust/peers/enroll', req);
+        return res.enrollment;
+    }
+    /**
+     * Revokes a peer node certificate and marks its status as REVOKED in the internal CRL.
+     */
+    async revokeZeroTrustPeer(nodeId, reason) {
+        return this.request('POST', '/api/zerotrust/peers/revoke', {
+            node_id: nodeId,
+            reason: reason || 'Administrative revocation',
+        });
+    }
+    /**
+     * Rotates the internal Root CA while maintaining dual-trust continuity.
+     */
+    async rotateZeroTrustCA(validityDays) {
+        return this.request('POST', '/api/zerotrust/ca/rotate', {
+            validity_days: validityDays || 365,
+        });
+    }
+    /**
+     * Queries hardware-backed key slot capabilities and operation counters.
+     */
+    async getZeroTrustHSMStatus() {
+        return this.request('GET', '/api/zerotrust/hsm/status');
+    }
+    /**
+     * Cryptographically verifies whether a given peer identity is actively authorized.
+     */
+    async verifyZeroTrustPeer(peer) {
+        return this.request('POST', '/api/zerotrust/verify', peer);
+    }
 }
 //# sourceMappingURL=client.js.map

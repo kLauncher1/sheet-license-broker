@@ -28,6 +28,8 @@ const SHEET_GEO_POPS = 'Geo_POPs';
 const SHEET_PARTITION_EVENTS = 'Partition_Events';
 const SHEET_MARKETPLACE_TRANSACTIONS = 'Marketplace_Transactions';
 const SHEET_AIRGAP_VAULT = 'AirGap_Vault';
+const SHEET_ZEROTRUST_PEERS = 'ZeroTrust_Peers';
+const SHEET_ZEROTRUST_CA = 'ZeroTrust_CA';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -214,6 +216,18 @@ function handleRequest(e, method) {
       case 'airgap_get_status':
         return handleAirgapGetStatus(output, payload);
 
+      case 'zerotrust_enroll_peer':
+        return handleZeroTrustEnrollPeer(output, payload);
+
+      case 'zerotrust_revoke_peer':
+        return handleZeroTrustRevokePeer(output, payload);
+
+      case 'zerotrust_rotate_ca':
+        return handleZeroTrustRotateCA(output, payload);
+
+      case 'zerotrust_get_status':
+        return handleZeroTrustGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -247,7 +261,9 @@ function initSheets() {
     { name: SHEET_GEO_POPS, cols: ['pop_id', 'name', 'region', 'country', 'latitude', 'longitude', 'status', 'weight', 'rtt_ms', 'last_seen'] },
     { name: SHEET_PARTITION_EVENTS, cols: ['timestamp', 'region_id', 'status', 'mitigation_token', 'details'] },
     { name: SHEET_MARKETPLACE_TRANSACTIONS, cols: ['id', 'event_id', 'provider', 'action', 'customer_email', 'license_key', 'tier', 'seats', 'status', 'error_message', 'processed_at'] },
-    { name: SHEET_AIRGAP_VAULT, cols: ['token_id', 'license_key', 'hwid', 'tier', 'issued_at', 'expires_at', 'counter', 'status', 'signature', 'updated_at'] }
+    { name: SHEET_AIRGAP_VAULT, cols: ['token_id', 'license_key', 'hwid', 'tier', 'issued_at', 'expires_at', 'counter', 'status', 'signature', 'updated_at'] },
+    { name: SHEET_ZEROTRUST_PEERS, cols: ['node_id', 'role', 'serial_number', 'fingerprint_sha256', 'expires_at', 'status', 'updated_at'] },
+    { name: SHEET_ZEROTRUST_CA, cols: ['root_fingerprint', 'expires_at', 'status', 'rotated_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1653,6 +1669,131 @@ function handleAirgapGetStatus(output, payload) {
     active_tokens: activeTokens,
     tracked_devices: Object.keys(uniqueDevices).length,
     last_issued_at: lastIssuedAt
+  });
+}
+
+function handleZeroTrustEnrollPeer(output, payload) {
+  payload = payload || {};
+  const nodeId = payload.node_id;
+  if (!nodeId) {
+    return jsonResponse(output, { status: 'error', message: 'node_id is required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ZEROTRUST_PEERS);
+  if (!sheet) {
+    return jsonResponse(output, { status: 'error', message: 'ZeroTrust_Peers sheet not found' });
+  }
+
+  const data = sheet.getDataRange().getValues();
+  let updated = false;
+  const now = new Date().toISOString();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === nodeId) {
+      sheet.getRange(i + 1, 2, 1, 6).setValues([[
+        payload.role || 'cluster_peer',
+        payload.serial_number || '',
+        payload.fingerprint_sha256 || '',
+        payload.expires_at || '',
+        payload.status || 'ACTIVE',
+        now
+      ]]);
+      updated = true;
+      break;
+    }
+  }
+
+  if (!updated) {
+    sheet.appendRow([
+      nodeId,
+      payload.role || 'cluster_peer',
+      payload.serial_number || '',
+      payload.fingerprint_sha256 || '',
+      payload.expires_at || '',
+      payload.status || 'ACTIVE',
+      now
+    ]);
+  }
+
+  logAudit('zerotrust_enroll_peer', nodeId, 'Enrolled peer ' + nodeId, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', node_id: nodeId, updated: updated });
+}
+
+function handleZeroTrustRevokePeer(output, payload) {
+  payload = payload || {};
+  const nodeId = payload.node_id;
+  if (!nodeId) {
+    return jsonResponse(output, { status: 'error', message: 'node_id is required' });
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ZEROTRUST_PEERS);
+  if (!sheet) {
+    return jsonResponse(output, { status: 'error', message: 'ZeroTrust_Peers sheet not found' });
+  }
+
+  const data = sheet.getDataRange().getValues();
+  let found = false;
+  const now = new Date().toISOString();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === nodeId) {
+      sheet.getRange(i + 1, 6, 1, 2).setValues([['REVOKED', now]]);
+      found = true;
+      break;
+    }
+  }
+
+  logAudit('zerotrust_revoke_peer', nodeId, 'Revoked peer ' + nodeId + ' reason: ' + (payload.reason || 'None'), 'SUCCESS');
+  return jsonResponse(output, { status: 'success', node_id: nodeId, revoked: found });
+}
+
+function handleZeroTrustRotateCA(output, payload) {
+  payload = payload || {};
+  const fp = payload.root_fingerprint || '';
+  const expiresAt = payload.expires_at || '';
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ZEROTRUST_CA);
+  if (sheet) {
+    sheet.appendRow([fp, expiresAt, 'ACTIVE', new Date().toISOString()]);
+  }
+
+  logAudit('zerotrust_rotate_ca', 'system', 'Rotated internal CA root fingerprint ' + fp, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', root_fingerprint: fp });
+}
+
+function handleZeroTrustGetStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const peerSheet = ss.getSheetByName(SHEET_ZEROTRUST_PEERS);
+  const caSheet = ss.getSheetByName(SHEET_ZEROTRUST_CA);
+
+  let activePeers = 0;
+  let revokedPeers = 0;
+  if (peerSheet) {
+    const data = peerSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      const st = data[i][5];
+      if (st === 'ACTIVE') activePeers++;
+      else if (st === 'REVOKED') revokedPeers++;
+    }
+  }
+
+  let latestFingerprint = '';
+  if (caSheet) {
+    const data = caSheet.getDataRange().getValues();
+    if (data.length > 1) {
+      latestFingerprint = data[data.length - 1][0];
+    }
+  }
+
+  return jsonResponse(output, {
+    status: 'success',
+    ca_active: true,
+    root_fingerprint: latestFingerprint,
+    active_peers: activePeers,
+    revoked_peers: revokedPeers
   });
 }
 

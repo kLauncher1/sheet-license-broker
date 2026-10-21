@@ -205,6 +205,8 @@
       <span>•</span>
       <span id="airgap-badge" style="color: #38bdf8;">Air-Gap: Active</span>
       <span>•</span>
+      <span id="zerotrust-badge" style="color: #10b981;">Zero-Trust: mTLS Active</span>
+      <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
@@ -263,6 +265,7 @@
       <button class="tab-btn" id="tab-btn-anycast" onclick="switchTab('anycast')">Geo Anycast & Edge CDN</button>
       <button class="tab-btn" id="tab-btn-marketplace" onclick="switchTab('marketplace')">Marketplace & Resellers</button>
       <button class="tab-btn" id="tab-btn-airgap" onclick="switchTab('airgap')">Air-Gap &amp; Offline Dongles</button>
+      <button class="tab-btn" id="tab-btn-zerotrust" onclick="switchTab('zerotrust')">Zero-Trust &amp; mTLS</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1228,6 +1231,67 @@
 
       <div id="airgap-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 19: Zero-Trust & mTLS -->
+    <div id="panel-zerotrust" style="display: none;">
+      <div class="grid-stats">
+        <div class="card">
+          <div class="card-title">Root CA Status</div>
+          <div class="card-value" id="val-zt-ca-status" style="color: var(--accent-green);">Active</div>
+          <div class="card-subtext">ECDSA P-256 PKI</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Root CA Fingerprint</div>
+          <div class="card-value" id="val-zt-ca-fp" style="color: #38bdf8; font-size: 13px; word-break: break-all;">--</div>
+          <div class="card-subtext">SHA-256 Anchor</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Mesh Peers</div>
+          <div class="card-value" id="val-zt-peers-count" style="color: #facc15;">0</div>
+          <div class="card-subtext">mTLS Enrolled Nodes</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Revoked Peers (CRL)</div>
+          <div class="card-value" id="val-zt-revoked-count" style="color: #f87171;">0</div>
+          <div class="card-subtext">Serial Blacklist</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Hardware HSM</div>
+          <div class="card-value" id="val-zt-hsm-status" style="color: #a78bfa;">3 Slots Bound</div>
+          <div class="card-subtext">PKCS#11 Secure Storage</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="btn-action" onclick="promptEnrollZeroTrustPeer()">+ Enroll Peer Node</button>
+        <button class="btn-action btn-secondary" onclick="promptVerifyZeroTrustPeer()">🔍 Verify Peer Identity</button>
+        <button class="btn-action btn-secondary" onclick="promptRotateZeroTrustCA()">🔄 Rotate Root CA</button>
+        <button class="btn-action btn-secondary" onclick="showZeroTrustHSMDiagnostic()">🛡️ HSM Slots Diagnostic</button>
+        <button class="btn-action btn-secondary" onclick="refreshZeroTrustTab()">🔄 Refresh Mesh</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; color: var(--text-main);">Enrolled Zero-Trust Mesh Peers</h3>
+        <table class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th>Node ID</th>
+              <th>Role</th>
+              <th>Serial Number</th>
+              <th>Fingerprint</th>
+              <th>Expires At</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="zerotrust-peers-body">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading enrolled peers...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="zerotrust-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1235,7 +1299,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1259,6 +1323,7 @@
       document.getElementById('panel-anycast').style.display = tab === 'anycast' ? 'block' : 'none';
       document.getElementById('panel-marketplace').style.display = tab === 'marketplace' ? 'block' : 'none';
       document.getElementById('panel-airgap').style.display = tab === 'airgap' ? 'block' : 'none';
+      document.getElementById('panel-zerotrust').style.display = tab === 'zerotrust' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1280,6 +1345,7 @@
       if (tab === 'anycast') refreshAnycastTab();
       if (tab === 'marketplace') refreshMarketplaceTab();
       if (tab === 'airgap') refreshAirgapTab();
+      if (tab === 'zerotrust') refreshZeroTrustTab();
     }
 
     async function refresh() {
@@ -1326,6 +1392,14 @@
           const mb = document.getElementById('marketplace-badge');
           if (mb) {
             mb.textContent = `Marketplaces: ${activeCount}/3 Active`;
+          }
+        }
+
+        if (health && health.zerotrust) {
+          const zt = health.zerotrust;
+          const zb = document.getElementById('zerotrust-badge');
+          if (zb) {
+            zb.textContent = zt.mtls_enforced ? `Zero-Trust: mTLS Strict (${zt.active_peers_count} Peers)` : `Zero-Trust: Active (${zt.active_peers_count} Peers)`;
           }
         }
 
@@ -3354,6 +3428,160 @@
         refreshAirgapTab();
       } catch (e) {
         out.textContent = 'Rollback check failed: ' + e.message;
+      }
+    }
+
+    async function refreshZeroTrustTab() {
+      try {
+        const [statusRes, peersRes] = await Promise.all([
+          fetch('/api/zerotrust/status').then(r => r.json()).catch(() => null),
+          fetch('/api/zerotrust/peers').then(r => r.json()).catch(() => ({ peers: [] }))
+        ]);
+
+        if (statusRes) {
+          document.getElementById('val-zt-ca-status').textContent = statusRes.ca_initialized ? 'Active (ECDSA)' : 'Uninitialized';
+          document.getElementById('val-zt-ca-fp').textContent = statusRes.ca_root_fingerprint ? statusRes.ca_root_fingerprint.substring(0, 16) + '...' : '--';
+          document.getElementById('val-zt-peers-count').textContent = statusRes.active_peers_count || 0;
+          document.getElementById('val-zt-revoked-count').textContent = statusRes.revoked_peers_count || 0;
+          document.getElementById('val-zt-hsm-status').textContent = statusRes.hsm_enabled ? `${statusRes.hsm_slots_count || 3} Slots Bound` : 'Disabled';
+        }
+
+        const tbody = document.getElementById('zerotrust-peers-body');
+        const peers = peersRes && peersRes.peers ? peersRes.peers : [];
+        if (peers.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No mesh peers enrolled. Click "+ Enroll Peer Node" to issue mTLS credentials.</td></tr>';
+        } else {
+          tbody.innerHTML = peers.map(p => {
+            const isRevoked = p.status === 'REVOKED';
+            const statusClass = isRevoked ? 'pill pill-revoked' : 'pill pill-active';
+            return `
+              <tr>
+                <td style="font-family: monospace; font-weight: 700; color: ${isRevoked ? '#f87171' : '#10b981'};">${p.node_id}</td>
+                <td><span style="font-size: 11px; color: #38bdf8;">${p.role}</span></td>
+                <td style="font-family: monospace; font-size: 12px; color: #cbd5e1;">${p.serial_number ? p.serial_number.substring(0, 12) + '...' : '--'}</td>
+                <td style="font-family: monospace; font-size: 11px; color: #94a3b8;">${p.fingerprint_sha256 ? p.fingerprint_sha256.substring(0, 14) + '...' : '--'}</td>
+                <td style="font-size: 12px; color: #cbd5e1;">${p.expires_at ? new Date(p.expires_at).toLocaleDateString() : '--'}</td>
+                <td><span class="${statusClass}">${p.status}</span></td>
+                <td>
+                  ${isRevoked ? '<span style="color: #64748b; font-size: 11px;">Revoked</span>' : `<button class="btn-action btn-danger btn-sm" onclick="quickRevokeZeroTrustPeer('${p.node_id}')">Revoke</button>`}
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (err) {
+        console.error('Failed to refresh ZeroTrust tab:', err);
+      }
+    }
+
+    async function promptEnrollZeroTrustPeer() {
+      const nodeId = prompt('Enter New Peer Node ID (e.g. node-edge-fra-1):', 'node-peer-' + Math.floor(Math.random() * 900 + 100));
+      if (!nodeId) return;
+
+      const role = prompt('Peer Role [cluster_peer | worker_node | admin_agent | edge_gateway]:', 'cluster_peer') || 'cluster_peer';
+      const days = parseInt(prompt('Certificate Validity (Days):', '90') || '90', 10);
+
+      const out = document.getElementById('zerotrust-output');
+      out.style.display = 'block';
+      out.textContent = `Enrolling Zero-Trust peer [${nodeId}] and signing mTLS certificate...`;
+
+      try {
+        const res = await fetch('/api/zerotrust/peers/enroll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_id: nodeId,
+            role: role,
+            dns_names: [nodeId, 'localhost'],
+            ip_addresses: ['127.0.0.1'],
+            validity_days: days
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'mTLS Peer Enrollment Successful:\n\n' + JSON.stringify(res, null, 2);
+        refreshZeroTrustTab();
+      } catch (err) {
+        out.textContent = 'Enrollment failed: ' + err.message;
+      }
+    }
+
+    async function promptVerifyZeroTrustPeer() {
+      const nodeId = prompt('Enter Peer Node ID to verify:', 'node-peer-1');
+      if (!nodeId) return;
+      const serial = prompt('Enter Peer Certificate Serial (Hex):', '');
+
+      const out = document.getElementById('zerotrust-output');
+      out.style.display = 'block';
+      out.textContent = `Verifying Zero-Trust identity for [${nodeId}]...`;
+
+      try {
+        const res = await fetch('/api/zerotrust/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_id: nodeId,
+            serial_number: serial
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Zero-Trust Peer Verification Result:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'Verification request failed: ' + err.message;
+      }
+    }
+
+    async function quickRevokeZeroTrustPeer(nodeId) {
+      const reason = prompt(`Reason for revoking peer [${nodeId}]:`, 'Security decommission');
+      if (!reason) return;
+
+      const out = document.getElementById('zerotrust-output');
+      out.style.display = 'block';
+      out.textContent = `Revoking peer certificate for [${nodeId}]...`;
+
+      try {
+        const res = await fetch('/api/zerotrust/peers/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ node_id: nodeId, reason: reason })
+        }).then(r => r.json());
+
+        out.textContent = 'Peer Revocation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshZeroTrustTab();
+      } catch (err) {
+        out.textContent = 'Revocation failed: ' + err.message;
+      }
+    }
+
+    async function promptRotateZeroTrustCA() {
+      const days = parseInt(prompt('New Root CA Validity Period (Days):', '365') || '365', 10);
+      const out = document.getElementById('zerotrust-output');
+      out.style.display = 'block';
+      out.textContent = 'Rotating internal Root CA with dual-trust continuity...';
+
+      try {
+        const res = await fetch('/api/zerotrust/ca/rotate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ validity_days: days })
+        }).then(r => r.json());
+
+        out.textContent = 'Root CA Rotation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshZeroTrustTab();
+      } catch (err) {
+        out.textContent = 'CA Rotation failed: ' + err.message;
+      }
+    }
+
+    async function showZeroTrustHSMDiagnostic() {
+      const out = document.getElementById('zerotrust-output');
+      out.style.display = 'block';
+      out.textContent = 'Querying Hardware Security Module (PKCS#11 / HSM) slots...';
+
+      try {
+        const res = await fetch('/api/zerotrust/hsm/status').then(r => r.json());
+        out.textContent = 'Hardware Security Module (HSM) Status:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'HSM query failed: ' + err.message;
       }
     }
 

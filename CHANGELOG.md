@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2026-10-21
+
+### Added
+- Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement engine (`internal/zerotrust/types.go`, `internal/zerotrust/ca.go`, `internal/zerotrust/hsm.go`, `internal/zerotrust/mtls.go`, `internal/zerotrust/mesh.go`, `internal/zerotrust/ca_test.go`, `internal/zerotrust/hsm_test.go`, `internal/zerotrust/mtls_test.go`, `internal/zerotrust/mesh_test.go`) implemented in pure Go standard library with zero external dependencies.
+- Autonomous internal Root Certificate Authority (CA) generating self-signed ECDSA P-256 root certificates with SHA-256 signatures, x509 peer certificate enrollment/signing, SAN extension support, SPIFFE URIs (`spiffe://sheet-license-broker/node/<id>`), CRL generation, and dual-trust cert pool rotation for zero-downtime certificate renewals.
+- Strict Mutual TLS (mTLS) server and client transport configurations enforcing TLS 1.3 (`tls.VersionTLS13`), `tls.RequireAndVerifyClientCert`, peer identity extraction, and HTTP middleware verification.
+- Inter-node consensus mesh mTLS integration (`internal/consensus/mesh.go`) binding mutual TLS client transports and certificate authorities to all Raft quorum and CRDT anti-entropy sync RPCs.
+- Software HSM / PKCS#11 cryptoki key slot engine featuring constant-time PIN authentication (`crypto/subtle.ConstantTimeCompare`), isolated key slots, standard `crypto.Signer` implementation, operation counters, and an emergency cryptographic zeroization barrier.
+- Proxy orchestration layer (`internal/proxy/zerotrust.go`, `internal/proxy/zerotrust_test.go`) synchronizing Zero-Trust state, managing peer certificate enrollments, streaming security audit events, and binding mTLS to consensus peers.
+- Dedicated REST API routing layer (`routes_zerotrust.go`, `routes_zerotrust_test.go`) exposing `GET /api/zerotrust/status`, `GET /api/zerotrust/peers`, `POST /api/zerotrust/peers/enroll`, `POST /api/zerotrust/peers/revoke`, `POST /api/zerotrust/ca/rotate`, `GET /api/zerotrust/hsm/status`, and `POST /api/zerotrust/verify`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic initialization and persistent audit logging for `ZeroTrust_Peers` and `ZeroTrust_CA` sheets, with `handleZeroTrustEnrollPeer`, `handleZeroTrustRevokePeer`, `handleZeroTrustRotateCA`, and `handleZeroTrustGetStatus` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/client.go`, `sdk/go/client_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) adding Zero-Trust status querying, peer enrollment, client certificate verification, peer revocation, CA rotation, and HSM key slot inspection with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) implementing Zero-Trust edge telemetry and client certificate SHA-256 fingerprint forwarding (`/edge/zerotrust/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Zero-Trust Mesh & mTLS" tab with Root CA health status, active peer roster table, peer enrollment & certificate verification modal, CRL revocation controls, and software HSM key slot telemetry.
+- Major version bump to 2.0.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.9.0] - 2026-10-21
 
 ### Added

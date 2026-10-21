@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v1.9.0-emerald.svg" alt="Version: v1.9.0">
+  <img src="https://img.shields.io/badge/version-v2.0.0-emerald.svg" alt="Version: v2.0.0">
+  <img src="https://img.shields.io/badge/zerotrust-mTLS%20Mesh%20%26%20Software%20HSM-7C3AED.svg" alt="Zero-Trust mTLS Mesh & Software HSM">
   <img src="https://img.shields.io/badge/airgap-Ed25519%20Dongle%20%26%20Anti--Rollback-0284C7.svg" alt="Air-Gapped Vault and Dongle Emulation">
   <img src="https://img.shields.io/badge/marketplace-Stripe%20%26%20Lemon%20%26%20Paddle-F59E0B.svg" alt="Marketplace & Reseller Webhooks">
   <img src="https://img.shields.io/badge/anycast-Global%20POPs%20%26%20Sub--ms%20Cache-0284C7.svg" alt="Geo Anycast & Sub-ms Cache">
@@ -35,10 +36,11 @@
 
 **`sheet-license-broker`** turns any Google Spreadsheet into an authenticated, production-ready serverless backend for desktop applications, CLI utilities, and indie SaaS tools. 
 
-Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, geo-distributed Anycast edge routing & sub-millisecond L1 cache, confidential computing Intel SGX / AMD SEV-SNP enclave bridges, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
+Instead of paying for expensive cloud database instances or managing Docker containers just to handle user logins and software license keys, `sheet-license-broker` pairs a **Google Apps Script (GAS)** cloud engine with a **high-speed Go bridge, enterprise Zero-Trust mesh & mTLS peer enforcement, software HSM / PKCS#11 key slots, geo-distributed Anycast edge routing & sub-millisecond L1 cache, confidential computing Intel SGX / AMD SEV-SNP enclave bridges, post-quantum ML-DSA signature chains, distributed Raft quorum consensus, CRDT LWW-Element-Set synchronization, Cloudflare Edge Gateway, cryptographic hardware attestation (TPM 2.0 & Enclaves), multi-tenant namespacing, dual-sheet active-standby high availability, dynamic feature flags & usage metering, encrypted disk spooling, Prometheus metrics, cryptographic HMAC anti-tamper verification, resilient offline caching, and an embedded Web UI**.
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement (v2.0.0)**: Enforces cryptographic mutual authentication (mTLS) with TLS 1.3, SPIFFE URI identity verification, and CRL revocation checking across inter-node consensus RPCs. Includes an autonomous internal Root Certificate Authority (CA) with ECDSA P-256 and dual-trust cert pool rotation, alongside an isolated software HSM / PKCS#11 cryptoki key slot engine featuring constant-time PIN authentication and cryptographic zeroization barriers.
 - **Automated License Reseller & Marketplace Webhooks Bridge (v1.8.0)**: Connects Stripe, Lemon Squeezy, and Paddle webhook events directly to automated license provisioning, tier seat scaling, and refund revocations. Inbound webhooks undergo constant-time HMAC signature verification (`hmac.Equal`), timestamp replay drift mitigation (&plusmn;300s window), thread-safe LRU idempotency caching, and real-time SSE stream kill-switch pushes to sever running client sessions immediately upon cancellation or dispute.
 - **Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation (v1.9.0)**: Enables high-assurance cryptographic licensing for mission-critical, completely disconnected environments (SCADA, industrial plants, defense networks). Offline dongle tokens are signed using high-assurance Ed25519 digital signatures and framed in compact Base64/Hex envelopes or Base45-encoded QR code optical payloads. Incorporates a hardware-attested anti-clock-rollback monotonic counter check that trips an immutable emergency lock if the host clock is tampered backwards, unlockable only via administrative cryptographic recovery signatures.
 - **Geo-Distributed Edge CDN Anycast Routing & Sub-Millisecond L1 Cache**: Routes global requests to the nearest healthy Point of Presence (POP across Ashburn, San Jose, Frankfurt, Tokyo, Singapore, Sao Paulo) via Haversine spherical distance and dynamic active RTT telemetry. Delivers cached license lookups in under 100 microseconds with asynchronous Stale-While-Revalidate (SWR) and issues HMAC-signed emergency mitigation leases during network partitions.
@@ -85,7 +87,8 @@ flowchart TD
     Broker -->|Encrypted Disk Journal| Spool["Local Disk Spool (AES-256-GCM)"]
     Broker -->|SIEM Export| SIEM["Audit Export Pipeline (AES-256-GCM)"]
     Broker -->|Alerts| Alerts["Security Webhooks (Discord & Slack)"]
-    Broker -->|Raft RPC & CRDT Sync| Peers["Cluster Peer Mesh (Anti-Entropy)"]
+    Broker -->|mTLS Handshake & Raft CRDT RPC| Peers["Cluster Peer Mesh (Zero-Trust mTLS)"]
+    Broker -->|PKCS#11 Cryptoki| HSM["Software HSM / Isolated Key Slots"]
     Broker -->|In-Memory TTL Cache| Cache["Local Cache (Quota & Offline Fallback)"]
     Broker -->|Active Role| Primary["Primary GAS Web App (Code.gs)"]
     Broker -.->|Automatic Failover| Standby["Standby GAS Web App (Code.gs)"]
@@ -1385,6 +1388,90 @@ Content-Type: application/json
   "admin_signature": "7b8e..."
 }
 ```
+
+---
+
+### Zero-Trust Mesh & Mutual TLS (mTLS)
+
+Enterprise cluster nodes and administrative tools communicate via cryptographically authenticated mTLS tunnels with SPIFFE identity enforcement, dual-trust Root CA rotation, CRL revocation checking, and software HSM / PKCS#11 key slot protection.
+
+#### Query Zero-Trust Mesh & CA Status
+```http
+GET /api/zerotrust/status
+```
+**Response:**
+```json
+{
+  "status": "success",
+  "zerotrust": {
+    "enabled": true,
+    "ca_fingerprint": "7a3f8c...",
+    "ca_subject": "SheetLicenseBroker Internal Root CA",
+    "ca_expires_at": 1792368000,
+    "active_peers": 3,
+    "revoked_peers": 0,
+    "hsm_enabled": true,
+    "hsm_slots": 4,
+    "mtls_enforced": true
+  }
+}
+```
+
+#### List Enrolled Peer Roster
+```http
+GET /api/zerotrust/peers
+```
+
+#### Enroll or Sign Node Peer Certificate
+```http
+POST /api/zerotrust/peers/enroll
+Content-Type: application/json
+
+{
+  "node_id": "broker-node-02",
+  "role": "node",
+  "san_names": ["broker-node-02.local"],
+  "csr_pem": "-----BEGIN CERTIFICATE REQUEST-----\n..."
+}
+```
+
+#### Verify Peer Client Certificate
+```http
+POST /api/zerotrust/verify
+Content-Type: application/json
+
+{
+  "cert_pem": "-----BEGIN CERTIFICATE-----\n..."
+}
+```
+
+#### Revoke Peer Node Certificate
+```http
+POST /api/zerotrust/peers/revoke
+Content-Type: application/json
+
+{
+  "node_id": "broker-node-02",
+  "reason": "key compromise"
+}
+```
+
+#### Rotate Internal Root Certificate Authority
+```http
+POST /api/zerotrust/ca/rotate
+Content-Type: application/json
+
+{
+  "common_name": "SheetLicenseBroker Internal Root CA v2"
+}
+```
+
+#### Query Software HSM / PKCS#11 Key Slots
+```http
+GET /api/zerotrust/hsm/status
+```
+
+---
 
 ## ⚡ Cloudflare Edge Gateway
 
