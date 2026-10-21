@@ -608,5 +608,67 @@ export class SheetLicenseClient {
         }
         return this.request('GET', path);
     }
+    /**
+     * Retrieves operational telemetry for the air-gapped license vault.
+     */
+    async getAirgapStatus() {
+        return this.request('GET', '/api/airgap/status');
+    }
+    /**
+     * Issues a cryptographically signed offline dongle token.
+     */
+    async issueAirgapDongleToken(req) {
+        const hwid = req.hwid || (await getMachineHwid());
+        return this.request('POST', '/api/airgap/token/issue', {
+            ...req,
+            hwid,
+        });
+    }
+    /**
+     * Verifies an offline dongle token against the broker's master key and monotonic clock.
+     */
+    async verifyAirgapDongleToken(token, hwid, timestamp) {
+        const machineHwid = hwid || (await getMachineHwid());
+        return this.request('POST', '/api/airgap/token/verify', {
+            token,
+            hwid: machineHwid,
+            timestamp: timestamp || Math.floor(Date.now() / 1000),
+        });
+    }
+    /**
+     * Submits an offline machine challenge and returns an activation response with QR payload.
+     */
+    async requestAirgapActivation(req) {
+        const hwid = req.hwid || (await getMachineHwid());
+        const res = await this.request('POST', '/api/airgap/activate/request', {
+            ...req,
+            hwid,
+        });
+        return res.activation;
+    }
+    /**
+     * Consumes an air-gap QR payload and returns the fulfilled offline DongleToken.
+     */
+    async fulfillAirgapActivation(qrPayload) {
+        const res = await this.request('POST', '/api/airgap/activate/fulfill', {
+            qr_payload: qrPayload,
+        });
+        return res.token;
+    }
+    /**
+     * Queries the monotonic clock and rollback tamper state for an HWID.
+     */
+    async getAirgapRollbackState(hwid) {
+        const machineHwid = hwid || (await getMachineHwid());
+        const res = await this.request('GET', `/api/airgap/rollback/state?hwid=${encodeURIComponent(machineHwid)}`);
+        return res.state;
+    }
+    /**
+     * Unlocks a tripped airgap vault using an administrative recovery token.
+     */
+    async unlockAirgapRollback(req) {
+        const res = await this.request('POST', '/api/airgap/rollback/unlock', req);
+        return res.state;
+    }
 }
 //# sourceMappingURL=client.js.map

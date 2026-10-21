@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 1.9.x   | :white_check_mark: |
 | 1.8.x   | :white_check_mark: |
 | 1.7.x   | :white_check_mark: |
 | 1.6.x   | :white_check_mark: |
@@ -145,6 +146,12 @@
     - **Clock Drift Mitigation**: Webhooks carrying timestamps outside a configurable &plusmn;300-second window are rejected to protect against replay attacks.
     - **Idempotency Replay Protection**: Inbound webhooks are indexed by provider-specific event identifiers (`event_id`) in a thread-safe, capacity-bounded LRU cache (default 10,000 entries). Duplicate events are acknowledged gracefully without re-executing provisioning or revocation logic.
     - **Instant Real-Time Revocation Kill-Switch**: Upon receiving refund or dispute events, license entitlements are immediately revoked in storage and an instant SSE/WebSocket stream kill-switch (`stream_revocation`) is pushed to active client connections, terminating compromised sessions in sub-second time.
+
+25. **Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation Security**:
+    - **High-Assurance Ed25519 Cryptographic Signatures**: Offline dongle tokens are signed using RFC 8032 Edwards-curve Digital Signature Algorithm (Ed25519) and verified using constant-time cryptographic operations (`ed25519.Verify`).
+    - **Monotonic Anti-Clock-Rollback Protection**: To prevent perpetual offline licensing via local clock rollback, the vault enforces a strictly monotonic counter check against recorded high-water marks. If local system time is rolled backward, the vault trips an emergency immutable lock state.
+    - **Optical Base45 QR Activation Framing**: QR activation payloads utilize RFC 9285 Base45 framing with integrated SHA-256 integrity checksums, preventing tampering or truncation during optical camera or physical scanner bridging.
+    - **Cryptographic Recovery Gate**: Tripped vaults can be unlocked exclusively through administrative recovery tokens signed by the master Ed25519 keypair, enforcing audit accountability.
 
 ## Reporting a Vulnerability
 

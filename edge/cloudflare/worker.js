@@ -35,7 +35,12 @@ export default {
       return handleEdgeLicenseValidation(request, env);
     }
 
-    // 4. Forward all other routes to origin
+    // 4. Intercept air-gap dongle token verification at edge
+    if ((url.pathname === '/edge/airgap/verify' || url.pathname === '/api/airgap/token/verify') && request.method === 'POST') {
+      return handleEdgeAirgapVerify(request, env);
+    }
+
+    // 5. Forward all other routes to origin
     return forwardToOrigin(request, env);
   }
 };
@@ -360,5 +365,123 @@ export async function handleEdgeAnycastRoute(request, env) {
       'X-Broker-Edge': 'cloudflare-worker'
     }
   });
+}
+
+export function hexToBytes(hexStr) {
+  const clean = (hexStr || '').trim();
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes[i / 2] = parseInt(clean.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+export function parseDongleToken(rawToken) {
+  if (typeof rawToken === 'object' && rawToken !== null) {
+    return rawToken;
+  }
+  const trimmed = (rawToken || '').trim();
+  if (trimmed.startsWith('{')) {
+    return JSON.parse(trimmed);
+  }
+  let base64 = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  const decoded = atob(base64);
+  return JSON.parse(decoded);
+}
+
+export function canonicalDonglePayload(t) {
+  const featStr = Array.isArray(t.features) ? t.features.join(',') : '';
+  return `DONGLE-v1:${t.token_id}:${t.license_key}:${t.hwid}:${t.tier}:${featStr}:${t.max_devices}:${t.issued_at}:${t.expires_at}:${t.counter}`;
+}
+
+export async function verifyEd25519Signature(publicKeyHex, message, signatureHex) {
+  const pkBytes = hexToBytes(publicKeyHex);
+  const sigBytes = hexToBytes(signatureHex);
+  const msgBytes = typeof message === 'string' ? new TextEncoder().encode(message) : message;
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    pkBytes,
+    { name: 'Ed25519' },
+    false,
+    ['verify']
+  );
+
+  return crypto.subtle.verify(
+    { name: 'Ed25519' },
+    key,
+    sigBytes,
+    msgBytes
+  );
+}
+
+export async function handleEdgeAirgapVerify(request, env) {
+  try {
+    const body = await request.json();
+    const rawToken = body.token || body.dongle_token;
+    if (!rawToken) {
+      return new Response(JSON.stringify({ valid: false, error: 'token is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+      });
+    }
+
+    const token = parseDongleToken(rawToken);
+    const pubKey = body.public_key || token.public_key || env?.AIRGAP_MASTER_PUBLIC_KEY;
+    if (!pubKey || !token.signature) {
+      return new Response(JSON.stringify({ valid: false, error: 'missing public key or signature' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+      });
+    }
+
+    // 1. Signature check
+    const canonicalMsg = canonicalDonglePayload(token);
+    const isValidSig = await verifyEd25519Signature(pubKey, canonicalMsg, token.signature);
+    if (!isValidSig) {
+      return new Response(JSON.stringify({ valid: false, error: 'invalid ed25519 signature' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+      });
+    }
+
+    // 2. Expiry check
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (token.expires_at > 0 && nowSec > token.expires_at) {
+      return new Response(JSON.stringify({ valid: false, error: 'airgap token expired' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+      });
+    }
+
+    // 3. HWID check
+    if (body.hwid && token.hwid) {
+      if (body.hwid.toUpperCase() !== token.hwid.toUpperCase()) {
+        return new Response(JSON.stringify({ valid: false, error: 'hwid mismatch' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+        });
+      }
+    }
+
+    return new Response(JSON.stringify({
+      valid: true,
+      status: 'success',
+      token: token,
+      edge_verified: true,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ valid: false, error: err.message || 'verification failed' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', 'X-Broker-Edge': 'cloudflare-worker' }
+    });
+  }
 }
 

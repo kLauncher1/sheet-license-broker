@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-10-21
+
+### Added
+- Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation engine (`internal/airgap/types.go`, `internal/airgap/dongle.go`, `internal/airgap/manager.go`, `internal/airgap/monotonic.go`, `internal/airgap/qrcode.go`, `internal/airgap/airgap_test.go`) implemented in pure Go standard library with zero third-party dependencies.
+- Cryptographically signed offline time-bound dongle tokens utilizing Ed25519 digital signatures and compact Base64/Hex encoding for completely disconnected or high-security environments.
+- Air-gapped QR-code activation protocol with Base45 framing, SHA-256 integrity checksums, and optical transmission envelopes for isolated SCADA, defense, and industrial control systems.
+- Monotonic anti-clock-rollback hardware counter verification tracking high-water marks and tripping an immutable lock if the local clock is rolled backward, recoverable via administrative Ed25519 recovery signatures.
+- Dedicated airgap REST routing layer (`routes_airgap.go`, `routes_airgap_test.go`) and proxy integration (`internal/proxy/airgap.go`, `internal/proxy/airgap_test.go`) exposing `/api/airgap/status`, `/api/airgap/token/issue`, `/api/airgap/token/verify`, `/api/airgap/activate/request`, `/api/airgap/activate/fulfill`, `/api/airgap/rollback/state`, `/api/airgap/rollback/unlock`, and `/api/airgap/tokens`.
+- Google Apps Script backend updates (`gas/Code.gs`) adding automatic initialization and persistent audit logging for the `AirGap_Vault` sheet, with `airgap_record_token`, `airgap_list_tokens`, and `airgap_get_status` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/airgap.go`, `sdk/go/airgap_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting offline dongle issuance, verification, QR activation challenge/response, rollback state inspection, and administrative unlocking with 100% test coverage.
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Air-Gap & Offline Dongles" tab with issued token registries, live QR activation simulators, monotonic clock health gauges, and rollback recovery controls.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) supporting edge-side Ed25519 air-gapped token verification.
+- Version bump to 1.9.0 across core binary, manifests, documentation, and client libraries.
+
 ## [1.8.0] - 2026-10-19
 
 ### Added

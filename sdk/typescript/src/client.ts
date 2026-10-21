@@ -54,6 +54,16 @@ import type {
   MarketplaceSimulateRequest,
   MarketplaceSimulateResponse,
   MarketplaceTransactionFilter,
+  AirgapDongleToken,
+  AirgapIssueRequest,
+  AirgapIssueResponse,
+  AirgapVerifyRequest,
+  AirgapVerifyResponse,
+  AirgapActivationRequest,
+  AirgapActivationResponse,
+  AirgapRollbackState,
+  AirgapUnlockRequest,
+  AirgapStatus,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -784,6 +794,75 @@ export class SheetLicenseClient {
       if (qs) path += `?${qs}`;
     }
     return this.request<MarketplaceTransaction[]>('GET', path);
+  }
+
+  /**
+   * Retrieves operational telemetry for the air-gapped license vault.
+   */
+  public async getAirgapStatus(): Promise<AirgapStatus> {
+    return this.request<AirgapStatus>('GET', '/api/airgap/status');
+  }
+
+  /**
+   * Issues a cryptographically signed offline dongle token.
+   */
+  public async issueAirgapDongleToken(req: AirgapIssueRequest): Promise<AirgapIssueResponse> {
+    const hwid = req.hwid || (await getMachineHwid());
+    return this.request<AirgapIssueResponse>('POST', '/api/airgap/token/issue', {
+      ...req,
+      hwid,
+    });
+  }
+
+  /**
+   * Verifies an offline dongle token against the broker's master key and monotonic clock.
+   */
+  public async verifyAirgapDongleToken(token: string, hwid?: string, timestamp?: number): Promise<AirgapVerifyResponse> {
+    const machineHwid = hwid || (await getMachineHwid());
+    return this.request<AirgapVerifyResponse>('POST', '/api/airgap/token/verify', {
+      token,
+      hwid: machineHwid,
+      timestamp: timestamp || Math.floor(Date.now() / 1000),
+    });
+  }
+
+  /**
+   * Submits an offline machine challenge and returns an activation response with QR payload.
+   */
+  public async requestAirgapActivation(req: AirgapActivationRequest): Promise<AirgapActivationResponse> {
+    const hwid = req.hwid || (await getMachineHwid());
+    const res = await this.request<{ status: string; activation: AirgapActivationResponse }>('POST', '/api/airgap/activate/request', {
+      ...req,
+      hwid,
+    });
+    return res.activation;
+  }
+
+  /**
+   * Consumes an air-gap QR payload and returns the fulfilled offline DongleToken.
+   */
+  public async fulfillAirgapActivation(qrPayload: string): Promise<AirgapDongleToken> {
+    const res = await this.request<{ status: string; token: AirgapDongleToken }>('POST', '/api/airgap/activate/fulfill', {
+      qr_payload: qrPayload,
+    });
+    return res.token;
+  }
+
+  /**
+   * Queries the monotonic clock and rollback tamper state for an HWID.
+   */
+  public async getAirgapRollbackState(hwid?: string): Promise<AirgapRollbackState> {
+    const machineHwid = hwid || (await getMachineHwid());
+    const res = await this.request<{ status: string; state: AirgapRollbackState }>('GET', `/api/airgap/rollback/state?hwid=${encodeURIComponent(machineHwid)}`);
+    return res.state;
+  }
+
+  /**
+   * Unlocks a tripped airgap vault using an administrative recovery token.
+   */
+  public async unlockAirgapRollback(req: AirgapUnlockRequest): Promise<AirgapRollbackState> {
+    const res = await this.request<{ status: string; state: AirgapRollbackState }>('POST', '/api/airgap/rollback/unlock', req);
+    return res.state;
   }
 }
 

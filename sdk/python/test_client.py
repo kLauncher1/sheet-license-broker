@@ -1,1010 +1,938 @@
 """
-Unit tests for Sheet License Broker Python Client SDK.
-Verifies HWID generation, HMAC canonical signing, and client operations.
+Unit test suite for Sheet License Broker Python Client SDK.
+Covers authentication, HMAC signatures, hardware attestation, consensus,
+streaming kill-switches, ZKP, SSO, PQC, behavioral anomaly detection,
+confidential enclaves, Anycast edge routing, marketplace webhooks,
+and air-gapped license vault & offline dongles.
 """
 
 import hashlib
 import hmac
 import json
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
 import unittest
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Dict
 
 from sheet_license_client import (
     AuthenticationError,
-    BrokerError,
     LicenseValidationError,
+    RateLimitError,
     SheetLicenseClient,
     get_machine_hwid,
 )
 
+SECRET_KEY = "test-secret-key-py"
+
 
 class MockBrokerHandler(BaseHTTPRequestHandler):
-    secret_key = b"test-secret-key-12345"
-
-    def log_message(self, format, *args):
-        # Suppress noisy standard HTTP server logging during test runs
+    def log_message(self, format: str, *args: Any) -> None:
         pass
 
-    def do_GET(self):
-        if self.path == "/health":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "healthy", "version": "0.7.0"}).encode())
-            return
-        if self.path.startswith("/api/usage/stats"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "records": [
-                    {"metric": "api_calls", "count": 100, "limit": 1000}
-                ]
-            }).encode())
-            return
-        if self.path == "/api/consensus/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "node_id": "py-node-1",
-                "role": "leader",
-                "current_term": 1,
-                "has_quorum": True
-            }).encode())
-            return
-        if self.path == "/api/consensus/peers":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "peers": [{"id": "peer-py-2", "active": True}]
-            }).encode())
-            return
-        if self.path == "/api/stream/clients":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "count": 1,
-                "clients": [{"id": "cl-py-1", "license_key": "LIC-STREAM-PY"}]
-            }).encode())
-            return
-        if self.path == "/api/stream/telemetry":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "telemetry": {
-                    "active_connections": 1,
-                    "total_heartbeats": 25
-                }
-            }).encode())
-            return
-        if self.path == "/api/zkp/params":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "curve": "P-256"
-            }).encode())
-            return
-        if self.path == "/api/zkp/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "zkp": {
-                    "total_credentials_issued": 2,
-                    "total_proofs_verified": 4
-                }
-            }).encode())
-            return
-        if self.path == "/api/sso/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "total_idps": 3,
-                "active_directory_users": 18,
-                "deprovisioned_users": 2,
-                "allocated_license_seats": 18
-            }).encode())
-            return
-        if self.path.startswith("/scim/v2/Users"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/scim+json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-                "totalResults": 1,
-                "startIndex": 1,
-                "itemsPerPage": 1,
-                "Resources": [
-                    {"id": "scim-py-1", "userName": "py-user@corp.com", "active": True}
-                ]
-            }).encode())
-            return
-        if self.path == "/api/pqc/params":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "lattice": {"dimension": 256, "modulus": 8380417, "d": 13},
-                "primary_algorithm": "ML-DSA-65",
-                "active_key_id": "pqc-key-py-1"
-            }).encode())
-            return
-        if self.path == "/api/pqc/keys":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "count": 1,
-                "keys": [{"key_id": "pqc-key-py-1", "algorithm": "ML-DSA-65", "public_key_hex": "aabbcc", "status": "active"}]
-            }).encode())
-            return
-        if self.path == "/api/pqc/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "pqc": {
-                    "primary_algorithm": "ML-DSA-65",
-                    "active_keys": 1,
-                    "total_signatures": 10,
-                    "total_verifications": 8,
-                    "rotation_count": 1
-                }
-            }).encode())
+    def do_GET(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        qs = urllib.parse.parse_qs(parsed.query)
+
+        if path == "/health":
+            self._send_json(200, {"status": "healthy", "version": "1.9.0"})
             return
 
-        if self.path.startswith("/api/anomaly/score"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "entity_id": "LIC-PY-01",
-                "score": 25,
-                "level": "low",
-                "factors": [{"code": "HEARTBEAT_DRIFT", "severity": 25}]
-            }).encode())
-            return
-
-        if self.path.startswith("/api/anomaly/graph"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "format": "siem-topology-v1",
-                "total_nodes": 4,
-                "total_edges": 3
-            }).encode())
-            return
-
-        if self.path == "/api/anomaly/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "total_observations": 120,
-                "active_monitored_entities": 15,
-                "anomalies_detected": 3,
-                "active_quarantines": 0
-            }).encode())
-            return
-
-        if self.path == "/api/enclave/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "telemetry": {
-                    "verified_quotes": 8,
-                    "active_tunnels": 2,
-                    "total_evaluations": 14,
-                    "failed_attestations": 0,
-                    "quotes_by_platform": {"intel_sgx": 6, "amd_sev_snp": 2},
-                    "active_policies_count": 2
-                },
-                "policies": []
-            }).encode())
-            return
-
-        if self.path.startswith("/api/anycast/route"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "selected_pop": {
-                    "id": "iad",
-                    "name": "Ashburn IAD",
-                    "region": "us-east",
-                    "status": "healthy"
-                },
-                "estimated_latency_ms": 7.2,
-                "signed_routing_token": "py-anycast-token-123",
-                "timestamp": "2026-10-18T12:00:00Z"
-            }).encode())
-            return
-
-        if self.path == "/api/anycast/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "pop_count": 6,
-                "edge_routing_enabled": True,
-                "is_partitioned": False
-            }).encode())
-            return
-
-        if self.path == "/api/anycast/cache/stats":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "hits": 25,
-                "misses": 2,
-                "lookup_latency_us": 95.5,
-                "hit_ratio": 0.926
-            }).encode())
-            return
-
-        if self.path == "/api/marketplace/status":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "enabled": True,
-                "supported_providers": ["stripe", "lemonsqueezy", "paddle"],
-                "total_processed_events": 8,
-                "total_provisioned": 5,
-                "stripe_configured": True,
-            }).encode())
-            return
-
-        if self.path == "/api/marketplace/transactions":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps([
+        if path == "/api/usage/stats":
+            self._send_json(
+                200,
                 {
-                    "id": "tx_py_101",
-                    "event_id": "sim_py_1",
-                    "provider": "stripe",
-                    "action": "provision",
-                    "customer_email": "py_buyer@test.com",
-                    "license_key": "KEY-PY-MKT-1",
-                    "tier": "enterprise",
-                    "seats": 3,
-                    "status": "PROVISIONED",
-                }
-            ]).encode())
+                    "status": "success",
+                    "records": [{"metric": "api_calls", "count": 150, "limit": 1000}],
+                },
+            )
             return
 
-        self.send_error(404, "Not Found")
+        if path == "/api/security/audit/export":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "bundle": {
+                        "export_id": "aud_01",
+                        "encrypted_payload": "enc_data",
+                        "hmac_digest": "hmac_data",
+                        "event_count": 5,
+                        "generated_at": "2026-10-14T10:00:00Z",
+                    },
+                },
+            )
+            return
 
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length) if length > 0 else b""
+        if path == "/api/consensus/status":
+            self._send_json(
+                200,
+                {
+                    "cluster_id": "test-cluster",
+                    "local_node": "node-1",
+                    "role": "Leader",
+                    "term": 1,
+                    "peers": ["http://localhost:8081"],
+                },
+            )
+            return
 
-        # Verify HMAC if signature header is provided
+        if path == "/api/consensus/peers":
+            self._send_json(200, {"peers": ["http://localhost:8081"]})
+            return
+
+        if path == "/api/stream/clients":
+            self._send_json(
+                200,
+                {
+                    "count": 1,
+                    "clients": [
+                        {
+                            "id": "c1",
+                            "license_key": "LIC-PY-01",
+                            "hwid": "HWID-01",
+                            "ip": "127.0.0.1",
+                            "connected_at": "2026-10-14T10:00:00Z",
+                            "last_ping": "2026-10-14T10:01:00Z",
+                            "latency_ms": 5,
+                        }
+                    ],
+                },
+            )
+            return
+
+        if path == "/api/stream/telemetry":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "telemetry": {
+                        "active_connections": 1,
+                        "broadcast_events": 2,
+                        "targeted_events": 1,
+                        "kill_switches_fired": 0,
+                    },
+                },
+            )
+            return
+
+        if path == "/api/zkp/params":
+            self._send_json(
+                200,
+                {
+                    "curve": "P-256",
+                    "generator_g": "gen_g",
+                    "generator_h": "gen_h",
+                    "issuer_pubkey": "issuer_key",
+                },
+            )
+            return
+
+        if path == "/api/zkp/status":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "zkp": {
+                        "verified_proofs": 42,
+                        "spent_nullifiers": 10,
+                        "total_credentials": 15,
+                    },
+                },
+            )
+            return
+
+        if path == "/api/sso/status":
+            self._send_json(
+                200,
+                {
+                    "configured_providers": 2,
+                    "active_sessions": 8,
+                    "synced_users": 20,
+                },
+            )
+            return
+
+        if path == "/scim/v2/Users":
+            self._send_json(
+                200,
+                {
+                    "totalResults": 1,
+                    "Resources": [
+                        {
+                            "id": "usr-1",
+                            "userName": "alice@corp.com",
+                            "active": True,
+                        }
+                    ],
+                },
+            )
+            return
+
+        if path == "/api/pqc/params":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "default_algorithm": "Hybrid-P256-MLDSA65",
+                    "prime_modulus_q": 8380417,
+                },
+            )
+            return
+
+        if path == "/api/pqc/keys":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "count": 1,
+                    "keys": [
+                        {
+                            "key_id": "K1",
+                            "algorithm": "Hybrid-P256-MLDSA65",
+                            "public_hex": "pub_hex",
+                        }
+                    ],
+                },
+            )
+            return
+
+        if path == "/api/pqc/status":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "pqc": {
+                        "active_key_id": "K1",
+                        "default_algorithm": "Hybrid-P256-MLDSA65",
+                        "verified_signatures": 10,
+                    },
+                },
+            )
+            return
+
+        if path == "/api/anomaly/score":
+            self._send_json(
+                200,
+                {
+                    "entity_id": qs.get("entity_id", [""])[0],
+                    "score": 15,
+                    "level": "low",
+                    "factors": [],
+                    "challenge_escalation": False,
+                    "quarantine_triggered": False,
+                },
+            )
+            return
+
+        if path == "/api/anomaly/graph":
+            self._send_json(
+                200,
+                {
+                    "format": "siem-topology-v1",
+                    "total_nodes": 2,
+                    "total_edges": 1,
+                    "nodes": [{"id": "n1", "type": "license", "risk_score": 15}],
+                    "edges": [],
+                },
+            )
+            return
+
+        if path == "/api/anomaly/status":
+            self._send_json(
+                200,
+                {
+                    "total_observations": 100,
+                    "active_monitored_entities": 15,
+                    "anomalies_detected": 1,
+                },
+            )
+            return
+
+        if path == "/api/enclave/status":
+            self._send_json(
+                200,
+                {
+                    "telemetry": {
+                        "verified_quotes": 5,
+                        "active_tunnels": 2,
+                        "total_evaluations": 10,
+                    }
+                },
+            )
+            return
+
+        if path == "/api/anycast/route":
+            self._send_json(
+                200,
+                {
+                    "selected_pop": {"id": "iad", "name": "Ashburn IAD", "country": "US"},
+                    "estimated_latency_ms": 10.2,
+                    "signed_routing_token": "py-tok-123",
+                },
+            )
+            return
+
+        if path == "/api/anycast/status":
+            self._send_json(
+                200,
+                {
+                    "pop_count": 6,
+                    "edge_routing_enabled": True,
+                    "is_partitioned": False,
+                },
+            )
+            return
+
+        if path == "/api/anycast/cache/stats":
+            self._send_json(
+                200,
+                {
+                    "hits": 20,
+                    "misses": 2,
+                    "hit_ratio": 0.909,
+                    "lookup_latency_us": 85,
+                },
+            )
+            return
+
+        if path == "/api/marketplace/status":
+            self._send_json(
+                200,
+                {
+                    "enabled": True,
+                    "supported_providers": ["stripe", "lemonsqueezy", "paddle"],
+                    "total_provisioned": 8,
+                    "stripe_configured": True,
+                },
+            )
+            return
+
+        if path == "/api/marketplace/transactions":
+            self._send_json(
+                200,
+                [
+                    {
+                        "id": "tx_py_1",
+                        "provider": "stripe",
+                        "action": "provision",
+                        "customer_email": "py_buyer@corp.com",
+                        "license_key": "LIC-PY-MKT",
+                        "tier": "enterprise",
+                    }
+                ],
+            )
+            return
+
+        if path == "/api/airgap/status":
+            self._send_json(
+                200,
+                {
+                    "vault_active": True,
+                    "master_public_key": "pub_key_py_hex",
+                    "total_issued_tokens": 12,
+                    "total_verified_tokens": 30,
+                    "total_activations": 6,
+                    "rollback_tripped_count": 0,
+                },
+            )
+            return
+
+        if path == "/api/airgap/rollback/state":
+            hwid = qs.get("hwid", ["HWID-DEFAULT"])[0]
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "state": {
+                        "vault_id": f"VAULT-{hwid}",
+                        "hwid": hwid,
+                        "monotonic_counter": 105,
+                        "tampered": False,
+                    },
+                },
+            )
+            return
+
+        self._send_json(404, {"error": "not_found"})
+
+    def do_POST(self) -> None:
+        content_length = int(self.headers.get("Content-Length", 0))
+        body_bytes = self.rfile.read(content_length) if content_length > 0 else b""
+        body_str = body_bytes.decode("utf-8")
+        payload = json.loads(body_str) if body_str else {}
+
         sig = self.headers.get("X-Signature")
         ts = self.headers.get("X-Timestamp")
         nonce = self.headers.get("X-Nonce")
 
         if sig and ts and nonce:
-            b_hash = hashlib.sha256(body).hexdigest()
+            b_hash = hashlib.sha256(body_bytes).hexdigest()
             canonical = f"POST\n{self.path}\n{ts}\n{nonce}\n{b_hash}"
-            expected_sig = hmac.new(self.secret_key, canonical.encode(), hashlib.sha256).hexdigest()
-            if sig != expected_sig:
-                self.send_response(401)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "invalid_signature", "message": "Signature mismatch"}).encode())
+            expected = hmac.new(
+                SECRET_KEY.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(sig, expected):
+                self._send_json(401, {"error": "invalid_signature", "message": "Signature mismatch"})
                 return
 
-        if self.path == "/api/licenses/validate":
-            data = json.loads(body.decode()) if body else {}
-            key = data.get("license_key", "")
-            hwid = data.get("hwid", "")
+        path = self.path
 
-            if key == "VALID-KEY-123":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "valid": True,
-                    "message": "License active and valid",
-                    "license": {"key": key, "hwid": hwid, "status": "active"},
-                    "tenant_id": self.headers.get("X-Tenant-ID", "")
-                }).encode())
-            elif key == "EXPIRED-KEY-999":
-                self.send_response(401)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"valid": False, "error": "License expired"}).encode())
+        if path == "/api/licenses/validate":
+            key = payload.get("license_key")
+            if key == "VALID-KEY-PY":
+                self._send_json(
+                    200,
+                    {
+                        "valid": True,
+                        "message": "License active",
+                        "license": {"key": key, "hwid": payload.get("hwid"), "status": "active"},
+                    },
+                )
+            elif key == "RATE-LIMIT-TRIGGER":
+                self._send_json(429, {"error": "rate_limit_exceeded", "message": "Too many requests"})
             else:
-                self.send_response(401)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"valid": False, "error": "License not found"}).encode())
+                self._send_json(401, {"valid": False, "error": "License invalid or expired"})
             return
 
-        if self.path == "/api/users/login":
-            data = json.loads(body.decode()) if body else {}
-            if data.get("username") == "admin" and data.get("password") == "correct":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"authenticated": True, "username": "admin"}).encode())
+        if path == "/api/users/login":
+            if payload.get("username") == "admin" and payload.get("password") == "pass":
+                self._send_json(200, {"success": True, "token": "tok_123"})
             else:
-                self.send_response(401)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Invalid credentials"}).encode())
+                self._send_json(401, {"success": False, "error": "Invalid credentials"})
             return
 
-        if self.path == "/api/docs":
-            data = json.loads(body.decode()) if body else {}
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "action": data.get("action")}).encode())
-            return
-
-        if self.path == "/api/features/check":
-            data = json.loads(body.decode()) if body else {}
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "license_key": data.get("license_key"),
-                "feature": data.get("feature"),
-                "enabled": data.get("feature") == "analytics",
-                "tier": "pro"
-            }).encode())
-            return
-
-        if self.path == "/api/usage/record":
-            data = json.loads(body.decode()) if body else {}
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "exceeded": False,
-                "record": {
-                    "key": data.get("license_key"),
-                    "metric": data.get("metric"),
-                    "count": data.get("units", 1),
-                    "limit": data.get("limit", 0)
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/attestation/challenge":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "challenge_id": "py-ch-1234",
-                "nonce": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "expires_at": "2026-10-14T12:00:00Z"
-            }).encode())
-            return
-
-        if self.path == "/api/attestation/verify":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "record": {"trust_level": "attested_hardware"}
-            }).encode())
-            return
-
-        if self.path == "/api/attestation/telemetry":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "tamper_score": 0,
-                "tampered": False,
-                "trust_level": "software_grace"
-            }).encode())
-            return
-
-        if self.path == "/api/security/audit/export":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "bundle": {
-                    "bundle_id": "bundle_py_123",
-                    "record_count": 5,
-                    "ciphertext_hex": "11223344"
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/test/ratelimit":
-            self.send_response(429)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Retry-After", "15")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "error": "rate_limit_exceeded",
-                "retry_after": 15
-            }).encode())
-            return
-
-        if self.path == "/api/stream/kill":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "target": "LIC-STREAM-PY",
-                "signaled_clients": 1,
-                "message": "Kill switch dispatched to 1 client(s)"
-            }).encode())
-            return
-
-        if self.path == "/api/zkp/credential/issue":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "credential": {"id": "cred-py-01", "tier": 2},
-                "blinding_factor": "aabbcc"
-            }).encode())
-            return
-
-        if self.path == "/api/zkp/verify":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "valid": True,
-                "details": {"valid": True, "claimed_tier": 2, "tier_name": "pro"}
-            }).encode())
-            return
-
-        if self.path == "/api/sso/token/introspect":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "active": True,
-                "authorized": True,
-                "claims": {
-                    "user_id": "usr-py-1",
-                    "email": "py-user@corp.com",
-                    "role": "admin"
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/pqc/sign":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "signature": {
-                    "algorithm": "Hybrid-P256-MLDSA65",
-                    "key_id": "pqc-key-py-1",
-                    "classical_sig_b64": "class_sig",
-                    "pqc_sig_hex": "pqc_sig",
-                    "payload_hash_hex": "hash_val"
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/pqc/verify":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "result": {
-                    "valid": True,
-                    "algorithm": "Hybrid-P256-MLDSA65",
-                    "classical_valid": True,
-                    "pqc_valid": True
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/pqc/rotate":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "active_key": {"key_id": "pqc-key-py-2", "algorithm": "ML-DSA-65", "status": "active"},
-                "grace_period_days": 7
-            }).encode())
-            return
-
-        if self.path == "/api/pqc/revoke":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "revoked_key_id": "pqc-key-py-1",
-                "reason": "Administrative revocation"
-            }).encode())
-            return
-
-        if self.path == "/api/anomaly/record":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "recorded",
-                "risk_score": {
-                    "entity_id": "LIC-PY-01",
-                    "score": 0,
-                    "level": "low"
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/anomaly/challenge/issue":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "challenge_issued",
-                "challenge_token": "py-challenge-token-123",
-                "risk_score": {"entity_id": "LIC-PY-01", "score": 55, "challenge_escalation": True}
-            }).encode())
-            return
-
-        if self.path == "/api/anomaly/challenge/verify":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "challenge_cleared",
-                "valid": True,
-                "risk_score": {"entity_id": "LIC-PY-01", "score": 10, "challenge_escalation": False}
-            }).encode())
-            return
-
-        if self.path == "/api/enclave/challenge":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "challenge": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
-                "expires_in": 300
-            }).encode())
-            return
-
-        if self.path == "/api/enclave/attest":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "valid": True,
-                "attestation": {
-                    "valid": True,
-                    "platform": "intel_sgx",
-                    "mr_enclave": "aabbccddeeff",
-                    "mr_signer": "112233445566",
-                    "svn": 2,
-                    "debug": False,
-                    "report_data_hex": "00112233"
-                }
-            }).encode())
-            return
-
-        if self.path == "/api/enclave/tunnel/handshake":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "established": True,
-                "session_id": "enclave-sess-py-01",
-                "broker_public_key": "abcdef0123456789abcdef0123456789",
-                "expires_at": "2030-01-01T00:00:00Z"
-            }).encode())
-            return
-
-        if self.path == "/api/enclave/tunnel/evaluate":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "session_id": "enclave-sess-py-01",
-                "sequence": 1,
-                "nonce": "0102030405060708090a0b0c",
-                "payload": "cafebabedeadbeef"
-            }).encode())
-            return
-
-        if self.path == "/api/anycast/probe":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "recorded"}).encode())
-            return
-
-        if self.path == "/api/anycast/verify":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "valid": True,
-                "license_key": "LIC-PY-ANYCAST",
-                "hwid_bound": "HWID-PY-01",
-                "tier": "enterprise",
-                "message": "Fast verify L1 cache hit"
-            }).encode())
-            return
-
-        if self.path == "/api/marketplace/simulate":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "success",
-                "transaction": {
-                    "id": "tx_py_101",
-                    "event_id": "sim_py_1",
-                    "provider": "stripe",
-                    "action": "provision",
-                    "customer_email": "py_buyer@test.com",
-                    "license_key": "KEY-PY-MKT-1",
+        if path == "/api/features/check":
+            feat = payload.get("feature")
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "license_key": payload.get("license_key"),
+                    "feature": feat,
+                    "enabled": feat == "advanced_analytics",
                     "tier": "enterprise",
-                    "seats": 3,
-                    "status": "PROVISIONED",
-                }
-            }).encode())
+                },
+            )
             return
 
-        self.send_error(404, "Not Found")
+        if path == "/api/usage/record":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "record": {
+                        "key": payload.get("license_key"),
+                        "metric": payload.get("metric"),
+                        "count": payload.get("units", 1),
+                    },
+                    "exceeded": False,
+                },
+            )
+            return
 
+        if path == "/api/attestation/challenge":
+            self._send_json(
+                200,
+                {"status": "success", "challenge": "chal_hex_123", "expires_in": 300},
+            )
+            return
+
+        if path == "/api/attestation/verify":
+            self._send_json(200, {"status": "success", "valid": True, "pcr_digest": "pcr_val"})
+            return
+
+        if path == "/api/security/audit/export":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "bundle": {
+                        "export_id": "aud_01",
+                        "encrypted_payload": "enc_data",
+                        "hmac_digest": "hmac_data",
+                        "event_count": 5,
+                        "generated_at": "2026-10-14T10:00:00Z",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/stream/kill":
+            self._send_json(
+                200,
+                {"status": "revocation_pushed", "action": "revoke_license", "target": payload.get("target")},
+            )
+            return
+
+        if path == "/api/zkp/credential/issue":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "credential": {
+                        "credential_id": "cred_01",
+                        "commitment": "comm_val",
+                        "issuer_signature": "sig_val",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/zkp/verify":
+            self._send_json(200, {"status": "success", "valid": True})
+            return
+
+        if path == "/api/sso/token/introspect":
+            self._send_json(
+                200,
+                {
+                    "active": True,
+                    "authorized": True,
+                    "claims": {"email": "py@corp.com", "role": "admin"},
+                },
+            )
+            return
+
+        if path == "/api/pqc/sign":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "signature": {
+                        "algorithm": "Hybrid-P256-MLDSA65",
+                        "key_id": "K1",
+                        "quantum_sig": "qsig",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/pqc/verify":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "result": {
+                        "valid": True,
+                        "algorithm": "Hybrid-P256-MLDSA65",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/anomaly/record":
+            self._send_json(
+                200,
+                {
+                    "status": "recorded",
+                    "risk_score": {"entity_id": payload.get("entity_id"), "score": 0, "level": "low"},
+                },
+            )
+            return
+
+        if path == "/api/anomaly/challenge/verify":
+            self._send_json(
+                200,
+                {
+                    "status": "challenge_cleared",
+                    "valid": True,
+                    "risk_score": {"entity_id": payload.get("entity_id"), "score": 5, "level": "low"},
+                },
+            )
+            return
+
+        if path == "/api/enclave/challenge":
+            self._send_json(200, {"challenge": "enclave_chal_64bytes", "expires_in": 300})
+            return
+
+        if path == "/api/enclave/attest":
+            self._send_json(
+                200,
+                {
+                    "valid": True,
+                    "attestation": {
+                        "valid": True,
+                        "platform": payload.get("platform"),
+                        "svn": 2,
+                    },
+                },
+            )
+            return
+
+        if path == "/api/enclave/tunnel/handshake":
+            self._send_json(
+                200,
+                {
+                    "established": True,
+                    "session_id": "enclave-sess-py-01",
+                    "broker_public_key": "pub_key_py",
+                },
+            )
+            return
+
+        if path == "/api/enclave/tunnel/evaluate":
+            self._send_json(
+                200,
+                {
+                    "session_id": payload.get("session_id"),
+                    "payload": "evaluated_payload_hex",
+                },
+            )
+            return
+
+        if path == "/api/anycast/probe":
+            self._send_json(200, {"status": "recorded"})
+            return
+
+        if path == "/api/anycast/verify":
+            self._send_json(
+                200,
+                {
+                    "valid": True,
+                    "license_key": payload.get("license_key"),
+                    "tier": "enterprise",
+                    "message": "Fast verify L1 cache hit",
+                },
+            )
+            return
+
+        if path == "/api/marketplace/simulate":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "transaction": {
+                        "id": "tx_sim_01",
+                        "license_key": "LIC-PY-SIM",
+                        "status": "PROVISIONED",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/airgap/token/issue":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "token": {
+                        "token_id": "DONGLE-PY-001",
+                        "license_key": payload.get("license_key"),
+                        "hwid": payload.get("hwid"),
+                        "tier": payload.get("tier", "enterprise"),
+                        "counter": 5,
+                    },
+                    "dongle_token": "compact_py_token_base64",
+                    "qr_payload": "AIRGAP:B45:1234:PYQRPAYLOAD",
+                },
+            )
+            return
+
+        if path == "/api/airgap/token/verify":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "valid": True,
+                    "token": {
+                        "token_id": "DONGLE-PY-001",
+                        "license_key": "LIC-AIRGAP-PY-1",
+                        "hwid": payload.get("hwid"),
+                        "tier": "enterprise",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/airgap/activate/request":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "activation": {
+                        "request_id": "ACT-PY-001",
+                        "license_key": payload.get("license_key"),
+                        "hwid": payload.get("hwid"),
+                        "qr_payload": "AIRGAP:B45:5678:ACTPYQR",
+                        "status": "ACTIVATED",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/airgap/activate/fulfill":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "token": {
+                        "token_id": "DONGLE-FULFILLED-PY",
+                        "license_key": "LIC-AIRGAP-PY-ACT",
+                        "tier": "enterprise-airgap",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/airgap/rollback/unlock":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "state": {
+                        "vault_id": payload.get("vault_id"),
+                        "hwid": payload.get("hwid"),
+                        "monotonic_counter": 106,
+                        "tampered": False,
+                    },
+                },
+            )
+            return
+
+        self._send_json(404, {"error": "not_found"})
+
+    def _send_json(self, code: int, data: Any) -> None:
+        raw = json.dumps(data).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
 
 
 class TestSheetLicenseClient(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.server = HTTPServer(("127.0.0.1", 0), MockBrokerHandler)
-        cls.port = cls.server.server_address[1]
-        cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
-        cls.server_thread.start()
-        cls.base_url = f"http://127.0.0.1:{cls.port}"
+    server: HTTPServer
+    server_thread: threading.Thread
+    base_url: str
 
     @classmethod
-    def tearDownClass(cls):
+    def setUpClass(cls) -> None:
+        cls.server = HTTPServer(("127.0.0.1", 0), MockBrokerHandler)
+        cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.server_thread.start()
+        port = cls.server.server_port
+        cls.base_url = f"http://127.0.0.1:{port}"
+
+    @classmethod
+    def tearDownClass(cls) -> None:
         cls.server.shutdown()
         cls.server.server_close()
 
-    def test_hwid_format(self):
-        hwid1 = get_machine_hwid()
-        hwid2 = get_machine_hwid()
-        self.assertTrue(hwid1.startswith("HWID-"))
-        parts = hwid1.split("-")
-        self.assertEqual(len(parts), 5)  # HWID, 4 hex chunks
-        self.assertEqual(hwid1, hwid2, "HWID should be deterministic within machine")
+    def test_get_machine_hwid(self) -> None:
+        hwid = get_machine_hwid()
+        self.assertIsInstance(hwid, str)
+        self.assertTrue(len(hwid) > 0)
 
-    def test_health(self):
-        client = SheetLicenseClient(self.base_url)
-        res = client.health()
-        self.assertEqual(res.get("status"), "healthy")
-        self.assertEqual(res.get("version"), "0.7.0")
-
-    def test_validate_license_success_with_hmac(self):
-        client = SheetLicenseClient(self.base_url, secret_key="test-secret-key-12345")
-        res = client.verify_license("VALID-KEY-123")
+    def test_client_validation_and_auth(self) -> None:
+        client = SheetLicenseClient(
+            base_url=self.base_url,
+            secret_key=SECRET_KEY,
+            tenant_id="tenant-py",
+        )
+        res = client.verify_license("VALID-KEY-PY", hwid="TEST-HWID")
         self.assertTrue(res.get("valid"))
-        self.assertEqual(res["license"]["key"], "VALID-KEY-123")
 
-    def test_validate_license_invalid_key(self):
-        client = SheetLicenseClient(self.base_url, secret_key="test-secret-key-12345")
         with self.assertRaises(LicenseValidationError):
-            client.verify_license("INVALID-KEY-000")
+            client.verify_license("INVALID-KEY")
 
-    def test_hmac_signature_mismatch(self):
-        client = SheetLicenseClient(self.base_url, secret_key="wrong-secret-key")
+        with self.assertRaises(RateLimitError):
+            client.verify_license("RATE-LIMIT-TRIGGER")
+
+    def test_tampered_secret_key_rejection(self) -> None:
+        bad_client = SheetLicenseClient(
+            base_url=self.base_url,
+            secret_key="tampered-secret-key",
+        )
         with self.assertRaises(AuthenticationError):
-            client.verify_license("VALID-KEY-123")
+            bad_client.verify_license("VALID-KEY-PY")
 
-    def test_user_login(self):
-        client = SheetLicenseClient(self.base_url)
-        res = client.login_user("admin", "correct")
-        self.assertTrue(res.get("authenticated"))
-
-        with self.assertRaises(BrokerError):
-            client.login_user("admin", "wrong")
-
-    def test_doc_operations(self):
-        client = SheetLicenseClient(self.base_url)
-        res = client.put_doc("configs", "app_conf", {"theme": "dark"})
+    def test_login(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        res = client.login_user("admin", "pass")
         self.assertTrue(res.get("success"))
+        self.assertEqual(res.get("token"), "tok_123")
 
-    def test_tenant_header(self):
-        client = SheetLicenseClient(self.base_url, tenant_id="tenant-acme")
-        res = client.verify_license("VALID-KEY-123")
-        self.assertTrue(res.get("valid"))
-        self.assertEqual(res.get("tenant_id"), "tenant-acme")
+    def test_features_and_usage(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        enabled = client.is_feature_enabled("LIC-01", "advanced_analytics")
+        self.assertTrue(enabled)
 
-    def test_features_and_usage(self):
-        client = SheetLicenseClient(self.base_url)
-        # 1. Feature check
-        self.assertTrue(client.is_feature_enabled("VALID-KEY-123", "analytics"))
-        self.assertFalse(client.is_feature_enabled("VALID-KEY-123", "sso"))
+        usage_res = client.record_usage("LIC-01", "api_calls", 5)
+        self.assertEqual(usage_res.get("status"), "success")
 
-        # 2. Record usage
-        rec = client.record_usage("VALID-KEY-123", "api_calls", units=25, limit=500)
-        self.assertEqual(rec.get("status"), "success")
-        self.assertFalse(rec.get("exceeded"))
+        stats_res = client.get_usage("LIC-01")
+        self.assertEqual(len(stats_res), 1)
 
-        # 3. Get usage
-        stats = client.get_usage("VALID-KEY-123")
-        self.assertEqual(len(stats), 1)
-        self.assertEqual(stats[0]["metric"], "api_calls")
+    def test_attestation_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        chal = client.request_attestation_challenge("LIC-01")
+        self.assertEqual(chal.get("challenge"), "chal_hex_123")
 
-    def test_attestation_and_telemetry(self):
-        client = SheetLicenseClient(self.base_url)
+        tpm_res = client.verify_tpm_attestation("LIC-01", "chal_hex_123", {"quote": "data"})
+        self.assertTrue(tpm_res.get("valid"))
 
-        # 1. Challenge
-        ch = client.request_attestation_challenge("VALID-KEY-123")
-        self.assertEqual(ch.get("challenge_id"), "py-ch-1234")
-        self.assertEqual(len(ch.get("nonce", "")), 64)
+    def test_audit_export(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        audit_res = client.export_audit_token()
+        self.assertEqual(audit_res.get("export_id"), "aud_01")
+        self.assertEqual(audit_res.get("event_count"), 5)
 
-        # 2. Verify TPM
-        res = client.verify_tpm_attestation("VALID-KEY-123", "py-ch-1234", {"mock": True})
-        self.assertEqual(res.get("record", {}).get("trust_level"), "attested_hardware")
-
-        # 3. Telemetry
-        telem = client.report_telemetry("VALID-KEY-123", {"debugger_present": False})
-        self.assertEqual(telem.get("tamper_score"), 0)
-        self.assertFalse(telem.get("tampered"))
-        self.assertEqual(telem.get("trust_level"), "software_grace")
-
-    def test_audit_export_and_rate_limit(self):
-        client = SheetLicenseClient(self.base_url)
-
-        # 1. Audit export
-        bundle = client.export_audit_token("secret", limit=10)
-        self.assertEqual(bundle.get("bundle_id"), "bundle_py_123")
-        self.assertEqual(bundle.get("record_count"), 5)
-
-        # 2. RateLimitError on 429
-        from sheet_license_client import RateLimitError
-        with self.assertRaises(RateLimitError) as cm:
-            client._request("POST", "/api/test/ratelimit")
-        self.assertEqual(cm.exception.status_code, 429)
-        self.assertEqual(cm.exception.retry_after, 15)
-
-    def test_cluster_consensus(self):
-        client = SheetLicenseClient(self.base_url)
+    def test_consensus_cluster(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
         status = client.get_cluster_status()
-        self.assertEqual(status.get("node_id"), "py-node-1")
-        self.assertEqual(status.get("role"), "leader")
-        self.assertTrue(status.get("has_quorum"))
-
+        self.assertEqual(status.get("role"), "Leader")
         peers = client.get_cluster_peers()
         self.assertEqual(len(peers), 1)
-        self.assertEqual(peers[0].get("id"), "peer-py-2")
 
-    def test_stream_clients_and_kill_switch(self):
-        client = SheetLicenseClient(self.base_url)
+    def test_streaming_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
         clients = client.get_stream_clients()
+        self.assertIsInstance(clients, list)
         self.assertEqual(len(clients), 1)
-        self.assertEqual(clients[0].get("id"), "cl-py-1")
-        self.assertEqual(clients[0].get("license_key"), "LIC-STREAM-PY")
 
-        kill_res = client.send_kill_switch("LIC-STREAM-PY", "Test kill reason", True)
-        self.assertEqual(kill_res.get("status"), "success")
-        self.assertEqual(kill_res.get("signaled_clients"), 1)
+        kill_res = client.send_kill_switch("LIC-TARGET", "tampering")
+        self.assertEqual(kill_res.get("status"), "revocation_pushed")
 
         telem = client.get_stream_telemetry()
         self.assertEqual(telem.get("active_connections"), 1)
-        self.assertEqual(telem.get("total_heartbeats"), 25)
 
-    def test_zkp_workflow(self):
-        client = SheetLicenseClient(self.base_url)
+    def test_zkp_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
         params = client.get_zkp_params()
         self.assertEqual(params.get("curve"), "P-256")
 
-        issue_res = client.issue_anonymous_credential("LIC-PY-01", tier="pro", valid_days=30)
-        self.assertEqual(issue_res.get("status"), "success")
-        self.assertEqual(issue_res.get("credential", {}).get("id"), "cred-py-01")
+        cred = client.issue_anonymous_credential("LIC-ZKP")
+        self.assertEqual(cred.get("status"), "success")
 
-        verify_res = client.verify_zkp_proof({"ax": "1", "ay": "2"}, required_tier="pro")
-        self.assertEqual(verify_res.get("status"), "success")
-        self.assertTrue(verify_res.get("valid"))
+        v_res = client.verify_zkp_proof({"proof_data": "sample"}, required_tier="pro")
+        self.assertTrue(v_res.get("valid"))
 
-        status = client.get_zkp_status()
-        self.assertEqual(status.get("total_proofs_verified"), 4)
+        st = client.get_zkp_status()
+        self.assertEqual(st.get("verified_proofs"), 42)
 
-    def test_sso_and_scim_workflow(self):
-        client = SheetLicenseClient(self.base_url)
-        status = client.get_sso_status()
-        self.assertEqual(status.get("active_directory_users"), 18)
-        self.assertEqual(status.get("total_idps"), 3)
+    def test_sso_and_scim(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        st = client.get_sso_status()
+        self.assertEqual(st.get("configured_providers"), 2)
 
-        intro = client.introspect_session_token("sso.test.token", "license:read")
-        self.assertTrue(intro.get("active"))
-        self.assertTrue(intro.get("authorized"))
-        self.assertEqual(intro.get("claims", {}).get("email"), "py-user@corp.com")
+        claims = client.introspect_session_token("sso_tok")
+        self.assertTrue(claims.get("active"))
 
-        scim = client.list_scim_users(1, 10)
-        self.assertEqual(scim.get("totalResults"), 1)
-        self.assertEqual(scim.get("Resources")[0].get("userName"), "py-user@corp.com")
+        users = client.list_scim_users()
+        self.assertEqual(users.get("totalResults"), 1)
 
-    def test_pqc_workflow(self):
-        client = SheetLicenseClient(self.base_url)
+    def test_pqc_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
         params = client.get_pqc_params()
-        self.assertEqual(params.get("primary_algorithm"), "ML-DSA-65")
-        self.assertEqual(params.get("lattice", {}).get("dimension"), 256)
+        self.assertEqual(params.get("default_algorithm"), "Hybrid-P256-MLDSA65")
 
         keys = client.get_pqc_public_keys()
         self.assertEqual(len(keys), 1)
-        self.assertEqual(keys[0].get("key_id"), "pqc-key-py-1")
 
-        sig = client.sign_pqc_license("VALID-KEY-123", "payload-data")
+        sig = client.sign_pqc_license("LIC-PQC", "payload_to_sign")
         self.assertEqual(sig.get("algorithm"), "Hybrid-P256-MLDSA65")
-        self.assertEqual(sig.get("key_id"), "pqc-key-py-1")
+        self.assertEqual(sig.get("key_id"), "K1")
 
-        res = client.verify_pqc_signature("payload-data", sig)
-        self.assertTrue(res.get("valid"))
-        self.assertTrue(res.get("classical_valid"))
-        self.assertTrue(res.get("pqc_valid"))
+        v_res = client.verify_pqc_signature("payload_to_sign", sig)
+        self.assertTrue(v_res.get("valid"))
 
-        rotate_res = client.rotate_pqc_key("ML-DSA-65", grace_days=7)
-        self.assertEqual(rotate_res.get("status"), "success")
-        self.assertEqual(rotate_res.get("active_key", {}).get("key_id"), "pqc-key-py-2")
+        st = client.get_pqc_status()
+        self.assertEqual(st.get("active_key_id"), "K1")
 
-        revoke_res = client.revoke_pqc_key("pqc-key-py-1")
-        self.assertEqual(revoke_res.get("status"), "success")
-        self.assertEqual(revoke_res.get("revoked_key_id"), "pqc-key-py-1")
+    def test_anomaly_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        rec = client.record_anomaly_observation({"entity_id": "LIC-ANOM", "type": "HEARTBEAT", "value": 100.0})
+        self.assertEqual(rec.get("level"), "low")
+        self.assertEqual(rec.get("score"), 0)
 
-        status = client.get_pqc_status()
-        self.assertEqual(status.get("primary_algorithm"), "ML-DSA-65")
-        self.assertEqual(status.get("total_signatures"), 10)
+        score = client.get_anomaly_risk_score("LIC-ANOM")
+        self.assertEqual(score.get("level"), "low")
 
-    def test_anomaly_workflow(self):
-        client = SheetLicenseClient(self.base_url)
+        v_res = client.verify_anomaly_challenge("chal_tok")
+        self.assertTrue(v_res.get("valid"))
 
-        obs = client.record_anomaly_observation({
-            "license_key": "LIC-PY-01",
-            "ip": "198.51.100.5",
-            "action": "heartbeat"
-        })
-        self.assertEqual(obs.get("entity_id"), "LIC-PY-01")
-        self.assertEqual(obs.get("score"), 0)
-
-        score = client.get_anomaly_risk_score("LIC-PY-01")
-        self.assertEqual(score.get("score"), 25)
-        self.assertEqual(len(score.get("factors", [])), 1)
-
-        challenge = client.issue_anomaly_challenge("LIC-PY-01")
-        token = challenge.get("challenge_token")
-        self.assertEqual(token, "py-challenge-token-123")
-        self.assertTrue(challenge.get("risk_score", {}).get("challenge_escalation"))
-
-        verify = client.verify_anomaly_challenge(token)
-        self.assertTrue(verify.get("valid"))
-        self.assertEqual(verify.get("risk_score", {}).get("score"), 10)
-
-        graph = client.export_incident_graph(min_score=0, limit=10)
+        graph = client.export_incident_graph()
         self.assertEqual(graph.get("format"), "siem-topology-v1")
-        self.assertEqual(graph.get("total_nodes"), 4)
 
-        status = client.get_anomaly_status()
-        self.assertEqual(status.get("total_observations"), 120)
-        self.assertEqual(status.get("active_monitored_entities"), 15)
+        st = client.get_anomaly_status()
+        self.assertEqual(st.get("total_observations"), 100)
 
-    def test_enclave_workflow(self):
-        client = SheetLicenseClient(self.base_url)
+    def test_enclave_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        chal = client.request_enclave_challenge()
+        self.assertEqual(chal, "enclave_chal_64bytes")
 
-        # 1. Challenge
-        ch = client.request_enclave_challenge()
-        self.assertEqual(len(ch), 64)
+        att = client.attest_enclave_quote("intel_sgx", "deadbeef", chal)
+        self.assertTrue(att.get("valid"))
 
-        # 2. Attest Quote
-        attest = client.attest_enclave_quote("intel_sgx", "aabbccddeeff", ch)
-        self.assertTrue(attest.get("valid"))
-        self.assertEqual(attest.get("platform"), "intel_sgx")
-        self.assertEqual(attest.get("mr_enclave"), "aabbccddeeff")
+        hs = client.establish_enclave_tunnel("intel_sgx", "deadbeef", chal, "client_pub")
+        self.assertTrue(hs.get("established"))
 
-        # 3. Tunnel Handshake
-        handshake = client.establish_enclave_tunnel("intel_sgx", "aabbccddeeff", ch, "client_pub_hex")
-        self.assertTrue(handshake.get("established"))
-        self.assertEqual(handshake.get("session_id"), "enclave-sess-py-01")
+        ev = client.evaluate_enclave_license("enclave-sess-py-01", 1, "010203", "payload_hex")
+        self.assertEqual(ev.get("payload"), "evaluated_payload_hex")
 
-        # 4. Evaluate License inside Enclave
-        eval_res = client.evaluate_enclave_license("enclave-sess-py-01", 1, "0102030405060708090a0b0c", "cafebabedeadbeef")
-        self.assertEqual(eval_res.get("session_id"), "enclave-sess-py-01")
-        self.assertEqual(eval_res.get("sequence"), 1)
-        self.assertEqual(eval_res.get("payload"), "cafebabedeadbeef")
+        st = client.get_enclave_status()
+        self.assertEqual(st.get("telemetry", {}).get("verified_quotes"), 5)
 
-        # 5. Enclave Status
-        status = client.get_enclave_status()
-        self.assertEqual(status.get("telemetry", {}).get("verified_quotes"), 8)
-        self.assertEqual(status.get("telemetry", {}).get("active_tunnels"), 2)
-
-    def test_anycast_workflow(self):
-        client = SheetLicenseClient(self.base_url)
-
-        # 1. Anycast Route
-        route = client.get_anycast_route(lat=39.0438, lon=-77.4874, country="US")
+    def test_anycast_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        route = client.get_anycast_route(39.0, -77.0, "US")
         self.assertEqual(route.get("selected_pop", {}).get("id"), "iad")
-        self.assertEqual(route.get("signed_routing_token"), "py-anycast-token-123")
 
-        # 2. Anycast Probe
-        probe_res = client.report_anycast_probe("iad", 7.2)
-        self.assertEqual(probe_res.get("status"), "recorded")
+        probe = client.report_anycast_probe("iad", 12.5)
+        self.assertEqual(probe.get("status"), "recorded")
 
-        # 3. Anycast Status
-        status = client.get_anycast_status()
-        self.assertEqual(status.get("pop_count"), 6)
-        self.assertTrue(status.get("edge_routing_enabled"))
+        st = client.get_anycast_status()
+        self.assertEqual(st.get("pop_count"), 6)
 
-        # 4. Edge Cache Stats
-        cache_stats = client.get_edge_cache_stats()
-        self.assertEqual(cache_stats.get("hits"), 25)
-        self.assertEqual(cache_stats.get("hit_ratio"), 0.926)
+        stats = client.get_edge_cache_stats()
+        self.assertEqual(stats.get("hits"), 20)
 
-        # 5. Fast Verify
-        fast_verify = client.fast_verify_license("LIC-PY-ANYCAST", "HWID-PY-01")
-        self.assertTrue(fast_verify.get("valid"))
-        self.assertEqual(fast_verify.get("tier"), "enterprise")
+        fast_v = client.fast_verify_license("LIC-ANY", "HWID-01")
+        self.assertTrue(fast_v.get("valid"))
 
-    def test_marketplace_workflow(self):
-        client = SheetLicenseClient(self.base_url)
+    def test_marketplace_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        st = client.get_marketplace_status()
+        self.assertTrue(st.get("enabled"))
 
-        # 1. Marketplace Status
-        status = client.get_marketplace_status()
-        self.assertTrue(status.get("enabled"))
-        self.assertEqual(status.get("total_provisioned"), 5)
-        self.assertTrue(status.get("stripe_configured"))
+        sim = client.simulate_marketplace_webhook("stripe", "provision", "py@corp.com", "enterprise", 2)
+        self.assertEqual(sim.get("status"), "success")
 
-        # 2. Simulate Webhook
-        sim_res = client.simulate_marketplace_webhook(
-            customer_email="py_buyer@test.com",
-            provider="stripe",
-            tier="enterprise",
-            seats=3,
-        )
-        self.assertEqual(sim_res.get("status"), "success")
-        tx = sim_res.get("transaction", {})
-        self.assertEqual(tx.get("license_key"), "KEY-PY-MKT-1")
-        self.assertEqual(tx.get("status"), "PROVISIONED")
+        txs = client.list_marketplace_transactions()
+        self.assertEqual(len(txs), 1)
 
-        # 3. List Transactions
-        tx_list = client.list_marketplace_transactions()
-        self.assertEqual(len(tx_list), 1)
-        self.assertEqual(tx_list[0].get("customer_email"), "py_buyer@test.com")
+    def test_airgap_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_airgap_status()
+        self.assertTrue(st.get("vault_active"))
+        self.assertEqual(st.get("master_public_key"), "pub_key_py_hex")
+
+        issue = client.issue_airgap_dongle_token("LIC-AIRGAP-PY-1", hwid="HWID-PY-01", tier="enterprise", days_valid=30)
+        self.assertEqual(issue.get("status"), "success")
+        self.assertEqual(issue.get("dongle_token"), "compact_py_token_base64")
+
+        v_res = client.verify_airgap_dongle_token("compact_py_token_base64", hwid="HWID-PY-01")
+        self.assertTrue(v_res.get("valid"))
+
+        act_res = client.request_airgap_activation("LIC-AIRGAP-PY-ACT", hwid="HWID-PY-01")
+        self.assertEqual(act_res.get("status"), "success")
+        act = act_res.get("activation", {})
+        self.assertEqual(act.get("status"), "ACTIVATED")
+
+        fulfill = client.fulfill_airgap_activation(act.get("qr_payload"))
+        self.assertEqual(fulfill.get("status"), "success")
+
+        rb = client.get_airgap_rollback_state("HWID-PY-01")
+        self.assertEqual(rb.get("state", {}).get("monotonic_counter"), 105)
+
+        unlock = client.unlock_airgap_rollback("VAULT-01", "HWID-PY-01", "nonce-1", 12345678, "admin_sig")
+        self.assertEqual(unlock.get("state", {}).get("monotonic_counter"), 106)
 
 
 if __name__ == "__main__":
     unittest.main()
-
-

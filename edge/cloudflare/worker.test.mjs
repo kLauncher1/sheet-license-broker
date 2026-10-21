@@ -210,5 +210,65 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.equal(dataDE.selected_pop.id, 'fra');
     assert.equal(respDE.headers.get('X-Edge-POP'), 'fra');
   });
+
+  test('verifies Ed25519 air-gap dongle token at edge and rejects tampered ones', async () => {
+    // 1. Generate Ed25519 keypair using Web Crypto
+    const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    const rawPubKey = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    const pubKeyHex = Array.from(new Uint8Array(rawPubKey)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const token = {
+      token_id: 'DONGLE-EDGE-TEST-001',
+      license_key: 'LIC-AIRGAP-EDGE-99',
+      hwid: 'HWID-EDGE-AIRGAP',
+      tier: 'defense-airgap',
+      features: ['offline_radar', 'edge_mesh'],
+      max_devices: 1,
+      issued_at: Math.floor(Date.now() / 1000),
+      expires_at: Math.floor(Date.now() / 1000) + 86400 * 30,
+      counter: 12,
+      public_key: pubKeyHex
+    };
+
+    const canonicalMsg = `DONGLE-v1:${token.token_id}:${token.license_key}:${token.hwid}:${token.tier}:${token.features.join(',')}:${token.max_devices}:${token.issued_at}:${token.expires_at}:${token.counter}`;
+    const sigBuffer = await crypto.subtle.sign('Ed25519', keyPair.privateKey, new TextEncoder().encode(canonicalMsg));
+    token.signature = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Happy path: valid token verification
+    const reqValid = new Request('https://edge.example.com/edge/airgap/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, hwid: 'HWID-EDGE-AIRGAP' })
+    });
+    const respValid = await worker.fetch(reqValid, {});
+    assert.equal(respValid.status, 200);
+    const dataValid = await respValid.json();
+    assert.equal(dataValid.valid, true);
+    assert.equal(dataValid.edge_verified, true);
+    assert.equal(dataValid.token.license_key, 'LIC-AIRGAP-EDGE-99');
+
+    // Tampered signature rejection
+    const tamperedToken = { ...token, signature: '00'.repeat(64) };
+    const reqTampered = new Request('https://edge.example.com/edge/airgap/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: tamperedToken, hwid: 'HWID-EDGE-AIRGAP' })
+    });
+    const respTampered = await worker.fetch(reqTampered, {});
+    assert.equal(respTampered.status, 401);
+    const dataTampered = await respTampered.json();
+    assert.equal(dataTampered.valid, false);
+
+    // Mismatched HWID rejection
+    const reqHwidMismatch = new Request('https://edge.example.com/edge/airgap/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, hwid: 'HWID-DIFFERENT' })
+    });
+    const respHwidMismatch = await worker.fetch(reqHwidMismatch, {});
+    assert.equal(respHwidMismatch.status, 401);
+    const dataHwidMismatch = await respHwidMismatch.json();
+    assert.equal(dataHwidMismatch.valid, false);
+  });
 });
 

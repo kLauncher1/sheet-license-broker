@@ -607,5 +607,101 @@ export interface MarketplaceTransactionFilter {
   limit?: number;
 }
 
+export interface AirgapDongleToken {
+  token_id: string;
+  license_key: string;
+  hwid: string;
+  tier: string;
+  features?: string[];
+  max_devices: number;
+  issued_at: number;
+  expires_at: number;
+  counter: number;
+  signature: string;
+  public_key?: string;
+}
+
+export interface AirgapIssueRequest {
+  license_key: string;
+  hwid?: string;
+  tier?: string;
+  days_valid?: number;
+  max_devices?: number;
+  features?: string[];
+}
+
+export interface AirgapIssueResponse {
+  status: string;
+  token: AirgapDongleToken;
+  dongle_token: string;
+  qr_payload: string;
+}
+
+export interface AirgapVerifyRequest {
+  token: string;
+  hwid?: string;
+  timestamp?: number;
+}
+
+export interface AirgapVerifyResponse {
+  status: string;
+  valid: boolean;
+  token?: AirgapDongleToken;
+  error?: string;
+}
+
+export interface AirgapActivationRequest {
+  request_id?: string;
+  license_key: string;
+  hwid?: string;
+  current_timestamp?: number;
+  nonce?: string;
+  hardware_fingerprint?: string;
+}
+
+export interface AirgapActivationResponse {
+  request_id: string;
+  license_key: string;
+  hwid: string;
+  dongle_token: string;
+  qr_payload: string;
+  valid_until: number;
+  counter: number;
+  status: string;
+  signature: string;
+}
+
+export interface AirgapRollbackState {
+  vault_id: string;
+  hwid: string;
+  high_water_mark: number;
+  monotonic_counter: number;
+  tampered: boolean;
+  tampered_reason?: string;
+  tripped_at?: number;
+  unlocked_at?: number;
+}
+
+export interface AirgapUnlockRequest {
+  vault_id: string;
+  hwid: string;
+  nonce: string;
+  timestamp: number;
+  admin_signature: string;
+}
+
+export interface AirgapStatus {
+  vault_active: boolean;
+  master_public_key: string;
+  admin_public_key: string;
+  total_issued_tokens: number;
+  total_verified_tokens: number;
+  total_activations: number;
+  rollback_tripped_count: number;
+  last_high_water_mark: number;
+  tracked_vaults: number;
+  timestamp: string;
+}
+
 
 

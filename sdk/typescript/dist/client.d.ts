@@ -1,4 +1,4 @@
-import type { AttestationChallengeResponse, AttestationVerifyResponse, BrokerClientOptions, ClusterPeer, ClusterStatusResponse, DocumentResponse, EncryptedAuditBundle, HealthResponse, LicenseRecord, LicenseValidationResponse, StreamClientInfo, StreamKillResponse, StreamTelemetryResponse, TelemetryReport, TelemetryResponse, UsageRecord, UsageRecordResponse, UserAuthResponse, PedersenCommitmentPoint, ZKPParamsResponse, ZKPIssueResponse, ZKPProof, ZKPStatusResponse, ZKPVerifyResponse, SSOStatusSummary, SessionTokenIntrospectResult, SCIMListUsersResult, PQCHybridSignature, PQCVerificationResult, PQCStatusSummary, AnomalyObservation, AnomalyRiskScore, AnomalyIncidentGraph, AnomalyTelemetrySummary, EnclaveAttestationResult, EnclaveHandshakeResponse, EnclaveEncryptedMessage, EnclaveTelemetry, AnycastRoutingDecision, EdgeCacheTelemetry, AnycastStatusResponse, MarketplaceTransaction, MarketplaceStatus, MarketplaceSimulateRequest, MarketplaceSimulateResponse, MarketplaceTransactionFilter } from './types.js';
+import type { AttestationChallengeResponse, AttestationVerifyResponse, BrokerClientOptions, ClusterPeer, ClusterStatusResponse, DocumentResponse, EncryptedAuditBundle, HealthResponse, LicenseRecord, LicenseValidationResponse, StreamClientInfo, StreamKillResponse, StreamTelemetryResponse, TelemetryReport, TelemetryResponse, UsageRecord, UsageRecordResponse, UserAuthResponse, PedersenCommitmentPoint, ZKPParamsResponse, ZKPIssueResponse, ZKPProof, ZKPStatusResponse, ZKPVerifyResponse, SSOStatusSummary, SessionTokenIntrospectResult, SCIMListUsersResult, PQCHybridSignature, PQCVerificationResult, PQCStatusSummary, AnomalyObservation, AnomalyRiskScore, AnomalyIncidentGraph, AnomalyTelemetrySummary, EnclaveAttestationResult, EnclaveHandshakeResponse, EnclaveEncryptedMessage, EnclaveTelemetry, AnycastRoutingDecision, EdgeCacheTelemetry, AnycastStatusResponse, MarketplaceTransaction, MarketplaceStatus, MarketplaceSimulateRequest, MarketplaceSimulateResponse, MarketplaceTransactionFilter, AirgapDongleToken, AirgapIssueRequest, AirgapIssueResponse, AirgapVerifyRequest, AirgapVerifyResponse, AirgapActivationRequest, AirgapActivationResponse, AirgapRollbackState, AirgapUnlockRequest, AirgapStatus } from './types.js';
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
 export declare class SheetLicenseClient {
     private readonly baseUrl;
@@ -268,5 +268,33 @@ export declare class SheetLicenseClient {
      * Retrieves the transaction audit ledger of processed marketplace webhook events.
      */
     listMarketplaceTransactions(filter?: MarketplaceTransactionFilter): Promise<MarketplaceTransaction[]>;
+    /**
+     * Retrieves operational telemetry for the air-gapped license vault.
+     */
+    getAirgapStatus(): Promise<AirgapStatus>;
+    /**
+     * Issues a cryptographically signed offline dongle token.
+     */
+    issueAirgapDongleToken(req: AirgapIssueRequest): Promise<AirgapIssueResponse>;
+    /**
+     * Verifies an offline dongle token against the broker's master key and monotonic clock.
+     */
+    verifyAirgapDongleToken(token: string, hwid?: string, timestamp?: number): Promise<AirgapVerifyResponse>;
+    /**
+     * Submits an offline machine challenge and returns an activation response with QR payload.
+     */
+    requestAirgapActivation(req: AirgapActivationRequest): Promise<AirgapActivationResponse>;
+    /**
+     * Consumes an air-gap QR payload and returns the fulfilled offline DongleToken.
+     */
+    fulfillAirgapActivation(qrPayload: string): Promise<AirgapDongleToken>;
+    /**
+     * Queries the monotonic clock and rollback tamper state for an HWID.
+     */
+    getAirgapRollbackState(hwid?: string): Promise<AirgapRollbackState>;
+    /**
+     * Unlocks a tripped airgap vault using an administrative recovery token.
+     */
+    unlockAirgapRollback(req: AirgapUnlockRequest): Promise<AirgapRollbackState>;
 }
 //# sourceMappingURL=client.d.ts.map

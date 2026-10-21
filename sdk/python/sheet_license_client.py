@@ -710,6 +710,87 @@ class SheetLicenseClient:
         qs = ("?" + "&".join(params)) if params else ""
         return self._request("GET", f"/api/marketplace/transactions{qs}")
 
+    def get_airgap_status(self) -> Dict[str, Any]:
+        """Queries operational telemetry for the air-gapped license vault."""
+        return self._request("GET", "/api/airgap/status")
+
+    def issue_airgap_dongle_token(
+        self,
+        license_key: str,
+        hwid: Optional[str] = None,
+        tier: str = "enterprise",
+        days_valid: int = 30,
+        max_devices: int = 1,
+        features: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Issues a cryptographically signed offline dongle token."""
+        machine_hwid = hwid or get_machine_hwid()
+        payload = {
+            "license_key": license_key,
+            "hwid": machine_hwid,
+            "tier": tier,
+            "days_valid": days_valid,
+            "max_devices": max_devices,
+            "features": features or [],
+        }
+        return self._request("POST", "/api/airgap/token/issue", payload)
+
+    def verify_airgap_dongle_token(
+        self,
+        token: str,
+        hwid: Optional[str] = None,
+        timestamp: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Verifies an offline dongle token against master keys and monotonic clocks."""
+        machine_hwid = hwid or get_machine_hwid()
+        payload = {
+            "token": token,
+            "hwid": machine_hwid,
+            "timestamp": timestamp or int(time.time()),
+        }
+        return self._request("POST", "/api/airgap/token/verify", payload)
+
+    def request_airgap_activation(
+        self,
+        license_key: str,
+        hwid: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Requests an offline machine activation challenge with QR payload."""
+        machine_hwid = hwid or get_machine_hwid()
+        payload = {
+            "license_key": license_key,
+            "hwid": machine_hwid,
+        }
+        return self._request("POST", "/api/airgap/activate/request", payload)
+
+    def fulfill_airgap_activation(self, qr_payload: str) -> Dict[str, Any]:
+        """Fulfills an offline activation from a scanned QR payload."""
+        payload = {"qr_payload": qr_payload}
+        return self._request("POST", "/api/airgap/activate/fulfill", payload)
+
+    def get_airgap_rollback_state(self, hwid: Optional[str] = None) -> Dict[str, Any]:
+        """Queries monotonic high-water mark and rollback tamper state."""
+        machine_hwid = hwid or get_machine_hwid()
+        return self._request("GET", f"/api/airgap/rollback/state?hwid={urllib.parse.quote(machine_hwid)}")
+
+    def unlock_airgap_rollback(
+        self,
+        vault_id: str,
+        hwid: str,
+        nonce: str,
+        timestamp: int,
+        admin_signature: str,
+    ) -> Dict[str, Any]:
+        """Unlocks a tripped airgap vault using an administrative recovery token."""
+        payload = {
+            "vault_id": vault_id,
+            "hwid": hwid,
+            "nonce": nonce,
+            "timestamp": timestamp,
+            "admin_signature": admin_signature,
+        }
+        return self._request("POST", "/api/airgap/rollback/unlock", payload)
+
 
 if __name__ == "__main__":
     import sys

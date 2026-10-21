@@ -693,6 +693,136 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/airgap/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            vault_active: true,
+            master_public_key: 'pub_key_mock_hex',
+            admin_public_key: 'admin_key_mock_hex',
+            total_issued_tokens: 10,
+            total_verified_tokens: 25,
+            total_activations: 5,
+            rollback_tripped_count: 0,
+            last_high_water_mark: Math.floor(Date.now() / 1000),
+            tracked_vaults: 3,
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/airgap/token/issue' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            token: {
+              token_id: 'DONGLE-TS-001',
+              license_key: body.license_key,
+              hwid: body.hwid || 'HWID-TS-DEFAULT',
+              tier: body.tier || 'enterprise',
+              max_devices: 1,
+              issued_at: Math.floor(Date.now() / 1000),
+              expires_at: Math.floor(Date.now() / 1000) + 86400 * 30,
+              counter: 7,
+              signature: 'sig_ts_mock_hex'
+            },
+            dongle_token: 'compact_ts_token_base64',
+            qr_payload: 'AIRGAP:B45:12345678:QRTSPAYLOAD'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/airgap/token/verify' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            valid: true,
+            token: {
+              token_id: 'DONGLE-TS-001',
+              license_key: 'LIC-AIRGAP-TS-1',
+              hwid: body.hwid || 'HWID-TS-DEFAULT',
+              tier: 'enterprise',
+              max_devices: 1,
+              issued_at: Math.floor(Date.now() / 1000),
+              expires_at: Math.floor(Date.now() / 1000) + 86400 * 30,
+              counter: 8,
+              signature: 'sig_ts_mock_hex'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/airgap/activate/request' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            activation: {
+              request_id: 'ACT-TS-001',
+              license_key: body.license_key,
+              hwid: body.hwid,
+              dongle_token: 'compact_act_token_base64',
+              qr_payload: 'AIRGAP:B45:AABBCCDD:ACTQRPAYLOAD',
+              valid_until: Math.floor(Date.now() / 1000) + 86400 * 90,
+              counter: 1,
+              status: 'ACTIVATED',
+              signature: 'act_sig_hex'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/airgap/activate/fulfill' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            token: {
+              token_id: 'DONGLE-FULFILLED-TS',
+              license_key: 'LIC-AIRGAP-TS-ACT',
+              hwid: 'HWID-TS-DEFAULT',
+              tier: 'enterprise-airgap',
+              max_devices: 1,
+              issued_at: Math.floor(Date.now() / 1000),
+              expires_at: Math.floor(Date.now() / 1000) + 86400 * 90,
+              counter: 1,
+              signature: 'act_sig_hex'
+            }
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/airgap/rollback/state') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            state: {
+              vault_id: 'VAULT-HWID-TS-01',
+              hwid: 'HWID-TS-01',
+              high_water_mark: Math.floor(Date.now() / 1000),
+              monotonic_counter: 99,
+              tampered: false
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/airgap/rollback/unlock' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            state: {
+              vault_id: 'VAULT-HWID-TS-01',
+              hwid: 'HWID-TS-01',
+              high_water_mark: Math.floor(Date.now() / 1000),
+              monotonic_counter: 100,
+              tampered: false,
+              unlocked_at: Math.floor(Date.now() / 1000)
+            }
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -1048,6 +1178,54 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const txList = await client.listMarketplaceTransactions();
     assert.strictEqual(txList.length, 1);
     assert.strictEqual(txList[0].customer_email, 'ts_buyer@example.com');
+  });
+
+  it('issues airgap token, verifies dongle, requests activation, fulfills QR payload, and handles rollback', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const status = await client.getAirgapStatus();
+    assert.strictEqual(status.vault_active, true);
+    assert.strictEqual(status.master_public_key, 'pub_key_mock_hex');
+    assert.strictEqual(status.total_issued_tokens, 10);
+
+    const issueRes = await client.issueAirgapDongleToken({
+      license_key: 'LIC-AIRGAP-TS-1',
+      hwid: 'HWID-TS-TEST',
+      tier: 'enterprise',
+      days_valid: 30,
+    });
+    assert.strictEqual(issueRes.status, 'success');
+    assert.strictEqual(issueRes.token.license_key, 'LIC-AIRGAP-TS-1');
+    assert.strictEqual(issueRes.dongle_token, 'compact_ts_token_base64');
+    assert.strictEqual(issueRes.qr_payload, 'AIRGAP:B45:12345678:QRTSPAYLOAD');
+
+    const verifyRes = await client.verifyAirgapDongleToken(issueRes.dongle_token, 'HWID-TS-TEST');
+    assert.strictEqual(verifyRes.valid, true);
+    assert.strictEqual(verifyRes.token.license_key, 'LIC-AIRGAP-TS-1');
+
+    const actRes = await client.requestAirgapActivation({
+      license_key: 'LIC-AIRGAP-TS-ACT',
+      hwid: 'HWID-TS-TEST',
+    });
+    assert.strictEqual(actRes.status, 'ACTIVATED');
+    assert.strictEqual(actRes.qr_payload, 'AIRGAP:B45:AABBCCDD:ACTQRPAYLOAD');
+
+    const fulfilledTok = await client.fulfillAirgapActivation(actRes.qr_payload);
+    assert.strictEqual(fulfilledTok.license_key, 'LIC-AIRGAP-TS-ACT');
+
+    const rbState = await client.getAirgapRollbackState('HWID-TS-01');
+    assert.strictEqual(rbState.monotonic_counter, 99);
+    assert.strictEqual(rbState.tampered, false);
+
+    const unlockedState = await client.unlockAirgapRollback({
+      vault_id: 'VAULT-HWID-TS-01',
+      hwid: 'HWID-TS-01',
+      nonce: 'NONCE-123',
+      timestamp: Math.floor(Date.now() / 1000),
+      admin_signature: 'sig_admin_hex',
+    });
+    assert.strictEqual(unlockedState.monotonic_counter, 100);
+    assert.strictEqual(unlockedState.tampered, false);
   });
 });
 

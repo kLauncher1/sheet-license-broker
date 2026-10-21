@@ -306,6 +306,41 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("[{\"id\":\"tx_cs_1\",\"event_id\":\"sim_cs_1\",\"provider\":\"stripe\",\"action\":\"provision\",\"customer_email\":\"cs_buyer@test.com\",\"license_key\":\"KEY-CS-MKT-01\",\"tier\":\"enterprise\",\"seats\":2,\"status\":\"PROVISIONED\"}]");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"vault_active\":true,\"master_public_key\":\"pub_key_cs_hex\",\"total_issued_tokens\":15,\"total_verified_tokens\":40,\"total_activations\":8,\"rollback_tripped_count\":0}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/token/issue")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"token\":{\"token_id\":\"DONGLE-CS-001\",\"license_key\":\"LIC-AIRGAP-CS-1\",\"tier\":\"enterprise\",\"counter\":3},\"dongle_token\":\"compact_cs_token_base64\",\"qr_payload\":\"AIRGAP:B45:1234:CSQRPAYLOAD\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/token/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"valid\":true,\"token\":{\"token_id\":\"DONGLE-CS-001\",\"license_key\":\"LIC-AIRGAP-CS-1\",\"tier\":\"enterprise\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/activate/request")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"activation\":{\"request_id\":\"ACT-CS-001\",\"license_key\":\"LIC-AIRGAP-CS-ACT\",\"qr_payload\":\"AIRGAP:B45:5678:ACTCSQR\",\"status\":\"ACTIVATED\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/activate/fulfill")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"token\":{\"token_id\":\"DONGLE-FULFILLED-CS\",\"license_key\":\"LIC-AIRGAP-CS-ACT\",\"tier\":\"enterprise-airgap\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/rollback/state")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"state\":{\"vault_id\":\"VAULT-CS-01\",\"hwid\":\"HWID-CS-01\",\"monotonic_counter\":110,\"tampered\":false}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/airgap/rollback/unlock")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"state\":{\"vault_id\":\"VAULT-CS-01\",\"hwid\":\"HWID-CS-01\",\"monotonic_counter\":111,\"tampered\":false}}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -687,7 +722,52 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Marketplace status, simulate webhook, and transactions");
 
-                Console.WriteLine("=== All 21 C# Client Tests Passed Successfully! ===");
+                // 22. Airgap status, dongle issue/verify, activation request/fulfill, rollback state, and unlock
+                string airgapStatusRaw = client.GetAirgapStatusAsync().GetAwaiter().GetResult();
+                if (!airgapStatusRaw.Contains("\"vault_active\":true") || !airgapStatusRaw.Contains("pub_key_cs_hex"))
+                {
+                    Console.Error.WriteLine("FAIL: Airgap status failed: " + airgapStatusRaw);
+                    return 1;
+                }
+                string dongleIssueRaw = client.IssueAirgapDongleTokenAsync("LIC-AIRGAP-CS-1").GetAwaiter().GetResult();
+                if (!dongleIssueRaw.Contains("DONGLE-CS-001") || !dongleIssueRaw.Contains("compact_cs_token_base64"))
+                {
+                    Console.Error.WriteLine("FAIL: Dongle issue failed: " + dongleIssueRaw);
+                    return 1;
+                }
+                string dongleVerifyRaw = client.VerifyAirgapDongleTokenAsync("compact_cs_token_base64").GetAwaiter().GetResult();
+                if (!dongleVerifyRaw.Contains("\"valid\":true") || !dongleVerifyRaw.Contains("LIC-AIRGAP-CS-1"))
+                {
+                    Console.Error.WriteLine("FAIL: Dongle verify failed: " + dongleVerifyRaw);
+                    return 1;
+                }
+                string actReqRaw = client.RequestAirgapActivationAsync("LIC-AIRGAP-CS-ACT").GetAwaiter().GetResult();
+                if (!actReqRaw.Contains("ACT-CS-001") || !actReqRaw.Contains("ACTCSQR"))
+                {
+                    Console.Error.WriteLine("FAIL: Airgap activate request failed: " + actReqRaw);
+                    return 1;
+                }
+                string actFulfillRaw = client.FulfillAirgapActivationAsync("AIRGAP:B45:5678:ACTCSQR").GetAwaiter().GetResult();
+                if (!actFulfillRaw.Contains("DONGLE-FULFILLED-CS") || !actFulfillRaw.Contains("LIC-AIRGAP-CS-ACT"))
+                {
+                    Console.Error.WriteLine("FAIL: Airgap activate fulfill failed: " + actFulfillRaw);
+                    return 1;
+                }
+                string rollbackStateRaw = client.GetAirgapRollbackStateAsync("HWID-CS-01").GetAwaiter().GetResult();
+                if (!rollbackStateRaw.Contains("monotonic_counter") || !rollbackStateRaw.Contains("110"))
+                {
+                    Console.Error.WriteLine("FAIL: Airgap rollback state failed: " + rollbackStateRaw);
+                    return 1;
+                }
+                string rollbackUnlockRaw = client.UnlockAirgapRollbackAsync("VAULT-CS-01", "HWID-CS-01", "nonce-1", 12345678, "admin_sig").GetAwaiter().GetResult();
+                if (!rollbackUnlockRaw.Contains("111"))
+                {
+                    Console.Error.WriteLine("FAIL: Airgap rollback unlock failed: " + rollbackUnlockRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Airgap status, dongle issue/verify, activation request/fulfill, and rollback state/unlock");
+
+                Console.WriteLine("=== All 22 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

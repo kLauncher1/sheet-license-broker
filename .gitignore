@@ -6,18 +6,11 @@
 *.dylib
 *.pdb
 
-# Build maps
-*.map
-
 # Environment variables & secrets
 .env
 .env.local
 .env.*.local
 *.svault
-accounts.json
-accounts_export.json
-env.json
-.env.json
 
 # Dependency directories
 node_modules/
@@ -33,17 +26,9 @@ yarn-debug.log*
 yarn-error.log*
 TASK_BACKLOG.md
 AUTONOMOUS_SPEC.md
-AUTONOMOUS_DEV_LOG.md
-AUTONOMOUS_*
 WORK_LOG.md
 ARCHITECTURE_MAP.md
 VIBE_CODING_MODULAR_GUIDE.md
-workspace_manifest.json
-autonomous_env.json
-docs/ASSET_INTEGRITY_GUIDE.md
-docs/00-pm/
-docs/01-plan/
-docs/02-design/
 scripts/
 
 # Temporary files & directories

@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v1.8.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v1.9.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -202,6 +202,8 @@
       <span id="backend-badge">Backend: Detecting...</span>
       <span>•</span>
       <span id="security-badge" style="color: var(--accent-blue);">HMAC Anti-Tamper: Active</span>
+      <span>•</span>
+      <span id="airgap-badge" style="color: #38bdf8;">Air-Gap: Active</span>
       <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
@@ -260,6 +262,7 @@
       <button class="tab-btn" id="tab-btn-enclave" onclick="switchTab('enclave')">Confidential Enclaves</button>
       <button class="tab-btn" id="tab-btn-anycast" onclick="switchTab('anycast')">Geo Anycast & Edge CDN</button>
       <button class="tab-btn" id="tab-btn-marketplace" onclick="switchTab('marketplace')">Marketplace & Resellers</button>
+      <button class="tab-btn" id="tab-btn-airgap" onclick="switchTab('airgap')">Air-Gap &amp; Offline Dongles</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1155,6 +1158,76 @@
 
       <div id="marketplace-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 18: Air-Gap & Offline Dongles -->
+    <div id="panel-airgap" style="display: none;">
+      <div class="grid-stats">
+        <div class="card">
+          <div class="card-title">Issued Dongles</div>
+          <div class="card-value" id="val-airgap-issued" style="color: var(--accent-green);">0</div>
+          <div class="card-subtext">Ed25519 Signed Tokens</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Verified Dongles</div>
+          <div class="card-value" id="val-airgap-verified" style="color: var(--accent-blue);">0</div>
+          <div class="card-subtext">Offline Validations</div>
+        </div>
+        <div class="card">
+          <div class="card-title">QR Activations</div>
+          <div class="card-value" id="val-airgap-activations" style="color: #facc15;">0</div>
+          <div class="card-subtext">Optical Challenge/Response</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Anti-Rollback Guard</div>
+          <div class="card-value" id="val-airgap-rollback" style="color: var(--accent-green);">Normal (Armed)</div>
+          <div class="card-subtext">Monotonic Hardware Clock</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Master Public Key</div>
+          <div class="card-value" id="val-airgap-pubkey" style="color: #a78bfa; font-size: 15px; word-break: break-all;">--</div>
+          <div class="card-subtext">Ed25519 Root of Trust</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="btn-action" onclick="promptIssueAirgapDongle()">+ Issue Offline Dongle</button>
+        <button class="btn-action btn-secondary" onclick="promptVerifyAirgapDongle()">🔍 Verify Dongle Token</button>
+        <button class="btn-action btn-secondary" onclick="promptRequestAirgapActivation()">📱 Request QR Activation</button>
+        <button class="btn-action btn-secondary" onclick="promptFulfillAirgapActivation()">📥 Fulfill QR Payload</button>
+        <button class="btn-action btn-secondary" onclick="promptUnlockAirgapRollback()">🔓 Rollback State &amp; Unlock</button>
+        <button class="btn-action btn-secondary" onclick="refreshAirgapTab()">🔄 Refresh Air-Gap</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <div class="panel-title">🛡️ Hardware-Enforced Air-Gapped License Vault &amp; Offline Dongle Emulation (v1.9.0)</div>
+        <div class="panel-desc">
+          Cryptographically secured offline license entitlement verification for isolated SCADA, defense, and high-security air-gapped industrial facilities.
+          Offline dongle tokens are signed using high-assurance Ed25519 digital signatures and bundled into compact Base64/Hex envelopes or Base45-encoded QR code strings.
+          The vault incorporates an anti-clock-rollback monotonic hardware counter check that trips and locks the license vault if local system time is manipulated backwards,
+          with atomic recovery via administrative Ed25519 cryptographic signatures.
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">Air-Gapped Dongle Tokens &amp; Activations</h3>
+      <table class="table-box">
+        <thead>
+          <tr>
+            <th>Token ID</th>
+            <th>License Key</th>
+            <th>Bound HWID</th>
+            <th>Tier</th>
+            <th>Counter</th>
+            <th>Expires At</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="airgap-tokens-body">
+          <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading air-gapped tokens...</td></tr>
+        </tbody>
+      </table>
+
+      <div id="airgap-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1162,7 +1235,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1185,6 +1258,7 @@
       document.getElementById('panel-enclave').style.display = tab === 'enclave' ? 'block' : 'none';
       document.getElementById('panel-anycast').style.display = tab === 'anycast' ? 'block' : 'none';
       document.getElementById('panel-marketplace').style.display = tab === 'marketplace' ? 'block' : 'none';
+      document.getElementById('panel-airgap').style.display = tab === 'airgap' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1205,6 +1279,7 @@
       if (tab === 'enclave') refreshEnclaveTab();
       if (tab === 'anycast') refreshAnycastTab();
       if (tab === 'marketplace') refreshMarketplaceTab();
+      if (tab === 'airgap') refreshAirgapTab();
     }
 
     async function refresh() {
@@ -1230,6 +1305,13 @@
             document.getElementById('backend-badge').innerHTML = '<span style="color:#10b981; font-weight:600;">Backend: Google Sheets Live (Proxy)</span>';
           } else {
             document.getElementById('backend-badge').innerHTML = '<span style="color:#38bdf8; font-weight:600;">Backend: Local Standalone (Memory)</span>';
+          }
+        }
+
+        if (health && health.airgap) {
+          const ab = document.getElementById('airgap-badge');
+          if (ab) {
+            ab.textContent = health.airgap.vault_active ? 'Air-Gap: Active' : 'Air-Gap: Disabled';
           }
         }
 
@@ -3084,6 +3166,195 @@
       const out = document.getElementById('marketplace-output');
       out.style.display = 'block';
       out.textContent = msg;
+    }
+
+    async function refreshAirgapTab() {
+      try {
+        const [statusRes, tokensRes] = await Promise.all([
+          fetch('/api/airgap/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/airgap/tokens').then(r => r.json()).catch(() => ([]))
+        ]);
+
+        if (statusRes) {
+          document.getElementById('val-airgap-issued').textContent = statusRes.total_issued_tokens || 0;
+          document.getElementById('val-airgap-verified').textContent = statusRes.total_verified_tokens || 0;
+          document.getElementById('val-airgap-activations').textContent = statusRes.total_activations || 0;
+          document.getElementById('val-airgap-rollback').textContent = statusRes.rollback_tripped_count ? 'TRIPPED (' + statusRes.rollback_tripped_count + ')' : 'Normal (Armed)';
+          document.getElementById('val-airgap-rollback').style.color = statusRes.rollback_tripped_count ? 'var(--accent-red)' : 'var(--accent-green)';
+          document.getElementById('val-airgap-pubkey').textContent = statusRes.master_public_key ? statusRes.master_public_key.substring(0, 16) + '...' : '--';
+        }
+
+        const tbody = document.getElementById('airgap-tokens-body');
+        if (!Array.isArray(tokensRes) || tokensRes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No air-gapped dongle tokens issued yet.</td></tr>';
+        } else {
+          tbody.innerHTML = tokensRes.map(t => {
+            const exp = new Date(t.expires_at * 1000).toLocaleString();
+            return `<tr>
+              <td><code>${t.token_id || '--'}</code></td>
+              <td><code>${t.license_key || '--'}</code></td>
+              <td><code>${t.hwid || '--'}</code></td>
+              <td><span class="pill pill-active">${t.tier || 'enterprise'}</span></td>
+              <td>${t.counter || 0}</td>
+              <td>${exp}</td>
+              <td><span class="pill pill-active">${t.status || 'ACTIVE'}</span></td>
+            </tr>`;
+          }).join('');
+        }
+      } catch (e) {
+        console.error('Failed to load airgap status:', e);
+      }
+    }
+
+    async function promptIssueAirgapDongle() {
+      const key = prompt('License Key to bind to offline dongle:', 'SLB-OFFLINE-001');
+      if (!key) return;
+      const hwid = prompt('Machine Hardware ID (HWID):', 'HWID-AIRGAP-NODE-01');
+      if (!hwid) return;
+      const tier = prompt('Entitlement Tier (free / pro / enterprise):', 'enterprise') || 'enterprise';
+      const days = parseInt(prompt('Validity Duration in Days:', '90') || '90', 10);
+
+      const out = document.getElementById('airgap-output');
+      out.style.display = 'block';
+      out.textContent = `Issuing Ed25519 offline dongle token for [${key}]...`;
+
+      try {
+        const res = await fetch('/api/airgap/token/issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: key.trim(),
+            hwid: hwid.trim(),
+            tier: tier.trim(),
+            days_valid: days
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Air-Gapped Offline Dongle Issued Successfully!\n\n' +
+          '=== COMPACT DONGLE TOKEN (Copy to USB / Airgap Node) ===\n' +
+          (res.dongle_token || JSON.stringify(res.token, null, 2)) + '\n\n' +
+          '=== QR ACTIVATION ENVELOPE ===\n' +
+          (res.qr_payload || '--');
+        refreshAirgapTab();
+      } catch (e) {
+        out.textContent = 'Token issue failed: ' + e.message;
+      }
+    }
+
+    async function promptVerifyAirgapDongle() {
+      const token = prompt('Paste Compact Dongle Token or Token JSON:');
+      if (!token) return;
+      const hwid = prompt('Expected Machine HWID (leave blank for default):', '');
+
+      const out = document.getElementById('airgap-output');
+      out.style.display = 'block';
+      out.textContent = 'Verifying Ed25519 signature and monotonic clock bounds...';
+
+      try {
+        const res = await fetch('/api/airgap/token/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: token.trim(),
+            hwid: hwid.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Dongle Verification Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshAirgapTab();
+      } catch (e) {
+        out.textContent = 'Verification request failed: ' + e.message;
+      }
+    }
+
+    async function promptRequestAirgapActivation() {
+      const key = prompt('License Key for Offline QR Activation:', 'SLB-OFFLINE-001');
+      if (!key) return;
+      const hwid = prompt('Target Machine HWID:', 'HWID-AIRGAP-NODE-01');
+      if (!hwid) return;
+
+      const out = document.getElementById('airgap-output');
+      out.style.display = 'block';
+      out.textContent = `Generating Air-Gapped QR Activation Challenge...`;
+
+      try {
+        const res = await fetch('/api/airgap/activate/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_key: key.trim(),
+            hwid: hwid.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'QR Activation Challenge Generated:\n\n' +
+          '=== AIR-GAP QR PAYLOAD (Scan with Mobile / Optical Bridge) ===\n' +
+          (res.activation ? res.activation.qr_payload : res.qr_payload) + '\n\n' +
+          JSON.stringify(res, null, 2);
+        refreshAirgapTab();
+      } catch (e) {
+        out.textContent = 'Activation request failed: ' + e.message;
+      }
+    }
+
+    async function promptFulfillAirgapActivation() {
+      const qrPayload = prompt('Paste Scanned QR Code Activation Payload:');
+      if (!qrPayload) return;
+
+      const out = document.getElementById('airgap-output');
+      out.style.display = 'block';
+      out.textContent = 'Fulfilling optical QR activation payload...';
+
+      try {
+        const res = await fetch('/api/airgap/activate/fulfill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qr_payload: qrPayload.trim() })
+        }).then(r => r.json());
+
+        out.textContent = 'Activation Fulfill Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshAirgapTab();
+      } catch (e) {
+        out.textContent = 'Fulfill failed: ' + e.message;
+      }
+    }
+
+    async function promptUnlockAirgapRollback() {
+      const hwid = prompt('Machine HWID to inspect / unlock rollback lock:', 'HWID-AIRGAP-NODE-01');
+      if (!hwid) return;
+
+      const out = document.getElementById('airgap-output');
+      out.style.display = 'block';
+      out.textContent = `Checking rollback state for [${hwid}]...`;
+
+      try {
+        const stateRes = await fetch('/api/airgap/rollback/state?hwid=' + encodeURIComponent(hwid)).then(r => r.json());
+        if (stateRes && stateRes.state && stateRes.state.tampered) {
+          const proceed = confirm(`Vault is TRIPPED! Monotonic counter rolled back. Do you want to unlock with recovery signature?`);
+          if (!proceed) {
+            out.textContent = 'Rollback State:\n\n' + JSON.stringify(stateRes, null, 2);
+            return;
+          }
+          const sig = prompt('Administrative Recovery Signature:', 'ADMIN_RECOVERY_SIG');
+          const unlockRes = await fetch('/api/airgap/rollback/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              vault_id: stateRes.state.vault_id,
+              hwid: hwid,
+              nonce: 'admin-unlock-' + Date.now(),
+              timestamp: Math.floor(Date.now() / 1000),
+              admin_signature: sig
+            })
+          }).then(r => r.json());
+          out.textContent = 'Vault Unlock Result:\n\n' + JSON.stringify(unlockRes, null, 2);
+        } else {
+          out.textContent = 'Rollback State (Normal / Untampered):\n\n' + JSON.stringify(stateRes, null, 2);
+        }
+        refreshAirgapTab();
+      } catch (e) {
+        out.textContent = 'Rollback check failed: ' + e.message;
+      }
     }
 
     refresh();
