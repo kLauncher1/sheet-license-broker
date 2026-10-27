@@ -173,10 +173,15 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Cloudflare Edge Worker Zero-Trust telemetry and cert fingerprint forwarding (`edge/cloudflare/worker.js`)
 - [x] Embedded admin console Zero-Trust & mTLS Mesh interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 21: Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)
-- [ ] Real-time token bucket auto-scaling based on client stream telemetry load
-- [ ] Automated self-healing retry tunnels on intermittent network disconnects
-- [ ] Distributed quota borrowing between tenant namespaces and broker clusters
+## Phase 21: Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0) - Completed
+- [x] Real-time token bucket auto-scaling based on client stream telemetry load (`internal/healing/bucket.go`)
+- [x] Automated self-healing retry tunnels on intermittent network disconnects (`internal/healing/tunnel.go`)
+- [x] Distributed quota borrowing between tenant namespaces and broker clusters (`internal/healing/quota.go`)
+- [x] Unified healing manager orchestrator and background maintenance ticker (`internal/healing/manager.go`)
+- [x] Dedicated healing REST router (`routes_healing.go`) and proxy orchestration (`internal/proxy/healing.go`)
+- [x] Google Apps Script backend sheets (`Healing_Leases`, `Healing_Tunnels`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, C#, and Cloudflare Worker (`sdk/`, `edge/cloudflare/worker.js`)
+- [x] Embedded admin console Autonomous Healing & Quotas interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 22: Hardware Security Module (HSM) PKCS#11 Vault Integration (v2.2.0)
 - [ ] Direct PKCS#11 hardware cryptoki engine binding
@@ -272,5 +277,16 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Time-locked cryptographic license issuance using Wesolowski or Pietrzak VDFs
 - [ ] Provable sequential work verification resistant to parallel quantum acceleration
 - [ ] Trustless temporal entitlement expiration anchored to public entropy beacons
+
+## Phase 41: Quantum-Resistant Threshold Cryptography & Enclave Co-Signing (v4.1.0)
+- [ ] Direct integration of threshold ML-DSA signatures across distributed broker enclaves
+- [ ] Shamir secret sharing over post-quantum finite fields with asynchronous verifiable secret sharing (AVSS)
+- [ ] Proactive key refresh protocols with zero dealer trust and non-interactive zero-knowledge proofs
+
+## Phase 42: Decentralized Self-Healing Sovereign Mesh & Ephemeral Entitlements (v4.2.0)
+- [ ] Peer-to-peer gossip mesh for autonomous license state consensus and partition recovery
+- [ ] Cryptographically blinded ephemeral micro-entitlements with hardware-enforced monotonic counter bounds
+- [ ] Zero-dependency distributed lease synchronization without centralized origin bottlenecks
+
 
 

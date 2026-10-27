@@ -376,6 +376,41 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"reason\":\"valid\",\"node_id\":\"node-cs-01\"}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"bucket\":{\"capacity\":100.0,\"mode\":\"normal\"},\"active_tunnels\":2,\"active_leases\":[]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/bucket/consume")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"allowed\":true,\"stats\":{\"current_tokens\":98.0,\"capacity\":100.0}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/tunnel/ticket")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"session_id\":\"sess-cs-heal\",\"client_id\":\"client-cs-01\",\"signature\":\"cs_sig_heal\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/tunnel/resume")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"resumed\",\"session\":{\"state\":\"resumed\"},\"missed_events\":[],\"missed_count\":0}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/quota/borrow")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"lease\":{\"lease_id\":\"lease-cs-01\",\"amount\":400}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/quota/return")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"returned\",\"lease_id\":\"lease-cs-01\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/healing/quota/rebalance")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"rebalanced\",\"events\":[]}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -846,7 +881,52 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: ZeroTrust status, peers, enroll/verify/revoke, CA rotate, and HSM slot query");
 
-                Console.WriteLine("=== All 23 C# Client Tests Passed Successfully! ===");
+                // 24. Healing status, consume, issue/resume ticket, borrow/return quota, and rebalance
+                string healStatusRaw = client.GetHealingStatusAsync().GetAwaiter().GetResult();
+                if (!healStatusRaw.Contains("100") || !healStatusRaw.Contains("active_tunnels"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing status query failed: " + healStatusRaw);
+                    return 1;
+                }
+                string healConsumeRaw = client.ConsumeHealingBucketAsync(2.0).GetAwaiter().GetResult();
+                if (!healConsumeRaw.Contains("\"allowed\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing bucket consume failed: " + healConsumeRaw);
+                    return 1;
+                }
+                string healTicketRaw = client.IssueHealingTicketAsync("client-cs-01", "HWID-CS-01").GetAwaiter().GetResult();
+                if (!healTicketRaw.Contains("cs_sig_heal"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing ticket issue failed: " + healTicketRaw);
+                    return 1;
+                }
+                string healResumeRaw = client.ResumeHealingTunnelAsync(healTicketRaw).GetAwaiter().GetResult();
+                if (!healResumeRaw.Contains("resumed"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing tunnel resume failed: " + healResumeRaw);
+                    return 1;
+                }
+                string healBorrowRaw = client.BorrowHealingQuotaAsync("tenant-b", "tenant-l", 400).GetAwaiter().GetResult();
+                if (!healBorrowRaw.Contains("lease-cs-01"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing quota borrow failed: " + healBorrowRaw);
+                    return 1;
+                }
+                string healReturnRaw = client.ReturnHealingQuotaAsync("lease-cs-01").GetAwaiter().GetResult();
+                if (!healReturnRaw.Contains("returned"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing quota return failed: " + healReturnRaw);
+                    return 1;
+                }
+                string healRebalRaw = client.RebalanceHealingQuotasAsync().GetAwaiter().GetResult();
+                if (!healRebalRaw.Contains("rebalanced"))
+                {
+                    Console.Error.WriteLine("FAIL: Healing quota rebalance failed: " + healRebalRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Healing status, consume, ticket, tunnel resume, quota borrow/return, and rebalance");
+
+                Console.WriteLine("=== All 24 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

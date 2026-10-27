@@ -843,6 +843,66 @@ class SheetLicenseClient:
         """Cryptographically verifies whether a given peer identity is actively authorized."""
         return self._request("POST", "/api/zerotrust/verify", peer)
 
+    def get_healing_status(self) -> Dict[str, Any]:
+        """Queries autonomous healing status including bucket telemetry, active tunnels, and quota pools."""
+        return self._request("GET", "/api/healing/status")
+
+    def consume_healing_bucket(self, tokens: float = 1.0) -> Dict[str, Any]:
+        """Consumes capacity tokens from the real-time auto-scaling token bucket rate limiter."""
+        return self._request("POST", "/api/healing/bucket/consume", {"tokens": tokens})
+
+    def issue_healing_ticket(
+        self,
+        client_id: str,
+        hwid: str,
+        tenant_id: str = "default",
+        session_id: str = "",
+        last_ack_seq: int = 0,
+        ttl_seconds: int = 180,
+    ) -> Dict[str, Any]:
+        """Issues a cryptographically signed healing ticket allowing a client to resume an interrupted session."""
+        payload = {
+            "session_id": session_id,
+            "client_id": client_id,
+            "hwid": hwid,
+            "tenant_id": tenant_id,
+            "last_ack_seq": last_ack_seq,
+            "ttl_seconds": ttl_seconds,
+        }
+        return self._request("POST", "/api/healing/tunnel/ticket", payload)
+
+    def resume_healing_tunnel(self, ticket: Dict[str, Any]) -> Dict[str, Any]:
+        """Resumes an interrupted client connection tunnel and retrieves missed state synchronization events."""
+        return self._request("POST", "/api/healing/tunnel/resume", ticket)
+
+    def borrow_healing_quota(
+        self,
+        borrower_tenant: str,
+        lender_tenant: str,
+        amount: int,
+        duration_minutes: int = 15,
+    ) -> Dict[str, Any]:
+        """Requests a dynamic quota borrowing lease between tenant pools."""
+        payload = {
+            "borrower_tenant": borrower_tenant,
+            "lender_tenant": lender_tenant,
+            "amount": amount,
+            "duration_minutes": duration_minutes,
+        }
+        return self._request("POST", "/api/healing/quota/borrow", payload)
+
+    def return_healing_quota(self, lease_id: str) -> Dict[str, Any]:
+        """Voluntarily returns a borrowed quota allocation before or upon expiration."""
+        return self._request("POST", "/api/healing/quota/return", {"lease_id": lease_id})
+
+    def recall_healing_quota(self, lease_id: str, reason: str = "") -> Dict[str, Any]:
+        """Preemptively recalls borrowed quota when lender tenant load surges."""
+        return self._request("POST", "/api/healing/quota/recall", {"lease_id": lease_id, "reason": reason})
+
+    def rebalance_healing_quotas(self) -> Dict[str, Any]:
+        """Triggers an automated distributed quota rebalancing evaluation."""
+        return self._request("POST", "/api/healing/quota/rebalance", {})
+
 
 if __name__ == "__main__":
     import sys

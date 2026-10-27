@@ -881,6 +881,86 @@ namespace SheetLicenseBroker
         public string VerifyZeroTrustPeer(string nodeId, string serialNumber) =>
             VerifyZeroTrustPeerAsync(nodeId, serialNumber).GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Retrieves operational status for the autonomous healing and quota rebalancing subsystem.
+        /// </summary>
+        public async Task<string> GetHealingStatusAsync() =>
+            await SendRequestAsync("GET", "/api/healing/status", null).ConfigureAwait(false);
+
+        public string GetHealingStatus() =>
+            GetHealingStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Consumes capacity from the real-time auto-scaling token bucket rate limiter.
+        /// </summary>
+        public async Task<string> ConsumeHealingBucketAsync(double tokens = 1.0)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"tokens\":{0}}}", tokens);
+            return await SendRequestAsync("POST", "/api/healing/bucket/consume", body).ConfigureAwait(false);
+        }
+
+        public string ConsumeHealingBucket(double tokens = 1.0) =>
+            ConsumeHealingBucketAsync(tokens).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Issues a cryptographically signed healing ticket allowing a client to resume an interrupted session.
+        /// </summary>
+        public async Task<string> IssueHealingTicketAsync(string clientId, string hwid, string tenantId = "default", string sessionId = "", long lastAckSeq = 0, long ttlSeconds = 180)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"session_id\":\"{0}\",\"client_id\":\"{1}\",\"hwid\":\"{2}\",\"tenant_id\":\"{3}\",\"last_ack_seq\":{4},\"ttl_seconds\":{5}}}",
+                EscapeJson(sessionId ?? ""), EscapeJson(clientId ?? ""), EscapeJson(hwid ?? ""), EscapeJson(tenantId ?? "default"), lastAckSeq, ttlSeconds);
+            return await SendRequestAsync("POST", "/api/healing/tunnel/ticket", body).ConfigureAwait(false);
+        }
+
+        public string IssueHealingTicket(string clientId, string hwid, string tenantId = "default", string sessionId = "", long lastAckSeq = 0, long ttlSeconds = 180) =>
+            IssueHealingTicketAsync(clientId, hwid, tenantId, sessionId, lastAckSeq, ttlSeconds).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Resumes an interrupted client connection tunnel with a signed healing ticket.
+        /// </summary>
+        public async Task<string> ResumeHealingTunnelAsync(string ticketJson) =>
+            await SendRequestAsync("POST", "/api/healing/tunnel/resume", ticketJson).ConfigureAwait(false);
+
+        public string ResumeHealingTunnel(string ticketJson) =>
+            ResumeHealingTunnelAsync(ticketJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Requests a dynamic quota borrowing lease between tenant pools.
+        /// </summary>
+        public async Task<string> BorrowHealingQuotaAsync(string borrowerTenant, string lenderTenant, long amount, long durationMinutes = 15)
+        {
+            string body = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"borrower_tenant\":\"{0}\",\"lender_tenant\":\"{1}\",\"amount\":{2},\"duration_minutes\":{3}}}",
+                EscapeJson(borrowerTenant ?? ""), EscapeJson(lenderTenant ?? ""), amount, durationMinutes);
+            return await SendRequestAsync("POST", "/api/healing/quota/borrow", body).ConfigureAwait(false);
+        }
+
+        public string BorrowHealingQuota(string borrowerTenant, string lenderTenant, long amount, long durationMinutes = 15) =>
+            BorrowHealingQuotaAsync(borrowerTenant, lenderTenant, amount, durationMinutes).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Voluntarily returns a borrowed quota allocation.
+        /// </summary>
+        public async Task<string> ReturnHealingQuotaAsync(string leaseId)
+        {
+            string body = string.Format("{{\"lease_id\":\"{0}\"}}", EscapeJson(leaseId ?? ""));
+            return await SendRequestAsync("POST", "/api/healing/quota/return", body).ConfigureAwait(false);
+        }
+
+        public string ReturnHealingQuota(string leaseId) =>
+            ReturnHealingQuotaAsync(leaseId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Triggers an automated distributed quota rebalancing evaluation.
+        /// </summary>
+        public async Task<string> RebalanceHealingQuotasAsync() =>
+            await SendRequestAsync("POST", "/api/healing/quota/rebalance", "{}").ConfigureAwait(false);
+
+        public string RebalanceHealingQuotas() =>
+            RebalanceHealingQuotasAsync().GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

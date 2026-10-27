@@ -72,6 +72,12 @@ import type {
   ZeroTrustHSMSlotInfo,
   ZeroTrustStatus,
   ZeroTrustVerifyResponse,
+  HealingStatus,
+  HealingConsumeResponse,
+  HealingTicket,
+  HealingResumeResponse,
+  HealingBorrowResponse,
+  HealingRebalanceResponse,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -927,6 +933,91 @@ export class SheetLicenseClient {
    */
   public async verifyZeroTrustPeer(peer: Partial<ZeroTrustPeerIdentity>): Promise<ZeroTrustVerifyResponse> {
     return this.request<ZeroTrustVerifyResponse>('POST', '/api/zerotrust/verify', peer);
+  }
+
+  /**
+   * Queries autonomous healing status including bucket telemetry, active tunnels, and quota pools.
+   */
+  public async getHealingStatus(): Promise<HealingStatus> {
+    return this.request<HealingStatus>('GET', '/api/healing/status');
+  }
+
+  /**
+   * Consumes capacity tokens from the real-time auto-scaling token bucket rate limiter.
+   */
+  public async consumeHealingBucket(tokens: number = 1.0): Promise<HealingConsumeResponse> {
+    return this.request<HealingConsumeResponse>('POST', '/api/healing/bucket/consume', { tokens });
+  }
+
+  /**
+   * Issues a cryptographically signed healing ticket allowing a client to resume an interrupted session.
+   */
+  public async issueHealingTicket(params: {
+    sessionId?: string;
+    clientId: string;
+    hwid: string;
+    tenantId?: string;
+    lastAckSeq?: number;
+    ttlSeconds?: number;
+  }): Promise<HealingTicket> {
+    return this.request<HealingTicket>('POST', '/api/healing/tunnel/ticket', {
+      session_id: params.sessionId || '',
+      client_id: params.clientId,
+      hwid: params.hwid,
+      tenant_id: params.tenantId || 'default',
+      last_ack_seq: params.lastAckSeq || 0,
+      ttl_seconds: params.ttlSeconds || 180,
+    });
+  }
+
+  /**
+   * Resumes an interrupted client connection tunnel and retrieves missed state synchronization events.
+   */
+  public async resumeHealingTunnel(ticket: HealingTicket): Promise<HealingResumeResponse> {
+    return this.request<HealingResumeResponse>('POST', '/api/healing/tunnel/resume', ticket);
+  }
+
+  /**
+   * Requests a dynamic quota borrowing lease between tenant pools.
+   */
+  public async borrowHealingQuota(params: {
+    borrowerTenant: string;
+    lenderTenant: string;
+    amount: number;
+    durationMinutes?: number;
+  }): Promise<HealingBorrowResponse> {
+    return this.request<HealingBorrowResponse>('POST', '/api/healing/quota/borrow', {
+      borrower_tenant: params.borrowerTenant,
+      lender_tenant: params.lenderTenant,
+      amount: params.amount,
+      duration_minutes: params.durationMinutes || 15,
+    });
+  }
+
+  /**
+   * Voluntarily returns a borrowed quota allocation before or upon expiration.
+   */
+  public async returnHealingQuota(leaseId: string): Promise<{ status: string; lease_id: string }> {
+    return this.request<{ status: string; lease_id: string }>('POST', '/api/healing/quota/return', {
+      lease_id: leaseId,
+    });
+  }
+
+  /**
+   * Preemptively recalls borrowed quota when lender tenant load surges.
+   */
+  public async recallHealingQuota(leaseId: string, reason?: string): Promise<{ status: string; lease_id: string }> {
+    return this.request<{ status: string; lease_id: string }>('POST', '/api/healing/quota/recall', {
+      lease_id: leaseId,
+      reason: reason || 'Lender utilization surge',
+    });
+  }
+
+  /**
+   * Triggers an automated distributed quota rebalancing evaluation.
+   */
+  public async rebalanceHealingQuotas(): Promise<HealingRebalanceResponse> {
+    return this.request<HealingRebalanceResponse>('POST', '/api/healing/quota/rebalance', {});
   }
 }
 

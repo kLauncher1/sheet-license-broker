@@ -405,6 +405,17 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/healing/status":
+            self._send_json(
+                200,
+                {
+                    "bucket": {"capacity": 100.0, "mode": "normal"},
+                    "active_tunnels": 2,
+                    "active_leases": [],
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -793,6 +804,62 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/healing/bucket/consume":
+            self._send_json(
+                200,
+                {
+                    "allowed": True,
+                    "stats": {"current_tokens": 98.0, "capacity": 100.0},
+                },
+            )
+            return
+
+        if path == "/api/healing/tunnel/ticket":
+            self._send_json(
+                200,
+                {
+                    "session_id": payload.get("session_id") or "sess-py-heal",
+                    "client_id": payload.get("client_id"),
+                    "hwid": payload.get("hwid"),
+                    "signature": "py_sig_heal",
+                },
+            )
+            return
+
+        if path == "/api/healing/tunnel/resume":
+            self._send_json(
+                200,
+                {
+                    "status": "resumed",
+                    "session": {"state": "resumed", "client_id": payload.get("client_id")},
+                    "missed_events": [],
+                    "missed_count": 0,
+                },
+            )
+            return
+
+        if path == "/api/healing/quota/borrow":
+            self._send_json(
+                200,
+                {
+                    "status": "success",
+                    "lease": {
+                        "lease_id": "lease-py-01",
+                        "borrower_tenant": payload.get("borrower_tenant"),
+                        "amount": payload.get("amount"),
+                    },
+                },
+            )
+            return
+
+        if path == "/api/healing/quota/return":
+            self._send_json(200, {"status": "returned", "lease_id": payload.get("lease_id")})
+            return
+
+        if path == "/api/healing/quota/rebalance":
+            self._send_json(200, {"status": "rebalanced", "events": []})
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -1062,6 +1129,31 @@ class TestSheetLicenseClient(unittest.TestCase):
         hsm = client.get_zerotrust_hsm_status()
         self.assertTrue(hsm.get("hsm_enabled"))
         self.assertEqual(len(hsm.get("slots", [])), 1)
+
+    def test_healing_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_healing_status()
+        self.assertEqual(st.get("bucket", {}).get("capacity"), 100.0)
+        self.assertEqual(st.get("active_tunnels"), 2)
+
+        consume = client.consume_healing_bucket(2.0)
+        self.assertTrue(consume.get("allowed"))
+
+        ticket = client.issue_healing_ticket("client-py-01", "HWID-PY-01", "tenant-py")
+        self.assertEqual(ticket.get("signature"), "py_sig_heal")
+
+        resume = client.resume_healing_tunnel(ticket)
+        self.assertEqual(resume.get("status"), "resumed")
+
+        borrow = client.borrow_healing_quota("tenant-b", "tenant-l", 300)
+        self.assertEqual(borrow.get("lease", {}).get("lease_id"), "lease-py-01")
+
+        ret = client.return_healing_quota("lease-py-01")
+        self.assertEqual(ret.get("status"), "returned")
+
+        rebal = client.rebalance_healing_quotas()
+        self.assertEqual(rebal.get("status"), "rebalanced")
 
 
 if __name__ == "__main__":

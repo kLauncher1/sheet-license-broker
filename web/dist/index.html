@@ -207,6 +207,8 @@
       <span>•</span>
       <span id="zerotrust-badge" style="color: #10b981;">Zero-Trust: mTLS Active</span>
       <span>•</span>
+      <span id="healing-badge" style="color: #a78bfa;">Healing: Active</span>
+      <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
@@ -266,6 +268,7 @@
       <button class="tab-btn" id="tab-btn-marketplace" onclick="switchTab('marketplace')">Marketplace & Resellers</button>
       <button class="tab-btn" id="tab-btn-airgap" onclick="switchTab('airgap')">Air-Gap &amp; Offline Dongles</button>
       <button class="tab-btn" id="tab-btn-zerotrust" onclick="switchTab('zerotrust')">Zero-Trust &amp; mTLS</button>
+      <button class="tab-btn" id="tab-btn-healing" onclick="switchTab('healing')">Autonomous Healing &amp; Quotas</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1292,6 +1295,105 @@
 
       <div id="zerotrust-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 20: Autonomous License Healing & Dynamic Quota Rebalancing -->
+    <div id="panel-healing" style="display: none;">
+      <section class="grid-stats" style="margin-bottom: 24px;">
+        <div class="card">
+          <div class="card-title">Token Bucket Mode</div>
+          <div class="card-value" id="val-heal-mode" style="color: #a78bfa;">--</div>
+          <div class="card-subtext">Dynamic Auto-Scaling Rate Limit</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Bucket Capacity</div>
+          <div class="card-value" id="val-heal-capacity" style="color: #38bdf8;">--</div>
+          <div class="card-subtext">Current Tokens / Burst Limit</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Refill Velocity</div>
+          <div class="card-value" id="val-heal-refill" style="color: #10b981;">--</div>
+          <div class="card-subtext">Tokens / Sec (Multiplier)</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Retry Tunnels</div>
+          <div class="card-value" id="val-heal-tunnels" style="color: #f59e0b;">--</div>
+          <div class="card-subtext">Active / Suspended Resilient Sessions</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Quota Leases</div>
+          <div class="card-value" id="val-heal-leases" style="color: #ec4899;">--</div>
+          <div class="card-subtext">Cross-Tenant Borrowed Allocations</div>
+        </div>
+      </section>
+
+      <div class="action-bar" style="margin-bottom: 20px;">
+        <button class="btn-action" onclick="promptBorrowQuota()">🔄 Borrow Tenant Quota</button>
+        <button class="btn-action btn-secondary" onclick="triggerHealingRebalance()">⚖️ Trigger Auto-Rebalance</button>
+        <button class="btn-action btn-secondary" onclick="refreshHealingTab()">🔄 Refresh Telemetry</button>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; color: var(--text-main);">Tenant Quota Pools &amp; Dynamic Entitlements</h3>
+        <table class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th>Tenant ID</th>
+              <th>Total Quota</th>
+              <th>Used</th>
+              <th>Borrowed In</th>
+              <th>Lent Out</th>
+              <th>Available Quota</th>
+              <th>Utilization</th>
+            </tr>
+          </thead>
+          <tbody id="healing-pools-body">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading quota pools...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; color: var(--text-main);">Active Quota Borrowing Leases</h3>
+        <table class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th>Lease ID</th>
+              <th>Borrower Tenant</th>
+              <th>Lender Tenant</th>
+              <th>Borrowed Amount</th>
+              <th>Expires At</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="healing-leases-body">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No active borrowing leases.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box" style="margin-bottom: 20px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; color: var(--text-main);">Self-Healing Client Connection Tunnels</h3>
+        <table class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Client ID</th>
+              <th>Device HWID</th>
+              <th>Tenant ID</th>
+              <th>State</th>
+              <th>Last Heartbeat</th>
+              <th>Missed Events</th>
+            </tr>
+          </thead>
+          <tbody id="healing-tunnels-body">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No active reconnect tunnels.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="healing-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1299,7 +1401,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1324,6 +1426,7 @@
       document.getElementById('panel-marketplace').style.display = tab === 'marketplace' ? 'block' : 'none';
       document.getElementById('panel-airgap').style.display = tab === 'airgap' ? 'block' : 'none';
       document.getElementById('panel-zerotrust').style.display = tab === 'zerotrust' ? 'block' : 'none';
+      document.getElementById('panel-healing').style.display = tab === 'healing' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1346,6 +1449,7 @@
       if (tab === 'marketplace') refreshMarketplaceTab();
       if (tab === 'airgap') refreshAirgapTab();
       if (tab === 'zerotrust') refreshZeroTrustTab();
+      if (tab === 'healing') refreshHealingTab();
     }
 
     async function refresh() {
@@ -1400,6 +1504,14 @@
           const zb = document.getElementById('zerotrust-badge');
           if (zb) {
             zb.textContent = zt.mtls_enforced ? `Zero-Trust: mTLS Strict (${zt.active_peers_count} Peers)` : `Zero-Trust: Active (${zt.active_peers_count} Peers)`;
+          }
+        }
+
+        if (health && health.healing) {
+          const h = health.healing;
+          const hb = document.getElementById('healing-badge');
+          if (hb && h.bucket) {
+            hb.textContent = `Healing: Active (${h.bucket.mode.toUpperCase()})`;
           }
         }
 
@@ -3582,6 +3694,131 @@
         out.textContent = 'Hardware Security Module (HSM) Status:\n\n' + JSON.stringify(res, null, 2);
       } catch (err) {
         out.textContent = 'HSM query failed: ' + err.message;
+      }
+    }
+
+    async function refreshHealingTab() {
+      try {
+        const res = await fetch('/api/healing/status').then(r => r.json()).catch(() => ({}));
+        const bucket = res.bucket || {};
+        const pools = res.quota_pools || [];
+        const leases = res.active_leases || [];
+
+        document.getElementById('val-heal-mode').textContent = (bucket.mode || 'NORMAL').toUpperCase();
+        document.getElementById('val-heal-capacity').textContent = `${bucket.current_tokens || 0} / ${bucket.capacity || 0}`;
+        document.getElementById('val-heal-refill').textContent = `${bucket.refill_rate || 0}/s (${bucket.scale_multiplier || 1.0}x)`;
+        document.getElementById('val-heal-tunnels').textContent = `${res.active_tunnels || 0} / ${res.suspended_tunnels || 0}`;
+        document.getElementById('val-heal-leases').textContent = leases.length;
+
+        const poolsBody = document.getElementById('healing-pools-body');
+        if (!pools || pools.length === 0) {
+          poolsBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No tenant quota pools found.</td></tr>';
+        } else {
+          poolsBody.innerHTML = pools.map(p => `
+            <tr>
+              <td style="font-family: monospace; font-weight: 700; color: #38bdf8;">${p.tenant_id}</td>
+              <td>${p.total_quota}</td>
+              <td>${p.used_quota}</td>
+              <td style="color: #10b981;">+${p.borrowed_in}</td>
+              <td style="color: #f59e0b;">-${p.lent_out}</td>
+              <td style="font-weight: 700;">${p.available_quota}</td>
+              <td><span class="pill ${p.utilization > 0.8 ? 'pill-revoked' : 'pill-active'}">${Math.round(p.utilization * 100)}%</span></td>
+            </tr>
+          `).join('');
+        }
+
+        const leasesBody = document.getElementById('healing-leases-body');
+        if (!leases || leases.length === 0) {
+          leasesBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No active borrowing leases.</td></tr>';
+        } else {
+          leasesBody.innerHTML = leases.map(l => `
+            <tr>
+              <td style="font-family: monospace; font-weight: 700; color: #ec4899;">${l.lease_id}</td>
+              <td>${l.borrower_tenant}</td>
+              <td>${l.lender_tenant}</td>
+              <td style="font-weight: 700; color: #38bdf8;">${l.amount} units</td>
+              <td style="font-size: 12px; color: var(--text-muted);">${new Date(l.expires_at).toLocaleTimeString()}</td>
+              <td><span class="pill pill-active">${l.status.toUpperCase()}</span></td>
+              <td>
+                <button class="btn-action btn-secondary btn-sm" onclick="returnQuotaDirect('${l.lease_id}')">Return</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load healing tab:', err);
+      }
+    }
+
+    async function promptBorrowQuota() {
+      const borrower = prompt('Borrower Tenant ID:', 'tenant-secondary');
+      if (!borrower) return;
+      const lender = prompt('Lender Tenant ID (with surplus):', 'tenant-primary');
+      if (!lender) return;
+      const amountStr = prompt('Quota Amount to borrow:', '500');
+      if (!amountStr) return;
+      const minutesStr = prompt('Lease Duration (Minutes):', '15');
+      if (!minutesStr) return;
+
+      const out = document.getElementById('healing-output');
+      out.style.display = 'block';
+      out.textContent = `Requesting quota lease from ${lender} to ${borrower}...`;
+
+      try {
+        const res = await fetch('/api/healing/quota/borrow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            borrower_tenant: borrower,
+            lender_tenant: lender,
+            amount: parseInt(amountStr, 10),
+            duration_minutes: parseInt(minutesStr, 10)
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Quota Borrow Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshHealingTab();
+      } catch (err) {
+        out.textContent = 'Borrow failed: ' + err.message;
+      }
+    }
+
+    async function returnQuotaDirect(leaseId) {
+      if (!confirm(`Return quota lease [${leaseId}] back to lender?`)) return;
+
+      const out = document.getElementById('healing-output');
+      out.style.display = 'block';
+      out.textContent = `Returning quota lease [${leaseId}]...`;
+
+      try {
+        const res = await fetch('/api/healing/quota/return', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lease_id: leaseId })
+        }).then(r => r.json());
+
+        out.textContent = 'Quota Return Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshHealingTab();
+      } catch (err) {
+        out.textContent = 'Return failed: ' + err.message;
+      }
+    }
+
+    async function triggerHealingRebalance() {
+      const out = document.getElementById('healing-output');
+      out.style.display = 'block';
+      out.textContent = 'Triggering automated quota rebalance cycle...';
+
+      try {
+        const res = await fetch('/api/healing/quota/rebalance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).then(r => r.json());
+
+        out.textContent = 'Rebalance Cycle Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshHealingTab();
+      } catch (err) {
+        out.textContent = 'Rebalance failed: ' + err.message;
       }
     }
 
