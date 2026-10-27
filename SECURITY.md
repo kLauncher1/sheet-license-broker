@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.1.x   | :white_check_mark: |
 | 2.0.x   | :white_check_mark: |
 | 1.9.x   | :white_check_mark: |
 | 1.8.x   | :white_check_mark: |
@@ -160,6 +161,12 @@
     - **SPIFFE Identity & SAN Validation**: Peer certificates are validated against SPIFFE URIs (`spiffe://sheet-license-broker/node/<node-id>`), preventing unauthorized impersonation across cluster nodes.
     - **Active Certificate Revocation Lists (CRL)**: Revoked peer certificates are added to the internal CRL and verified during TLS handshakes and REST verification checks, instantly invalidating compromised peers.
     - **Constant-Time PIN Authentication**: Access to software HSM key slots is governed by PIN authorization verified with `crypto/subtle.ConstantTimeCompare` to defeat timing side-channel attacks, with deterministic memory zeroing upon key destruction.
+
+27. **Autonomous License Healing & Dynamic Quota Rebalancing Security**:
+    - **Adaptive Load-Aware Rate Throttling**: The auto-scaling token bucket dynamically measures request rates and error ratios. When error spikes or system stress occur, the bucket automatically scales down refill velocity and capacity to apply defensive backpressure and prevent cascade failures.
+    - **HMAC-SHA256 Healing Ticket Verification**: Disconnected clients receive cryptographically signed reconnect tickets (`HealingTicket`). Reconnection requests are authenticated using constant-time signature evaluation (`crypto/subtle.ConstantTimeCompare`), preventing unauthorized session hijacking or forgery.
+    - **Bounded Ephemeral Delta Replay**: Reconnect state updates are served from an in-memory ring-buffer with strict capacity boundaries (default 1,000 entries), filtering events by tenant namespace and client identifier to ensure zero cross-tenant leakage.
+    - **Surplus Headroom Invariants & Preemptive Recall**: Quota borrowing requires lending tenants to maintain at least 30% unallocated headroom. If lender utilization exceeds 85%, active leases are automatically recalled to protect the primary lender's operations.
 
 ## Reporting a Vulnerability
 

@@ -719,5 +719,46 @@ export class SheetLicenseClient {
     async verifyZeroTrustPeer(peer) {
         return this.request('POST', '/api/zerotrust/verify', peer);
     }
+    async getHealingStatus() {
+        return this.request('GET', '/api/healing/status');
+    }
+    async consumeHealingBucket(tokens = 1.0) {
+        return this.request('POST', '/api/healing/bucket/consume', { tokens });
+    }
+    async issueHealingTicket(params) {
+        return this.request('POST', '/api/healing/tunnel/ticket', {
+            session_id: params.sessionId || '',
+            client_id: params.clientId,
+            hwid: params.hwid,
+            tenant_id: params.tenantId || 'default',
+            last_ack_seq: params.lastAckSeq || 0,
+            ttl_seconds: params.ttlSeconds || 180,
+        });
+    }
+    async resumeHealingTunnel(ticket) {
+        return this.request('POST', '/api/healing/tunnel/resume', ticket);
+    }
+    async borrowHealingQuota(params) {
+        return this.request('POST', '/api/healing/quota/borrow', {
+            borrower_tenant: params.borrowerTenant,
+            lender_tenant: params.lenderTenant,
+            amount: params.amount,
+            duration_minutes: params.durationMinutes || 15,
+        });
+    }
+    async returnHealingQuota(leaseId) {
+        return this.request('POST', '/api/healing/quota/return', {
+            lease_id: leaseId,
+        });
+    }
+    async recallHealingQuota(leaseId, reason) {
+        return this.request('POST', '/api/healing/quota/recall', {
+            lease_id: leaseId,
+            reason: reason || 'Lender utilization surge',
+        });
+    }
+    async rebalanceHealingQuotas() {
+        return this.request('POST', '/api/healing/quota/rebalance', {});
+    }
 }
 //# sourceMappingURL=client.js.map

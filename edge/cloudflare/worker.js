@@ -45,7 +45,12 @@ export default {
       return handleEdgeZeroTrustStatus(request, env);
     }
 
-    // 6. Forward all other routes to origin
+    // 6. Intercept Autonomous Healing telemetry at edge
+    if (url.pathname === '/edge/healing/status' && request.method === 'GET') {
+      return handleEdgeHealingStatus(request, env);
+    }
+
+    // 7. Forward all other routes to origin
     return forwardToOrigin(request, env);
   }
 };
@@ -497,6 +502,24 @@ export async function handleEdgeZeroTrustStatus(request, env) {
     mtls_enforced: env?.MTLS_ENFORCED === 'true' || env?.MTLS_ENFORCED === '1',
     client_cert_present: clientCertSha256 !== '',
     client_cert_sha256: clientCertSha256,
+    timestamp: new Date().toISOString()
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Broker-Edge': 'cloudflare-worker'
+    }
+  });
+}
+
+export async function handleEdgeHealingStatus(request, env) {
+  const edgeTenantId = request.headers.get('x-tenant-id') || 'default';
+  return new Response(JSON.stringify({
+    edge_healing_enabled: true,
+    auto_scaling_mode: 'normal',
+    edge_retry_tunnels_supported: true,
+    quota_borrowing_enabled: true,
+    tenant_id: edgeTenantId,
     timestamp: new Date().toISOString()
   }), {
     status: 200,

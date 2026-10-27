@@ -30,6 +30,8 @@ const SHEET_MARKETPLACE_TRANSACTIONS = 'Marketplace_Transactions';
 const SHEET_AIRGAP_VAULT = 'AirGap_Vault';
 const SHEET_ZEROTRUST_PEERS = 'ZeroTrust_Peers';
 const SHEET_ZEROTRUST_CA = 'ZeroTrust_CA';
+const SHEET_HEALING_LEASES = 'Healing_Leases';
+const SHEET_HEALING_TUNNELS = 'Healing_Tunnels';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -228,6 +230,18 @@ function handleRequest(e, method) {
       case 'zerotrust_get_status':
         return handleZeroTrustGetStatus(output, payload);
 
+      case 'healing_record_lease':
+        return handleHealingRecordLease(output, payload);
+
+      case 'healing_return_lease':
+        return handleHealingReturnLease(output, payload);
+
+      case 'healing_log_tunnel':
+        return handleHealingLogTunnel(output, payload);
+
+      case 'healing_get_status':
+        return handleHealingGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -263,7 +277,9 @@ function initSheets() {
     { name: SHEET_MARKETPLACE_TRANSACTIONS, cols: ['id', 'event_id', 'provider', 'action', 'customer_email', 'license_key', 'tier', 'seats', 'status', 'error_message', 'processed_at'] },
     { name: SHEET_AIRGAP_VAULT, cols: ['token_id', 'license_key', 'hwid', 'tier', 'issued_at', 'expires_at', 'counter', 'status', 'signature', 'updated_at'] },
     { name: SHEET_ZEROTRUST_PEERS, cols: ['node_id', 'role', 'serial_number', 'fingerprint_sha256', 'expires_at', 'status', 'updated_at'] },
-    { name: SHEET_ZEROTRUST_CA, cols: ['root_fingerprint', 'expires_at', 'status', 'rotated_at'] }
+    { name: SHEET_ZEROTRUST_CA, cols: ['root_fingerprint', 'expires_at', 'status', 'rotated_at'] },
+    { name: SHEET_HEALING_LEASES, cols: ['lease_id', 'borrower_tenant', 'lender_tenant', 'amount', 'borrowed_at', 'expires_at', 'status', 'recall_reason'] },
+    { name: SHEET_HEALING_TUNNELS, cols: ['session_id', 'client_id', 'hwid', 'tenant_id', 'state', 'connected_at', 'last_heartbeat', 'updated_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1796,6 +1812,98 @@ function handleZeroTrustGetStatus(output, payload) {
     revoked_peers: revokedPeers
   });
 }
+
+function handleHealingRecordLease(output, payload) {
+  payload = payload || {};
+  const leaseId = payload.lease_id || ('lease_' + Utilities.getUuid().substring(0, 8));
+  const borrower = payload.borrower_tenant || '';
+  const lender = payload.lender_tenant || '';
+  const amount = payload.amount || 0;
+  const borrowedAt = payload.borrowed_at || new Date().toISOString();
+  const expiresAt = payload.expires_at || '';
+  const status = payload.status || 'ACTIVE';
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_HEALING_LEASES);
+  if (sheet) {
+    sheet.appendRow([leaseId, borrower, lender, amount, borrowedAt, expiresAt, status, '']);
+  }
+
+  logAudit('healing_record_lease', borrower, 'Recorded quota lease ' + leaseId + ' (' + amount + ' units from ' + lender + ')', 'SUCCESS');
+  return jsonResponse(output, { status: 'success', lease_id: leaseId });
+}
+
+function handleHealingReturnLease(output, payload) {
+  payload = payload || {};
+  const leaseId = payload.lease_id || '';
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_HEALING_LEASES);
+
+  let updated = false;
+  if (sheet) {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === leaseId) {
+        sheet.getRange(i + 1, 7).setValue('RETURNED');
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  logAudit('healing_return_lease', leaseId, 'Returned quota lease ' + leaseId, 'SUCCESS');
+  return jsonResponse(output, { status: 'success', lease_id: leaseId, returned: updated });
+}
+
+function handleHealingLogTunnel(output, payload) {
+  payload = payload || {};
+  const sessionId = payload.session_id || ('sess_' + Utilities.getUuid().substring(0, 8));
+  const clientId = payload.client_id || '';
+  const hwid = payload.hwid || '';
+  const tenantId = payload.tenant_id || 'default';
+  const state = payload.state || 'CONNECTED';
+  const now = new Date().toISOString();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_HEALING_TUNNELS);
+  if (sheet) {
+    sheet.appendRow([sessionId, clientId, hwid, tenantId, state, now, now, now]);
+  }
+
+  return jsonResponse(output, { status: 'success', session_id: sessionId });
+}
+
+function handleHealingGetStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const leaseSheet = ss.getSheetByName(SHEET_HEALING_LEASES);
+  const tunnelSheet = ss.getSheetByName(SHEET_HEALING_TUNNELS);
+
+  let activeLeases = 0;
+  let totalBorrowed = 0;
+  if (leaseSheet) {
+    const data = leaseSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][6] === 'ACTIVE') {
+        activeLeases++;
+        totalBorrowed += Number(data[i][3]) || 0;
+      }
+    }
+  }
+
+  let totalTunnels = 0;
+  if (tunnelSheet) {
+    totalTunnels = Math.max(0, tunnelSheet.getLastRow() - 1);
+  }
+
+  return jsonResponse(output, {
+    status: 'success',
+    active_leases: activeLeases,
+    total_borrowed_units: totalBorrowed,
+    tracked_tunnels: totalTunnels,
+    timestamp: new Date().toISOString()
+  });
+}
+
 
 
 

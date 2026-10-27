@@ -283,5 +283,18 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.equal(data.client_cert_present, true);
     assert.equal(data.client_cert_sha256, 'aabbccddeeff112233445566');
   });
+
+  test('reports autonomous healing telemetry and active tenant at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/healing/status', {
+      headers: { 'x-tenant-id': 'tenant-edge-test' }
+    });
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_healing_enabled, true);
+    assert.equal(data.auto_scaling_mode, 'normal');
+    assert.equal(data.tenant_id, 'tenant-edge-test');
+    assert.equal(data.quota_borrowing_enabled, true);
+  });
 });
 

@@ -930,6 +930,140 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/healing/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            bucket: {
+              current_tokens: 95.0,
+              capacity: 100.0,
+              base_capacity: 100.0,
+              refill_rate: 20.0,
+              load_score: 1.0,
+              scale_multiplier: 1.0,
+              mode: 'normal',
+              last_refill: new Date().toISOString()
+            },
+            active_tunnels: 2,
+            suspended_tunnels: 0,
+            total_missed_events: 1,
+            quota_pools: [
+              {
+                tenant_id: 'tenant-ts-alpha',
+                total_quota: 5000,
+                used_quota: 1000,
+                borrowed_in: 0,
+                lent_out: 0,
+                available_quota: 4000,
+                utilization: 0.2
+              }
+            ],
+            active_leases: [],
+            recent_rebalances: []
+          }));
+          return;
+        }
+
+        if (req.url === '/api/healing/bucket/consume' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            allowed: true,
+            stats: {
+              current_tokens: 94.0,
+              capacity: 100.0,
+              base_capacity: 100.0,
+              refill_rate: 20.0,
+              load_score: 1.0,
+              scale_multiplier: 1.0,
+              mode: 'normal',
+              last_refill: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/healing/tunnel/ticket' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            session_id: body.session_id || 'sess-ts-heal',
+            client_id: body.client_id,
+            hwid: body.hwid,
+            tenant_id: body.tenant_id || 'default',
+            issued_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 180000).toISOString(),
+            last_ack_seq: body.last_ack_seq || 0,
+            signature: 'heal_sig_ts_hex'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/healing/tunnel/resume' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'resumed',
+            session: {
+              session_id: body.session_id,
+              client_id: body.client_id,
+              hwid: body.hwid,
+              tenant_id: body.tenant_id,
+              state: 'resumed',
+              connected_at: new Date().toISOString(),
+              last_heartbeat: new Date().toISOString(),
+              missed_events_count: 1
+            },
+            missed_events: [
+              {
+                sequence: 1,
+                tenant_id: body.tenant_id,
+                client_id: body.client_id,
+                event_type: 'license_refresh',
+                payload: '{"status":"active"}',
+                timestamp: new Date().toISOString()
+              }
+            ],
+            missed_count: 1
+          }));
+          return;
+        }
+
+        if (req.url === '/api/healing/quota/borrow' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            lease: {
+              lease_id: 'lease-ts-01',
+              borrower_tenant: body.borrower_tenant,
+              lender_tenant: body.lender_tenant,
+              amount: body.amount,
+              borrowed_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 900000).toISOString(),
+              status: 'active'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/healing/quota/return' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'returned',
+            lease_id: body.lease_id
+          }));
+          return;
+        }
+
+        if (req.url === '/api/healing/quota/rebalance' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'rebalanced',
+            events: []
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -1375,6 +1509,52 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     assert.strictEqual(hsmStatus.hsm_enabled, true);
     assert.strictEqual(hsmStatus.slots.length, 1);
     assert.strictEqual(hsmStatus.slots[0].slot_id, 0);
+  });
+
+  it('queries healing status, consumes bucket, issues/resumes tunnel, borrows/returns quota, and rebalances', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const status = await client.getHealingStatus();
+    assert.strictEqual(status.bucket.capacity, 100.0);
+    assert.strictEqual(status.active_tunnels, 2);
+
+    const consume = await client.consumeHealingBucket(2.0);
+    assert.strictEqual(consume.allowed, true);
+    assert.strictEqual(consume.stats.current_tokens, 94.0);
+
+    const ticket = await client.issueHealingTicket({
+      sessionId: 'sess-ts-heal',
+      clientId: 'client-ts-01',
+      hwid: 'HWID-TS-01',
+      tenantId: 'tenant-ts-alpha',
+      lastAckSeq: 0,
+      ttlSeconds: 180,
+    });
+    assert.strictEqual(ticket.session_id, 'sess-ts-heal');
+    assert.strictEqual(ticket.signature, 'heal_sig_ts_hex');
+
+    const resume = await client.resumeHealingTunnel(ticket);
+    assert.strictEqual(resume.status, 'resumed');
+    assert.strictEqual(resume.session.state, 'resumed');
+    assert.strictEqual(resume.missed_count, 1);
+    assert.strictEqual(resume.missed_events[0].sequence, 1);
+
+    const borrow = await client.borrowHealingQuota({
+      borrowerTenant: 'tenant-ts-beta',
+      lenderTenant: 'tenant-ts-alpha',
+      amount: 500,
+      durationMinutes: 15,
+    });
+    assert.strictEqual(borrow.status, 'success');
+    assert.strictEqual(borrow.lease.lease_id, 'lease-ts-01');
+    assert.strictEqual(borrow.lease.amount, 500);
+
+    const ret = await client.returnHealingQuota('lease-ts-01');
+    assert.strictEqual(ret.status, 'returned');
+    assert.strictEqual(ret.lease_id, 'lease-ts-01');
+
+    const rebal = await client.rebalanceHealingQuotas();
+    assert.strictEqual(rebal.status, 'rebalanced');
   });
 });
 

@@ -770,5 +770,117 @@ export interface ZeroTrustVerifyResponse {
   node_id: string;
 }
 
+export type HealingScaleMode = 'normal' | 'burst' | 'throttle';
+export type HealingTunnelState = 'connected' | 'disconnected' | 'resumed' | 'closed';
+export type HealingLeaseStatus = 'active' | 'returned' | 'expired' | 'recalled';
+
+export interface TokenBucketStats {
+  current_tokens: number;
+  capacity: number;
+  base_capacity: number;
+  refill_rate: number;
+  load_score: number;
+  scale_multiplier: number;
+  mode: HealingScaleMode;
+  last_refill: string;
+}
+
+export interface HealingTicket {
+  session_id: string;
+  client_id: string;
+  hwid: string;
+  tenant_id: string;
+  issued_at: string;
+  expires_at: string;
+  last_ack_seq: number;
+  signature: string;
+}
+
+export interface HealingSession {
+  session_id: string;
+  client_id: string;
+  hwid: string;
+  tenant_id: string;
+  state: HealingTunnelState;
+  connected_at: string;
+  last_heartbeat: string;
+  disconnected_at?: string;
+  grace_expires_at?: string;
+  missed_events_count: number;
+}
+
+export interface DeltaEvent {
+  sequence: number;
+  tenant_id: string;
+  client_id: string;
+  event_type: string;
+  payload: string;
+  timestamp: string;
+}
+
+export interface QuotaPool {
+  tenant_id: string;
+  total_quota: number;
+  used_quota: number;
+  borrowed_in: number;
+  lent_out: number;
+  available_quota: number;
+  utilization: number;
+}
+
+export interface QuotaLease {
+  lease_id: string;
+  borrower_tenant: string;
+  lender_tenant: string;
+  amount: number;
+  borrowed_at: string;
+  expires_at: string;
+  status: HealingLeaseStatus;
+  recall_reason?: string;
+}
+
+export interface QuotaRebalanceEvent {
+  timestamp: string;
+  action: string;
+  borrower_tenant: string;
+  lender_tenant: string;
+  amount: number;
+  reason: string;
+  status: HealingLeaseStatus;
+}
+
+export interface HealingStatus {
+  bucket: TokenBucketStats;
+  active_tunnels: number;
+  suspended_tunnels: number;
+  total_missed_events: number;
+  quota_pools: QuotaPool[];
+  active_leases: QuotaLease[];
+  recent_rebalances: QuotaRebalanceEvent[];
+}
+
+export interface HealingConsumeResponse {
+  allowed: boolean;
+  stats: TokenBucketStats;
+}
+
+export interface HealingResumeResponse {
+  status: string;
+  session: HealingSession;
+  missed_events: DeltaEvent[];
+  missed_count: number;
+}
+
+export interface HealingBorrowResponse {
+  status: string;
+  lease: QuotaLease;
+}
+
+export interface HealingRebalanceResponse {
+  status: string;
+  events: QuotaRebalanceEvent[];
+}
+
+
 
 

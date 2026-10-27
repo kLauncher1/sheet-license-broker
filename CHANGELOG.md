@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2026-10-27
+
+### Added
+- Autonomous License Healing & Dynamic Quota Rebalancing subsystem (`internal/healing/types.go`, `internal/healing/bucket.go`, `internal/healing/tunnel.go`, `internal/healing/quota.go`, `internal/healing/manager.go`, `internal/healing/healing_test.go`) implemented in pure Go standard library with zero external dependencies.
+- Real-time token bucket rate limiter with load-driven auto-scaling, supporting smooth burst capacity expansion (up to 3x) and refill velocity acceleration during healthy high-volume traffic, and automated graceful backpressure throttling when error spikes occur.
+- Resilient self-healing retry tunnels for client applications experiencing intermittent network disconnects, featuring HMAC-SHA256 authenticated reconnect tickets (`HealingTicket`) and bounded ephemeral state delta event replay without requiring cold re-authentication.
+- Distributed cross-tenant quota borrowing mechanism allowing starved tenant instances to dynamically lease unused quota from surplus tenants, enforcing lender headroom invariants (minimum 30% reserve) and automatic preemptive lease recall during lender utilization surges.
+- Proxy integration layer (`internal/proxy/healing.go`, `internal/proxy/healing_test.go`) binding healing and quota arbitration to the unified broker gateway, event streams, and Google Apps Script persistence.
+- Dedicated REST routing layer (`routes_healing.go`, `routes_healing_test.go`) exposing `GET /api/healing/status`, `POST /api/healing/bucket/consume`, `POST /api/healing/tunnel/ticket`, `POST /api/healing/tunnel/resume`, `POST /api/healing/quota/borrow`, `POST /api/healing/quota/return`, `POST /api/healing/quota/recall`, and `POST /api/healing/quota/rebalance`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic sheet initialization and persistent audit logging for `Healing_Leases` and `Healing_Tunnels` sheets, with `healing_record_lease`, `healing_return_lease`, `healing_log_tunnel`, and `healing_get_status` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/healing.go`, `sdk/go/healing_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting healing status queries, bucket consumption, reconnect ticket workflows, and quota borrowing/return operations with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) supporting edge-side autonomous healing telemetry and tenant routing (`/edge/healing/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Autonomous Healing & Quota" tab with real-time bucket gauges, tenant quota pool utilization tables, active lease managers, and reconnect tunnel telemetry.
+- Version bump to 2.1.0 across core binary, manifests, documentation, and client libraries.
+
 ## [2.0.0] - 2026-10-21
 
 ### Added

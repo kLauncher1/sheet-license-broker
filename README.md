@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v2.0.0-emerald.svg" alt="Version: v2.0.0">
+  <img src="https://img.shields.io/badge/version-v2.1.0-emerald.svg" alt="Version: v2.1.0">
+  <img src="https://img.shields.io/badge/healing-Auto--Scaling%20Bucket%20%26%20Quota%20Borrowing-8B5CF6.svg" alt="Autonomous Healing & Dynamic Quota Rebalancing">
   <img src="https://img.shields.io/badge/zerotrust-mTLS%20Mesh%20%26%20Software%20HSM-7C3AED.svg" alt="Zero-Trust mTLS Mesh & Software HSM">
   <img src="https://img.shields.io/badge/airgap-Ed25519%20Dongle%20%26%20Anti--Rollback-0284C7.svg" alt="Air-Gapped Vault and Dongle Emulation">
   <img src="https://img.shields.io/badge/marketplace-Stripe%20%26%20Lemon%20%26%20Paddle-F59E0B.svg" alt="Marketplace & Reseller Webhooks">
@@ -40,6 +41,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)**: Automatically scales token bucket capacity (up to 3x burst) and refill rates based on live telemetry load factors while gracefully applying backpressure during error bursts. Establishes self-healing client retry tunnels using cryptographically signed reconnect tickets (`HealingTicket`) with bounded delta event replay over network dropouts, and coordinates distributed quota borrowing leases across tenant pools with surplus headroom enforcement (30% lender reserve) and automatic recall upon lender surges.
 - **Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement (v2.0.0)**: Enforces cryptographic mutual authentication (mTLS) with TLS 1.3, SPIFFE URI identity verification, and CRL revocation checking across inter-node consensus RPCs. Includes an autonomous internal Root Certificate Authority (CA) with ECDSA P-256 and dual-trust cert pool rotation, alongside an isolated software HSM / PKCS#11 cryptoki key slot engine featuring constant-time PIN authentication and cryptographic zeroization barriers.
 - **Automated License Reseller & Marketplace Webhooks Bridge (v1.8.0)**: Connects Stripe, Lemon Squeezy, and Paddle webhook events directly to automated license provisioning, tier seat scaling, and refund revocations. Inbound webhooks undergo constant-time HMAC signature verification (`hmac.Equal`), timestamp replay drift mitigation (&plusmn;300s window), thread-safe LRU idempotency caching, and real-time SSE stream kill-switch pushes to sever running client sessions immediately upon cancellation or dispute.
 - **Hardware-Enforced Air-Gapped License Vault & Offline Dongle Emulation (v1.9.0)**: Enables high-assurance cryptographic licensing for mission-critical, completely disconnected environments (SCADA, industrial plants, defense networks). Offline dongle tokens are signed using high-assurance Ed25519 digital signatures and framed in compact Base64/Hex envelopes or Base45-encoded QR code optical payloads. Incorporates a hardware-attested anti-clock-rollback monotonic counter check that trips an immutable emergency lock if the host clock is tampered backwards, unlockable only via administrative cryptographic recovery signatures.
@@ -1469,6 +1471,87 @@ Content-Type: application/json
 #### Query Software HSM / PKCS#11 Key Slots
 ```http
 GET /api/zerotrust/hsm/status
+```
+
+---
+
+### 🔄 Autonomous License Healing & Dynamic Quota Rebalancing
+
+`sheet-license-broker` includes an autonomous healing and distributed quota rebalancing subsystem (`internal/healing/`) designed for intermittent network connectivity, burst traffic handling, and multi-tenant resource optimization.
+
+#### Architectural Capabilities
+- **Real-Time Token Bucket Auto-Scaling**: Evaluates request load factors and error frequencies over sliding observation windows. During healthy traffic spikes, capacity dynamically expands up to 3x base capacity and refill velocity scales proportionately. If error bursts or upstream pressure occur, the bucket automatically switches to throttle mode, reducing capacity to prevent cascade failures.
+- **Client Reconnect Tunnels & Ephemeral Delta Replay**: Disconnected clients can resume sessions using cryptographically signed reconnect tickets (`HealingTicket`). Reconnecting clients receive missed license notifications and state transitions from a bounded in-memory ring-buffer without triggering cold re-authentication or dropping active work.
+- **Distributed Quota Borrowing & Preemptive Recall**: Multi-tenant deployments dynamically share excess quota reserves. Tenants approaching quota exhaustion (>80% utilization) can borrow quota from lenders with surplus headroom (>30% reserve). If a lender's load surges, the borrowed allocation is automatically recalled to safeguard the lender's operational capacity.
+
+#### Query Autonomous Healing Status & Telemetry
+```http
+GET /api/healing/status
+```
+
+#### Consume Capacity from Auto-Scaling Token Bucket
+```http
+POST /api/healing/bucket/consume
+Content-Type: application/json
+
+{
+  "tokens": 1.0
+}
+```
+
+#### Issue & Resume Client Healing Ticket
+```http
+# Issue reconnect ticket
+POST /api/healing/tunnel/ticket
+Content-Type: application/json
+
+{
+  "client_id": "desktop-client-01",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "tenant_id": "tenant-primary",
+  "last_ack_seq": 42,
+  "ttl_seconds": 180
+}
+
+# Resume tunnel and receive missed delta events
+POST /api/healing/tunnel/resume
+Content-Type: application/json
+
+{
+  "session_id": "heal-sess-1729301000",
+  "client_id": "desktop-client-01",
+  "hwid": "HWID-9B0D-E626-C8D9-6D4B",
+  "tenant_id": "tenant-primary",
+  "issued_at": "2026-10-27T10:00:00Z",
+  "expires_at": "2026-10-27T10:03:00Z",
+  "last_ack_seq": 42,
+  "signature": "7a3f8c..."
+}
+```
+
+#### Dynamic Quota Borrowing & Voluntary Return
+```http
+# Borrow quota from surplus lender
+POST /api/healing/quota/borrow
+Content-Type: application/json
+
+{
+  "borrower_tenant": "tenant-secondary",
+  "lender_tenant": "tenant-primary",
+  "amount": 500,
+  "duration_minutes": 15
+}
+
+# Voluntarily return borrowed quota
+POST /api/healing/quota/return
+Content-Type: application/json
+
+{
+  "lease_id": "lease-1729301000-1"
+}
+
+# Trigger automated quota rebalance cycle
+POST /api/healing/quota/rebalance
 ```
 
 ---

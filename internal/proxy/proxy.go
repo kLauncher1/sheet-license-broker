@@ -17,6 +17,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/enclave"
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
+	"github.com/kLauncher1/sheet-license-broker/internal/healing"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
 	"github.com/kLauncher1/sheet-license-broker/internal/pqc"
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
@@ -67,6 +68,7 @@ type Proxy struct {
 	marketplaceMgr     *marketplace.Manager
 	airgapManager      *airgap.Manager
 	zeroTrustManager   *zerotrust.ZeroTrustManager
+	healingManager     *healing.HealingManager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -113,6 +115,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initMarketplace(cfg)
 	p.initAirGap(cfg)
 	p.initZeroTrust(cfg)
+	p.initHealing(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {
