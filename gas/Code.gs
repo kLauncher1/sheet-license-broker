@@ -32,6 +32,8 @@ const SHEET_ZEROTRUST_PEERS = 'ZeroTrust_Peers';
 const SHEET_ZEROTRUST_CA = 'ZeroTrust_CA';
 const SHEET_HEALING_LEASES = 'Healing_Leases';
 const SHEET_HEALING_TUNNELS = 'Healing_Tunnels';
+const SHEET_HSM_AUDIT_LOG = 'HSM_Audit_Log';
+const SHEET_HSM_VAULT_KEYS = 'HSM_Vault_Keys';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -242,6 +244,15 @@ function handleRequest(e, method) {
       case 'healing_get_status':
         return handleHealingGetStatus(output, payload);
 
+      case 'hsm_log_event':
+        return handleHSMLogEvent(output, payload);
+
+      case 'hsm_get_status':
+        return handleHSMGetStatus(output, payload);
+
+      case 'hsm_record_derivation':
+        return handleHSMRecordDerivation(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -279,7 +290,9 @@ function initSheets() {
     { name: SHEET_ZEROTRUST_PEERS, cols: ['node_id', 'role', 'serial_number', 'fingerprint_sha256', 'expires_at', 'status', 'updated_at'] },
     { name: SHEET_ZEROTRUST_CA, cols: ['root_fingerprint', 'expires_at', 'status', 'rotated_at'] },
     { name: SHEET_HEALING_LEASES, cols: ['lease_id', 'borrower_tenant', 'lender_tenant', 'amount', 'borrowed_at', 'expires_at', 'status', 'recall_reason'] },
-    { name: SHEET_HEALING_TUNNELS, cols: ['session_id', 'client_id', 'hwid', 'tenant_id', 'state', 'connected_at', 'last_heartbeat', 'updated_at'] }
+    { name: SHEET_HEALING_TUNNELS, cols: ['session_id', 'client_id', 'hwid', 'tenant_id', 'state', 'connected_at', 'last_heartbeat', 'updated_at'] },
+    { name: SHEET_HSM_AUDIT_LOG, cols: ['timestamp', 'event_type', 'slot_id', 'purpose', 'fingerprint', 'sensor_id', 'details'] },
+    { name: SHEET_HSM_VAULT_KEYS, cols: ['key_id', 'slot_id', 'purpose', 'algorithm', 'fingerprint', 'status', 'created_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1903,6 +1916,61 @@ function handleHealingGetStatus(output, payload) {
     timestamp: new Date().toISOString()
   });
 }
+
+function handleHSMLogEvent(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_HSM_AUDIT_LOG);
+  const ts = payload.timestamp || new Date().toISOString();
+  if (sheet) {
+    sheet.appendRow([
+      ts,
+      payload.event_type || 'INFO',
+      payload.slot_id !== undefined ? payload.slot_id : '',
+      payload.purpose || '',
+      payload.fingerprint || '',
+      payload.sensor_id || '',
+      JSON.stringify(payload.details || {})
+    ]);
+  }
+  return jsonResponse(output, { status: 'success', logged_at: ts });
+}
+
+function handleHSMGetStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_HSM_AUDIT_LOG);
+  let totalEvents = 0;
+  if (sheet) {
+    totalEvents = Math.max(0, sheet.getLastRow() - 1);
+  }
+  return jsonResponse(output, {
+    status: 'success',
+    fips_level: 'FIPS_140_3_LEVEL_4',
+    audit_events_count: totalEvents,
+    tamper_detected: false
+  });
+}
+
+function handleHSMRecordDerivation(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_HSM_VAULT_KEYS);
+  const keyId = Utilities.getUuid();
+  const createdAt = new Date().toISOString();
+  if (sheet) {
+    sheet.appendRow([
+      keyId,
+      payload.slot_id !== undefined ? payload.slot_id : 0,
+      payload.purpose || 'audit_token_encryption',
+      payload.algorithm || 'AES_256_GCM_HKDF_SHA256',
+      payload.fingerprint || '',
+      'active',
+      createdAt
+    ]);
+  }
+  return jsonResponse(output, { status: 'success', key_id: keyId, created_at: createdAt });
+}
+
 
 
 

@@ -324,5 +324,24 @@ export declare class SheetLicenseClient {
      * Cryptographically verifies whether a given peer identity is actively authorized.
      */
     verifyZeroTrustPeer(peer: Partial<ZeroTrustPeerIdentity>): Promise<ZeroTrustVerifyResponse>;
+    getHealingStatus(): Promise<HealingStatus>;
+    consumeHealingBucket(tokens?: number): Promise<HealingConsumeResponse>;
+    issueHealingTicket(params: { sessionId?: string; clientId: string; hwid: string; tenantId?: string; lastAckSeq?: number; ttlSeconds?: number; }): Promise<HealingTicket>;
+    resumeHealingTunnel(ticket: HealingTicket): Promise<HealingResumeResponse>;
+    borrowHealingQuota(params: { borrowerTenant: string; lenderTenant: string; amount: number; durationMinutes?: number; }): Promise<HealingBorrowResponse>;
+    returnHealingQuota(leaseId: string): Promise<{ status: string; lease_id: string; }>;
+    recallHealingQuota(leaseId: string, reason?: string): Promise<{ status: string; lease_id: string; }>;
+    rebalanceHealingQuotas(): Promise<HealingRebalanceResponse>;
+    getHsmStatus(): Promise<HSMVaultStatus>;
+    listHsmSlots(): Promise<{ slots: HSMSlotInfo[]; }>;
+    hsmLogin(slotId: number, pin: string, userType?: 'USER' | 'SO'): Promise<{ authenticated: boolean; slot_id: number; user_type: string; }>;
+    hsmLogout(slotId?: number): Promise<{ logged_out: boolean; slot_id: number; }>;
+    deriveHsmKey(params: HSMKeyDerivationRequest): Promise<HSMKeyDerivationResponse>;
+    encryptHsmEnvelope(params: HSMEnvelopeEncryptRequest): Promise<HSMEnvelopeEncryptResponse>;
+    decryptHsmEnvelope(params: HSMEnvelopeDecryptRequest): Promise<HSMEnvelopeDecryptResponse>;
+    runHsmSelfTest(): Promise<{ self_tests: HSMSelfTestResult[]; count: number; }>;
+    getHsmFipsReport(): Promise<HSMFIPS140AuditReport>;
+    simulateHsmTamper(sensorId?: string): Promise<{ tamper_latched: boolean; sensor_id: string; zeroized: boolean; }>;
+    zeroizeHsm(): Promise<{ zeroized: boolean; }>;
 }
 //# sourceMappingURL=client.d.ts.map

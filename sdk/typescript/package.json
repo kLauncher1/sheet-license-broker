@@ -1,6 +1,6 @@
 {
   "name": "@sheet-license/client",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Lightweight client SDK for sheet-license-broker with automated HWID binding and HMAC-SHA256 request signing",
   "type": "module",
   "main": "./dist/index.js",

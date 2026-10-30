@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v1.9.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v2.2.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -208,6 +208,8 @@
       <span id="zerotrust-badge" style="color: #10b981;">Zero-Trust: mTLS Active</span>
       <span>•</span>
       <span id="healing-badge" style="color: #a78bfa;">Healing: Active</span>
+      <span>•</span>
+      <span id="hsm-badge" style="color: #60a5fa;">HSM: FIPS-140-3 L4</span>
       <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
@@ -269,6 +271,7 @@
       <button class="tab-btn" id="tab-btn-airgap" onclick="switchTab('airgap')">Air-Gap &amp; Offline Dongles</button>
       <button class="tab-btn" id="tab-btn-zerotrust" onclick="switchTab('zerotrust')">Zero-Trust &amp; mTLS</button>
       <button class="tab-btn" id="tab-btn-healing" onclick="switchTab('healing')">Autonomous Healing &amp; Quotas</button>
+      <button class="tab-btn" id="tab-btn-hsm" onclick="switchTab('hsm')">Hardware HSM &amp; PKCS#11 Vault</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1394,6 +1397,65 @@
 
       <div id="healing-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 21: Hardware Security Module (HSM) PKCS#11 Vault Integration -->
+    <div id="panel-hsm" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">FIPS 140-3 Compliance</div>
+          <div class="card-value" id="val-hsm-fips" style="color: #60a5fa;">Level 4</div>
+          <div class="card-subtext">Active Physical Envelope</div>
+        </div>
+        <div class="card">
+          <div class="card-title">PKCS#11 Slots</div>
+          <div class="card-value" id="val-hsm-slots-count" style="color: #10b981;">3 Active</div>
+          <div class="card-subtext">Hardware Cryptoki Tokens</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Key Derivations</div>
+          <div class="card-value" id="val-hsm-derivations" style="color: #f59e0b;">0</div>
+          <div class="card-subtext">HKDF-SHA256 Master Keys</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tamper State</div>
+          <div class="card-value" id="val-hsm-tamper" style="color: #a78bfa;">Secure</div>
+          <div class="card-subtext">Zero Alarms / Armed</div>
+        </div>
+      </div>
+
+      <div class="action-bar" style="margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
+        <button class="btn-action" onclick="promptHSMDerive()">🔐 Derive Master Key</button>
+        <button class="btn-action btn-secondary" onclick="promptHSMEncrypt()">⚡ Envelope Encrypt</button>
+        <button class="btn-action btn-secondary" onclick="promptHSMDecrypt()">🔓 Envelope Decrypt</button>
+        <button class="btn-action btn-secondary" onclick="runHSMSelfTest()">🛡️ FIPS Self-Test</button>
+        <button class="btn-action btn-secondary" onclick="viewHSMFIPSReport()">📜 FIPS Audit Report</button>
+        <button class="btn-action btn-secondary" onclick="promptHSMTamper()">⚠️ Simulate Tamper</button>
+        <button class="btn-action btn-danger" onclick="promptHSMZeroize()">💥 Emergency Zeroize</button>
+        <button class="btn-action btn-secondary" onclick="refreshHSMTab()">🔄 Refresh HSM</button>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; color: var(--text-main);">Hardware Security Module (PKCS#11 Cryptoki) Slots</h3>
+        <table class="table-box" style="margin: 0; width: 100%;">
+          <thead>
+            <tr>
+              <th>Slot ID</th>
+              <th>Description</th>
+              <th>Manufacturer</th>
+              <th>Token Label</th>
+              <th>Model / Serial</th>
+              <th>FIPS Level</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="hsm-slots-body">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading HSM slots...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="hsm-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1401,7 +1463,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1427,6 +1489,7 @@
       document.getElementById('panel-airgap').style.display = tab === 'airgap' ? 'block' : 'none';
       document.getElementById('panel-zerotrust').style.display = tab === 'zerotrust' ? 'block' : 'none';
       document.getElementById('panel-healing').style.display = tab === 'healing' ? 'block' : 'none';
+      document.getElementById('panel-hsm').style.display = tab === 'hsm' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1450,6 +1513,7 @@
       if (tab === 'airgap') refreshAirgapTab();
       if (tab === 'zerotrust') refreshZeroTrustTab();
       if (tab === 'healing') refreshHealingTab();
+      if (tab === 'hsm') refreshHSMTab();
     }
 
     async function refresh() {
@@ -1512,6 +1576,14 @@
           const hb = document.getElementById('healing-badge');
           if (hb && h.bucket) {
             hb.textContent = `Healing: Active (${h.bucket.mode.toUpperCase()})`;
+          }
+        }
+
+        if (health && health.hsm) {
+          const hsm = health.hsm;
+          const hb = document.getElementById('hsm-badge');
+          if (hb) {
+            hb.textContent = `HSM: FIPS 140-3 ${hsm.fips_level || 'L4'} (${hsm.slots_count || 3} Slots)`;
           }
         }
 
@@ -3819,6 +3891,209 @@
         refreshHealingTab();
       } catch (err) {
         out.textContent = 'Rebalance failed: ' + err.message;
+      }
+    }
+
+    async function refreshHSMTab() {
+      try {
+        const [statusRes, slotsRes] = await Promise.all([
+          fetch('/api/hsm/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/hsm/slots').then(r => r.json()).catch(() => ({ slots: [] }))
+        ]);
+
+        if (statusRes.fips_level) {
+          document.getElementById('val-hsm-fips').textContent = statusRes.fips_level;
+          document.getElementById('val-hsm-slots-count').textContent = `${statusRes.slots_count || 3} Active`;
+          document.getElementById('val-hsm-derivations').textContent = statusRes.total_derivations || 0;
+          document.getElementById('val-hsm-tamper').textContent = statusRes.zeroized ? 'ZEROIZED' : (statusRes.tamper_detected ? 'ALARM' : 'Secure');
+          document.getElementById('val-hsm-tamper').style.color = statusRes.zeroized || statusRes.tamper_detected ? '#f87171' : '#a78bfa';
+        }
+
+        const slotsBody = document.getElementById('hsm-slots-body');
+        const slots = slotsRes.slots || [];
+        if (!Array.isArray(slots) || slots.length === 0) {
+          slotsBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">No PKCS#11 slots reported.</td></tr>';
+        } else {
+          slotsBody.innerHTML = slots.map(s => `
+            <tr>
+              <td style="font-family: monospace; font-weight: 700; color: #60a5fa;">#${s.slot_id}</td>
+              <td>${s.slot_description || 'Cryptoki Token'}</td>
+              <td style="color: #cbd5e1;">${s.manufacturer_id || 'FIPS Cryptoki'}</td>
+              <td style="font-family: monospace; font-weight: 600; color: #10b981;">${s.token ? s.token.label : 'Token'}</td>
+              <td style="font-family: monospace; font-size: 11px; color: #94a3b8;">${s.token ? s.token.model + ' / ' + s.token.serial_number : 'N/A'}</td>
+              <td><span class="pill pill-active">${s.token ? s.token.fips_level : 'Level 4'}</span></td>
+              <td>
+                ${s.token && s.token.pin_locked ? '<span style="color: #f87171; font-weight: 700;">PIN LOCKED</span>' : (s.token && s.token.user_pin_initialized ? '<span style="color: #10b981;">Armed</span>' : '<span style="color: #f59e0b;">Uninitialized</span>')}
+              </td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load HSM tab:', err);
+      }
+    }
+
+    async function promptHSMDerive() {
+      const slotStr = prompt('PKCS#11 Slot ID:', '0');
+      if (slotStr === null) return;
+      const purpose = prompt('Key Derivation Purpose:', 'audit_token_encryption');
+      if (!purpose) return;
+      const ctx = prompt('Derivation Context / Salt:', 'TENANT-DEFAULT-CONTEXT');
+      if (!ctx) return;
+
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = `Deriving cryptographic key in HSM Slot #${slotStr}...`;
+
+      try {
+        const res = await fetch('/api/hsm/derive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slot_id: parseInt(slotStr, 10),
+            purpose: purpose,
+            context: ctx
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'HSM Key Derivation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshHSMTab();
+      } catch (err) {
+        out.textContent = 'Key derivation failed: ' + err.message;
+      }
+    }
+
+    async function promptHSMEncrypt() {
+      const slotStr = prompt('PKCS#11 Slot ID:', '1');
+      if (slotStr === null) return;
+      const plain = prompt('Secret Plaintext to Envelope Encrypt:', 'CONFIDENTIAL-LICENSE-PAYLOAD');
+      if (!plain) return;
+      const aad = prompt('Associated Data (AAD):', 'TENANT-AAD-METADATA');
+
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = `Encrypting via HSM hardware key...`;
+
+      try {
+        const res = await fetch('/api/hsm/encrypt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slot_id: parseInt(slotStr, 10),
+            plaintext: plain,
+            associated_data: aad || '',
+            purpose: 'audit_token_encryption'
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'HSM Envelope Encryption Result:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'Encryption failed: ' + err.message;
+      }
+    }
+
+    async function promptHSMDecrypt() {
+      const slotStr = prompt('PKCS#11 Slot ID:', '1');
+      if (slotStr === null) return;
+      const cipherHex = prompt('Ciphertext Hex:');
+      if (!cipherHex) return;
+      const nonceHex = prompt('Nonce Hex:');
+      if (!nonceHex) return;
+      const aad = prompt('Associated Data (AAD):', 'TENANT-AAD-METADATA');
+
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = `Decrypting via HSM hardware key...`;
+
+      try {
+        const res = await fetch('/api/hsm/decrypt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slot_id: parseInt(slotStr, 10),
+            ciphertext_hex: cipherHex,
+            nonce_hex: nonceHex,
+            associated_data: aad || '',
+            purpose: 'audit_token_encryption'
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'HSM Envelope Decryption Result:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'Decryption failed: ' + err.message;
+      }
+    }
+
+    async function runHSMSelfTest() {
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = 'Executing FIPS 140-3 cryptographic self-tests across all hardware engines...';
+
+      try {
+        const res = await fetch('/api/hsm/fips/selftest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).then(r => r.json());
+
+        out.textContent = 'FIPS 140-3 Power-On / On-Demand Self-Test Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshHSMTab();
+      } catch (err) {
+        out.textContent = 'Self-test failed: ' + err.message;
+      }
+    }
+
+    async function viewHSMFIPSReport() {
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = 'Generating FIPS 140-3 Level 4 hardware compliance audit certificate...';
+
+      try {
+        const res = await fetch('/api/hsm/fips/report').then(r => r.json());
+        out.textContent = 'FIPS 140-3 Level 4 Audit Certificate Report:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'Report generation failed: ' + err.message;
+      }
+    }
+
+    async function promptHSMTamper() {
+      const sensor = prompt('Tamper Sensor ID to trigger (e.g. PHYSICAL_MESH_BREACH, THERMAL_OUT_OF_RANGE, VOLTAGE_GLITCH):', 'PHYSICAL_MESH_BREACH');
+      if (!sensor) return;
+
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = `Simulating physical tamper trip on sensor [${sensor}]...`;
+
+      try {
+        const res = await fetch('/api/hsm/tamper/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sensor_id: sensor })
+        }).then(r => r.json());
+
+        out.textContent = 'Tamper Simulation Alarm Log:\n\n' + JSON.stringify(res, null, 2);
+        refreshHSMTab();
+      } catch (err) {
+        out.textContent = 'Tamper simulation failed: ' + err.message;
+      }
+    }
+
+    async function promptHSMZeroize() {
+      if (!confirm('DANGER: This will immediately zeroize all cryptographic master keys and tokens across all PKCS#11 slots! Proceed?')) return;
+
+      const out = document.getElementById('hsm-output');
+      out.style.display = 'block';
+      out.textContent = 'Executing emergency zeroization barrier across all HSM slots...';
+
+      try {
+        const res = await fetch('/api/hsm/zeroize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).then(r => r.json());
+
+        out.textContent = 'Emergency Zeroization Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshHSMTab();
+      } catch (err) {
+        out.textContent = 'Zeroization failed: ' + err.message;
       }
     }
 

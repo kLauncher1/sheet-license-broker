@@ -705,4 +705,204 @@ export interface ZeroTrustVerifyResponse {
     reason: string;
     node_id: string;
 }
+export interface TokenBucketStats {
+    current_tokens: number;
+    capacity: number;
+    base_capacity: number;
+    refill_rate: number;
+    load_score: number;
+    scale_multiplier: number;
+    mode: string;
+    last_refill: string;
+}
+export interface HealingTicket {
+    session_id: string;
+    client_id: string;
+    hwid: string;
+    tenant_id: string;
+    issued_at: string;
+    expires_at: string;
+    last_ack_seq: number;
+    signature: string;
+}
+export interface HealingSession {
+    session_id: string;
+    client_id: string;
+    hwid: string;
+    tenant_id: string;
+    state: string;
+    connected_at: string;
+    last_heartbeat: string;
+    disconnected_at?: string;
+    grace_expires_at?: string;
+    missed_events_count: number;
+}
+export interface DeltaEvent {
+    sequence: number;
+    tenant_id: string;
+    client_id: string;
+    event_type: string;
+    payload: string;
+    timestamp: string;
+}
+export interface QuotaPool {
+    tenant_id: string;
+    total_quota: number;
+    used_quota: number;
+    borrowed_in: number;
+    lent_out: number;
+    available_quota: number;
+    utilization: number;
+}
+export interface QuotaLease {
+    lease_id: string;
+    borrower_tenant: string;
+    lender_tenant: string;
+    amount: number;
+    borrowed_at: string;
+    expires_at: string;
+    status: string;
+    recall_reason?: string;
+}
+export interface QuotaRebalanceEvent {
+    timestamp: string;
+    action: string;
+    borrower_tenant: string;
+    lender_tenant: string;
+    amount: number;
+    reason: string;
+    status: string;
+}
+export interface HealingStatus {
+    bucket: TokenBucketStats;
+    active_tunnels: number;
+    suspended_tunnels: number;
+    total_missed_events: number;
+    quota_pools: QuotaPool[];
+    active_leases: QuotaLease[];
+    recent_rebalances: QuotaRebalanceEvent[];
+}
+export interface HealingConsumeResponse {
+    allowed: boolean;
+    stats: TokenBucketStats;
+}
+export interface HealingResumeResponse {
+    status: string;
+    session: HealingSession;
+    missed_events: DeltaEvent[];
+    missed_count: number;
+}
+export interface HealingBorrowResponse {
+    status: string;
+    lease: QuotaLease;
+}
+export interface HealingRebalanceResponse {
+    status: string;
+    events: QuotaRebalanceEvent[];
+}
+export interface HSMSlotInfo {
+    slot_id: number;
+    description: string;
+    manufacturer_id: string;
+    hardware_version: string;
+    firmware_version: string;
+    mechanisms: string[];
+    token_present: boolean;
+    removable: boolean;
+    hardware_slot: boolean;
+}
+export interface HSMTokenInfo {
+    slot_id: number;
+    label: string;
+    manufacturer_id: string;
+    model: string;
+    serial_number: string;
+    max_session_count: number;
+    session_count: number;
+    max_pin_len: number;
+    min_pin_len: number;
+    total_private_memory: number;
+    free_private_memory: number;
+    fips_level: string;
+    user_pin_initialized: boolean;
+    user_pin_locked: boolean;
+    so_pin_locked: boolean;
+    tamper_detected: boolean;
+    initialized_at: string;
+}
+export interface HSMVaultStatus {
+    initialized: boolean;
+    hardware_available: boolean;
+    fips_level: string;
+    slots_total: number;
+    active_sessions: number;
+    tamper_detected: boolean;
+    locked_out: boolean;
+    master_key_present: boolean;
+    operations_count: number;
+    last_self_test: string;
+    uptime_seconds: number;
+}
+export interface HSMKeyDerivationRequest {
+    slot_id: number;
+    purpose: string;
+    context: string;
+    salt_hex?: string;
+    key_length_bits?: number;
+}
+export interface HSMKeyDerivationResponse {
+    slot_id: number;
+    purpose: string;
+    derived_key_handle: number;
+    fingerprint: string;
+    key_length_bits: number;
+    algorithm: string;
+    derived_at: string;
+}
+export interface HSMEnvelopeEncryptRequest {
+    slot_id: number;
+    plaintext: string;
+    associated_data?: string;
+    purpose?: string;
+}
+export interface HSMEnvelopeEncryptResponse {
+    slot_id: number;
+    ciphertext_hex: string;
+    nonce_hex: string;
+    key_fingerprint: string;
+    algorithm: string;
+    encrypted_at: string;
+}
+export interface HSMEnvelopeDecryptRequest {
+    slot_id: number;
+    ciphertext_hex: string;
+    nonce_hex: string;
+    associated_data?: string;
+    purpose?: string;
+}
+export interface HSMEnvelopeDecryptResponse {
+    slot_id: number;
+    plaintext: string;
+    authenticated: boolean;
+    decrypted_at: string;
+}
+export interface HSMSelfTestResult {
+    test_name: string;
+    passed: boolean;
+    execution_time_us: number;
+    algorithm_tested: string;
+    details: string;
+}
+export interface HSMFIPS140AuditReport {
+    certification_level: string;
+    hardware_model: string;
+    serial_number: string;
+    firmware_revision: string;
+    tamper_state: string;
+    active_slots: number;
+    kat_passed: boolean;
+    self_tests: HSMSelfTestResult[];
+    zeroize_on_tamper: boolean;
+    generated_at: string;
+}
 //# sourceMappingURL=types.d.ts.map

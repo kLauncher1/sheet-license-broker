@@ -119,6 +119,7 @@ func main() {
 	server.registerAirgapRoutes(apiMux)
 	server.registerZeroTrustRoutes(apiMux)
 	server.registerHealingRoutes(apiMux)
+	server.registerHSMRoutes(apiMux)
 
 	subFS, err := fs.Sub(embeddedDist, "web/dist")
 	if err != nil {
@@ -140,7 +141,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v2.1.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v2.2.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -152,7 +153,7 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":      "healthy",
 		"service":     "sheet-license-broker",
-		"version":     "2.1.0",
+		"version":     "2.2.0",
 		"proxy":       s.proxy.Status(),
 		"consensus":   s.proxy.ClusterStatus(),
 		"zkp":         s.proxy.GetZKPStatus(),
@@ -165,6 +166,7 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"airgap":      s.proxy.GetAirgapStatus(),
 		"zerotrust":   s.proxy.GetZeroTrustStatus(),
 		"healing":     s.proxy.GetHealingStatus(),
+		"hsm":         s.proxy.GetHSMStatus(),
 		"security":    map[string]interface{}{"hmac_enforced": s.guard.IsEnforced(), "nonce_window": "5m"},
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
 	})
