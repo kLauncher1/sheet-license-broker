@@ -18,6 +18,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/feature"
 	"github.com/kLauncher1/sheet-license-broker/internal/gas"
 	"github.com/kLauncher1/sheet-license-broker/internal/healing"
+	"github.com/kLauncher1/sheet-license-broker/internal/hsm"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
 	"github.com/kLauncher1/sheet-license-broker/internal/pqc"
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
@@ -69,6 +70,7 @@ type Proxy struct {
 	airgapManager      *airgap.Manager
 	zeroTrustManager   *zerotrust.ZeroTrustManager
 	healingManager     *healing.HealingManager
+	hsmManager         *hsm.HSMManager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -116,6 +118,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initAirGap(cfg)
 	p.initZeroTrust(cfg)
 	p.initHealing(cfg)
+	p.initHSM(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

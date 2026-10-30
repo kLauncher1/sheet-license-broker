@@ -881,6 +881,123 @@ export interface HealingRebalanceResponse {
   events: QuotaRebalanceEvent[];
 }
 
+export interface HSMSlotInfo {
+  slot_id: number;
+  description: string;
+  manufacturer_id: string;
+  hardware_version: string;
+  firmware_version: string;
+  mechanisms: string[];
+  token_present: boolean;
+  removable: boolean;
+  hardware_slot: boolean;
+}
+
+export interface HSMTokenInfo {
+  slot_id: number;
+  label: string;
+  manufacturer_id: string;
+  model: string;
+  serial_number: string;
+  max_session_count: number;
+  session_count: number;
+  max_pin_len: number;
+  min_pin_len: number;
+  total_private_memory: number;
+  free_private_memory: number;
+  fips_level: string;
+  user_pin_initialized: boolean;
+  user_pin_locked: boolean;
+  so_pin_locked: boolean;
+  tamper_detected: boolean;
+  initialized_at: string;
+}
+
+export interface HSMVaultStatus {
+  initialized: boolean;
+  hardware_available: boolean;
+  fips_level: string;
+  slots_total: number;
+  active_sessions: number;
+  tamper_detected: boolean;
+  locked_out: boolean;
+  master_key_present: boolean;
+  operations_count: number;
+  last_self_test: string;
+  uptime_seconds: number;
+}
+
+export interface HSMKeyDerivationRequest {
+  slot_id: number;
+  purpose: string;
+  context: string;
+  salt_hex?: string;
+  key_length_bits?: number;
+}
+
+export interface HSMKeyDerivationResponse {
+  slot_id: number;
+  purpose: string;
+  derived_key_handle: number;
+  fingerprint: string;
+  key_length_bits: number;
+  algorithm: string;
+  derived_at: string;
+}
+
+export interface HSMEnvelopeEncryptRequest {
+  slot_id: number;
+  plaintext: string;
+  associated_data?: string;
+  purpose?: string;
+}
+
+export interface HSMEnvelopeEncryptResponse {
+  slot_id: number;
+  ciphertext_hex: string;
+  nonce_hex: string;
+  key_fingerprint: string;
+  algorithm: string;
+  encrypted_at: string;
+}
+
+export interface HSMEnvelopeDecryptRequest {
+  slot_id: number;
+  ciphertext_hex: string;
+  nonce_hex: string;
+  associated_data?: string;
+  purpose?: string;
+}
+
+export interface HSMEnvelopeDecryptResponse {
+  slot_id: number;
+  plaintext: string;
+  authenticated: boolean;
+  decrypted_at: string;
+}
+
+export interface HSMSelfTestResult {
+  test_name: string;
+  passed: boolean;
+  execution_time_us: number;
+  algorithm_tested: string;
+  details: string;
+}
+
+export interface HSMFIPS140AuditReport {
+  certification_level: string;
+  hardware_model: string;
+  serial_number: string;
+  firmware_revision: string;
+  tamper_state: string;
+  active_slots: number;
+  kat_passed: boolean;
+  self_tests: HSMSelfTestResult[];
+  zeroize_on_tamper: boolean;
+  generated_at: string;
+}
+
+
 
 
 

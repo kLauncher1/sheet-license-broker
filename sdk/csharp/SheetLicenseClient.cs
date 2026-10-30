@@ -961,6 +961,127 @@ namespace SheetLicenseBroker
         public string RebalanceHealingQuotas() =>
             RebalanceHealingQuotasAsync().GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Queries real-time telemetry, FIPS 140-3 certification level, and operational status of the HSM vault.
+        /// </summary>
+        public async Task<string> GetHSMStatusAsync() =>
+            await SendRequestAsync("GET", "/api/hsm/status", null).ConfigureAwait(false);
+
+        public string GetHSMStatus() =>
+            GetHSMStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Lists all provisioned PKCS#11 hardware slots and token descriptors.
+        /// </summary>
+        public async Task<string> ListHSMSlotsAsync() =>
+            await SendRequestAsync("GET", "/api/hsm/slots", null).ConfigureAwait(false);
+
+        public string ListHSMSlots() =>
+            ListHSMSlotsAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Authenticates an ephemeral session against a hardware slot token using constant-time PIN evaluation.
+        /// </summary>
+        public async Task<string> HSMLoginAsync(int slotId, string pin, string userType = "USER")
+        {
+            string body = string.Format("{{\"slot_id\":{0},\"pin\":\"{1}\",\"user_type\":\"{2}\"}}",
+                slotId, EscapeJson(pin ?? ""), EscapeJson(userType ?? "USER"));
+            return await SendRequestAsync("POST", "/api/hsm/login", body).ConfigureAwait(false);
+        }
+
+        public string HSMLogin(int slotId, string pin, string userType = "USER") =>
+            HSMLoginAsync(slotId, pin, userType).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Revokes an active authenticated session on the specified slot.
+        /// </summary>
+        public async Task<string> HSMLogoutAsync(int slotId = 0)
+        {
+            string body = string.Format("{{\"slot_id\":{0}}}", slotId);
+            return await SendRequestAsync("POST", "/api/hsm/logout", body).ConfigureAwait(false);
+        }
+
+        public string HSMLogout(int slotId = 0) =>
+            HSMLogoutAsync(slotId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Derives a dedicated envelope key inside the hardware cryptoki boundary using HKDF-SHA256.
+        /// </summary>
+        public async Task<string> DeriveHSMKeyAsync(int slotId, string purpose, string context, string saltHex = "", int keyLengthBits = 256)
+        {
+            string body = string.Format("{{\"slot_id\":{0},\"purpose\":\"{1}\",\"context\":\"{2}\",\"salt_hex\":\"{3}\",\"key_length_bits\":{4}}}",
+                slotId, EscapeJson(purpose ?? ""), EscapeJson(context ?? ""), EscapeJson(saltHex ?? ""), keyLengthBits);
+            return await SendRequestAsync("POST", "/api/hsm/derive", body).ConfigureAwait(false);
+        }
+
+        public string DeriveHSMKey(int slotId, string purpose, string context, string saltHex = "", int keyLengthBits = 256) =>
+            DeriveHSMKeyAsync(slotId, purpose, context, saltHex, keyLengthBits).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Performs authenticated AES-256-GCM envelope encryption under an HSM-derived key.
+        /// </summary>
+        public async Task<string> EncryptHSMEnvelopeAsync(int slotId, string plaintext, string associatedData = "", string purpose = "audit_token_encryption")
+        {
+            string body = string.Format("{{\"slot_id\":{0},\"plaintext\":\"{1}\",\"associated_data\":\"{2}\",\"purpose\":\"{3}\"}}",
+                slotId, EscapeJson(plaintext ?? ""), EscapeJson(associatedData ?? ""), EscapeJson(purpose ?? ""));
+            return await SendRequestAsync("POST", "/api/hsm/encrypt", body).ConfigureAwait(false);
+        }
+
+        public string EncryptHSMEnvelope(int slotId, string plaintext, string associatedData = "", string purpose = "audit_token_encryption") =>
+            EncryptHSMEnvelopeAsync(slotId, plaintext, associatedData, purpose).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Performs authenticated AES-256-GCM envelope decryption and verification under an HSM-derived key.
+        /// </summary>
+        public async Task<string> DecryptHSMEnvelopeAsync(int slotId, string ciphertextHex, string nonceHex, string associatedData = "", string purpose = "audit_token_encryption")
+        {
+            string body = string.Format("{{\"slot_id\":{0},\"ciphertext_hex\":\"{1}\",\"nonce_hex\":\"{2}\",\"associated_data\":\"{3}\",\"purpose\":\"{4}\"}}",
+                slotId, EscapeJson(ciphertextHex ?? ""), EscapeJson(nonceHex ?? ""), EscapeJson(associatedData ?? ""), EscapeJson(purpose ?? ""));
+            return await SendRequestAsync("POST", "/api/hsm/decrypt", body).ConfigureAwait(false);
+        }
+
+        public string DecryptHSMEnvelope(int slotId, string ciphertextHex, string nonceHex, string associatedData = "", string purpose = "audit_token_encryption") =>
+            DecryptHSMEnvelopeAsync(slotId, ciphertextHex, nonceHex, associatedData, purpose).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Triggers on-demand FIPS 140-3 Known Answer Tests (KAT) for all approved cryptographic primitives.
+        /// </summary>
+        public async Task<string> RunHSMSelfTestAsync() =>
+            await SendRequestAsync("POST", "/api/hsm/fips/selftest", "{}").ConfigureAwait(false);
+
+        public string RunHSMSelfTest() =>
+            RunHSMSelfTestAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Retrieves the formal FIPS 140-3 Level 4 compliance audit report and certification evidence.
+        /// </summary>
+        public async Task<string> GetHSMFIPSReportAsync() =>
+            await SendRequestAsync("GET", "/api/hsm/fips/report", null).ConfigureAwait(false);
+
+        public string GetHSMFIPSReport() =>
+            GetHSMFIPSReportAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Simulates an environmental or physical tamper sensor trip, latching hardware zeroization.
+        /// </summary>
+        public async Task<string> SimulateHSMTamperAsync(string sensorId = "DEFAULT_BREACH")
+        {
+            string body = string.Format("{{\"sensor_id\":\"{0}\"}}", EscapeJson(sensorId ?? ""));
+            return await SendRequestAsync("POST", "/api/hsm/tamper/simulate", body).ConfigureAwait(false);
+        }
+
+        public string SimulateHSMTamper(string sensorId = "DEFAULT_BREACH") =>
+            SimulateHSMTamperAsync(sensorId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Performs immediate administrative zeroization across all hardware slots and key registers.
+        /// </summary>
+        public async Task<string> ZeroizeHSMAsync() =>
+            await SendRequestAsync("POST", "/api/hsm/zeroize", "{}").ConfigureAwait(false);
+
+        public string ZeroizeHSM() =>
+            ZeroizeHSMAsync().GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

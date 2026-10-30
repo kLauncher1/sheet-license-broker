@@ -296,5 +296,17 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.equal(data.tenant_id, 'tenant-edge-test');
     assert.equal(data.quota_borrowing_enabled, true);
   });
+
+  test('reports HSM vault telemetry and FIPS 140-3 compliance level at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/hsm/status');
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_hsm_bridge_enabled, true);
+    assert.equal(data.fips_level, 'FIPS_140_3_LEVEL_4');
+    assert.equal(data.hardware_vault_available, true);
+    assert.equal(data.zeroize_on_tamper, true);
+    assert.equal(data.tamper_detected, false);
+  });
 });
 

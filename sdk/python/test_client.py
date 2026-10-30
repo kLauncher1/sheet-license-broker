@@ -416,6 +416,53 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/hsm/status":
+            self._send_json(
+                200,
+                {
+                    "initialized": True,
+                    "hardware_available": True,
+                    "fips_level": "FIPS_140_3_LEVEL_4",
+                    "slots_total": 3,
+                    "active_sessions": 1,
+                    "tamper_detected": False,
+                    "locked_out": False,
+                    "master_key_present": True,
+                    "operations_count": 50,
+                    "uptime_seconds": 600,
+                },
+            )
+            return
+
+        if path == "/api/hsm/slots":
+            self._send_json(
+                200,
+                {
+                    "slots": [
+                        {
+                            "slot_id": 0,
+                            "description": "Hardware Cryptoki Slot 0",
+                            "token_present": True,
+                            "hardware_slot": True,
+                        }
+                    ]
+                },
+            )
+            return
+
+        if path == "/api/hsm/fips/report":
+            self._send_json(
+                200,
+                {
+                    "certification_level": "FIPS_140_3_LEVEL_4",
+                    "hardware_model": "FIPS-140-3-L4-VAULT",
+                    "serial_number": "HSM4-ROOT-9842",
+                    "tamper_state": "SECURE_NORMAL",
+                    "kat_passed": True,
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -860,6 +907,86 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "rebalanced", "events": []})
             return
 
+        if path == "/api/hsm/login":
+            self._send_json(
+                200,
+                {
+                    "authenticated": True,
+                    "slot_id": payload.get("slot_id", 0),
+                    "user_type": payload.get("user_type", "USER"),
+                },
+            )
+            return
+
+        if path == "/api/hsm/logout":
+            self._send_json(200, {"logged_out": True, "slot_id": payload.get("slot_id", 0)})
+            return
+
+        if path == "/api/hsm/derive":
+            self._send_json(
+                200,
+                {
+                    "slot_id": payload.get("slot_id", 0),
+                    "purpose": payload.get("purpose"),
+                    "fingerprint": "HSM-KEY-PY-FPR-01",
+                    "key_length_bits": 256,
+                    "algorithm": "AES_256_GCM_HKDF_SHA256",
+                },
+            )
+            return
+
+        if path == "/api/hsm/encrypt":
+            self._send_json(
+                200,
+                {
+                    "slot_id": payload.get("slot_id"),
+                    "ciphertext_hex": "py_cipher_hex_123",
+                    "nonce_hex": "py_nonce_hex_123",
+                    "key_fingerprint": "HSM-KEY-PY-FPR-01",
+                    "algorithm": "AES_256_GCM_FIPS_140_3",
+                },
+            )
+            return
+
+        if path == "/api/hsm/decrypt":
+            self._send_json(
+                200,
+                {
+                    "slot_id": payload.get("slot_id"),
+                    "plaintext": "CONFIDENTIAL-PY-DATA",
+                    "authenticated": True,
+                },
+            )
+            return
+
+        if path == "/api/hsm/fips/selftest":
+            self._send_json(
+                200,
+                {
+                    "self_tests": [
+                        {"test_name": "KAT-SHA-256", "passed": True},
+                        {"test_name": "KAT-AES-GCM", "passed": True},
+                    ],
+                    "count": 2,
+                },
+            )
+            return
+
+        if path == "/api/hsm/tamper/simulate":
+            self._send_json(
+                200,
+                {
+                    "tamper_latched": True,
+                    "sensor_id": payload.get("sensor_id"),
+                    "zeroized": True,
+                },
+            )
+            return
+
+        if path == "/api/hsm/zeroize":
+            self._send_json(200, {"zeroized": True})
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -1154,6 +1281,47 @@ class TestSheetLicenseClient(unittest.TestCase):
 
         rebal = client.rebalance_healing_quotas()
         self.assertEqual(rebal.get("status"), "rebalanced")
+
+    def test_hsm_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_hsm_status()
+        self.assertTrue(st.get("initialized"))
+        self.assertEqual(st.get("fips_level"), "FIPS_140_3_LEVEL_4")
+        self.assertEqual(st.get("slots_total"), 3)
+
+        slots = client.list_hsm_slots()
+        self.assertEqual(len(slots.get("slots", [])), 1)
+
+        login = client.hsm_login(0, "FIPS-ROOT-PIN-9842", "USER")
+        self.assertTrue(login.get("authenticated"))
+
+        logout = client.hsm_logout(0)
+        self.assertTrue(logout.get("logged_out"))
+
+        derive = client.derive_hsm_key(0, "audit_token_encryption", "PY-CTX")
+        self.assertEqual(derive.get("fingerprint"), "HSM-KEY-PY-FPR-01")
+
+        enc = client.encrypt_hsm_envelope(1, "CONFIDENTIAL-PY-DATA", "AAD-PY")
+        self.assertEqual(enc.get("ciphertext_hex"), "py_cipher_hex_123")
+
+        dec = client.decrypt_hsm_envelope(1, "py_cipher_hex_123", "py_nonce_hex_123", "AAD-PY")
+        self.assertEqual(dec.get("plaintext"), "CONFIDENTIAL-PY-DATA")
+        self.assertTrue(dec.get("authenticated"))
+
+        self_tests = client.run_hsm_self_test()
+        self.assertEqual(self_tests.get("count"), 2)
+
+        report = client.get_hsm_fips_report()
+        self.assertEqual(report.get("certification_level"), "FIPS_140_3_LEVEL_4")
+        self.assertTrue(report.get("kat_passed"))
+
+        tamper = client.simulate_hsm_tamper("SENSOR_TEMPERATURE_OUT_OF_BOUNDS")
+        self.assertTrue(tamper.get("tamper_latched"))
+        self.assertTrue(tamper.get("zeroized"))
+
+        zeroize = client.zeroize_hsm()
+        self.assertTrue(zeroize.get("zeroized"))
 
 
 if __name__ == "__main__":

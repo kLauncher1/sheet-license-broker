@@ -411,6 +411,61 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"status\":\"rebalanced\",\"events\":[]}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"initialized\":true,\"hardware_available\":true,\"fips_level\":\"FIPS_140_3_LEVEL_4\",\"slots_total\":3,\"active_sessions\":1,\"tamper_detected\":false,\"locked_out\":false,\"master_key_present\":true,\"operations_count\":60,\"uptime_seconds\":800}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/slots")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"slots\":[{\"slot_id\":0,\"description\":\"Hardware Cryptoki Slot 0\",\"token_present\":true,\"hardware_slot\":true}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/login")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"authenticated\":true,\"slot_id\":0,\"user_type\":\"USER\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/logout")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"logged_out\":true,\"slot_id\":0}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/derive")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"slot_id\":0,\"purpose\":\"audit_token_encryption\",\"fingerprint\":\"HSM-KEY-CS-FPR-01\",\"key_length_bits\":256,\"algorithm\":\"AES_256_GCM_HKDF_SHA256\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/encrypt")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"slot_id\":1,\"ciphertext_hex\":\"cs_cipher_hex_123\",\"nonce_hex\":\"cs_nonce_hex_123\",\"key_fingerprint\":\"HSM-KEY-CS-FPR-01\",\"algorithm\":\"AES_256_GCM_FIPS_140_3\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/decrypt")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"slot_id\":1,\"plaintext\":\"CONFIDENTIAL-CS-DATA\",\"authenticated\":true}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/fips/selftest")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"self_tests\":[{\"test_name\":\"KAT-SHA-256\",\"passed\":true}],\"count\":1}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/fips/report")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"certification_level\":\"FIPS_140_3_LEVEL_4\",\"hardware_model\":\"FIPS-140-3-L4-VAULT\",\"serial_number\":\"HSM4-ROOT-9842\",\"tamper_state\":\"SECURE_NORMAL\",\"kat_passed\":true}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/tamper/simulate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"tamper_latched\":true,\"sensor_id\":\"DEFAULT_BREACH\",\"zeroized\":true}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/hsm/zeroize")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"zeroized\":true}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -926,7 +981,76 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Healing status, consume, ticket, tunnel resume, quota borrow/return, and rebalance");
 
-                Console.WriteLine("=== All 24 C# Client Tests Passed Successfully! ===");
+                // 25. HSM status, slots, login/logout, derive key, envelope encrypt/decrypt, FIPS test/report, tamper, and zeroize
+                string hsmStatusRaw = client.GetHSMStatusAsync().GetAwaiter().GetResult();
+                if (!hsmStatusRaw.Contains("FIPS_140_3_LEVEL_4"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM status query failed: " + hsmStatusRaw);
+                    return 1;
+                }
+                string hsmSlotsRaw = client.ListHSMSlotsAsync().GetAwaiter().GetResult();
+                if (!hsmSlotsRaw.Contains("Hardware Cryptoki Slot 0"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM slots list failed: " + hsmSlotsRaw);
+                    return 1;
+                }
+                string hsmLoginRaw = client.HSMLoginAsync(0, "FIPS-ROOT-PIN-9842", "USER").GetAwaiter().GetResult();
+                if (!hsmLoginRaw.Contains("\"authenticated\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM login failed: " + hsmLoginRaw);
+                    return 1;
+                }
+                string hsmLogoutRaw = client.HSMLogoutAsync(0).GetAwaiter().GetResult();
+                if (!hsmLogoutRaw.Contains("\"logged_out\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM logout failed: " + hsmLogoutRaw);
+                    return 1;
+                }
+                string hsmDeriveRaw = client.DeriveHSMKeyAsync(0, "audit_token_encryption", "CS-CTX").GetAwaiter().GetResult();
+                if (!hsmDeriveRaw.Contains("HSM-KEY-CS-FPR-01"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM derive failed: " + hsmDeriveRaw);
+                    return 1;
+                }
+                string hsmEncRaw = client.EncryptHSMEnvelopeAsync(1, "CONFIDENTIAL-CS-DATA", "AAD-CS").GetAwaiter().GetResult();
+                if (!hsmEncRaw.Contains("cs_cipher_hex_123"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM encrypt failed: " + hsmEncRaw);
+                    return 1;
+                }
+                string hsmDecRaw = client.DecryptHSMEnvelopeAsync(1, "cs_cipher_hex_123", "cs_nonce_hex_123", "AAD-CS").GetAwaiter().GetResult();
+                if (!hsmDecRaw.Contains("CONFIDENTIAL-CS-DATA"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM decrypt failed: " + hsmDecRaw);
+                    return 1;
+                }
+                string hsmTestRaw = client.RunHSMSelfTestAsync().GetAwaiter().GetResult();
+                if (!hsmTestRaw.Contains("KAT-SHA-256"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM self-test failed: " + hsmTestRaw);
+                    return 1;
+                }
+                string hsmReportRaw = client.GetHSMFIPSReportAsync().GetAwaiter().GetResult();
+                if (!hsmReportRaw.Contains("FIPS_140_3_LEVEL_4") || !hsmReportRaw.Contains("kat_passed"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM FIPS report failed: " + hsmReportRaw);
+                    return 1;
+                }
+                string hsmTamperRaw = client.SimulateHSMTamperAsync("DEFAULT_BREACH").GetAwaiter().GetResult();
+                if (!hsmTamperRaw.Contains("\"tamper_latched\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM tamper failed: " + hsmTamperRaw);
+                    return 1;
+                }
+                string hsmZeroizeRaw = client.ZeroizeHSMAsync().GetAwaiter().GetResult();
+                if (!hsmZeroizeRaw.Contains("\"zeroized\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: HSM zeroize failed: " + hsmZeroizeRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: HSM status, slots, login/logout, derive key, envelope encrypt/decrypt, FIPS test/report, tamper, and zeroize");
+
+                Console.WriteLine("=== All 25 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

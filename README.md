@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v2.1.0-emerald.svg" alt="Version: v2.1.0">
+  <img src="https://img.shields.io/badge/version-v2.2.0-emerald.svg" alt="Version: v2.2.0">
+  <img src="https://img.shields.io/badge/hsm-PKCS%2311%20%26%20FIPS%20140--3%20Level%204-38BDF8.svg" alt="Hardware Security Module & FIPS 140-3 Level 4">
   <img src="https://img.shields.io/badge/healing-Auto--Scaling%20Bucket%20%26%20Quota%20Borrowing-8B5CF6.svg" alt="Autonomous Healing & Dynamic Quota Rebalancing">
   <img src="https://img.shields.io/badge/zerotrust-mTLS%20Mesh%20%26%20Software%20HSM-7C3AED.svg" alt="Zero-Trust mTLS Mesh & Software HSM">
   <img src="https://img.shields.io/badge/airgap-Ed25519%20Dongle%20%26%20Anti--Rollback-0284C7.svg" alt="Air-Gapped Vault and Dongle Emulation">
@@ -41,6 +42,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Hardware Security Module (HSM) PKCS#11 Vault Integration (v2.2.0)**: Direct PKCS#11 hardware cryptoki engine binding with slot abstraction, user/SO PIN authentication, session handle lifecycles, and cryptographic zeroization barriers. Delivers HSM-backed master key derivation (`deriveMasterKey`) using HKDF-SHA256 with slot domain separation for audit tokens and backup snapshots, alongside FIPS 140-3 Level 4 tamper-resistant storage monitoring with physical mesh breach, thermal out-of-range, and voltage glitch detection alarms.
 - **Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)**: Automatically scales token bucket capacity (up to 3x burst) and refill rates based on live telemetry load factors while gracefully applying backpressure during error bursts. Establishes self-healing client retry tunnels using cryptographically signed reconnect tickets (`HealingTicket`) with bounded delta event replay over network dropouts, and coordinates distributed quota borrowing leases across tenant pools with surplus headroom enforcement (30% lender reserve) and automatic recall upon lender surges.
 - **Enterprise Zero-Trust Mesh & Mutual TLS (mTLS) Peer Enforcement (v2.0.0)**: Enforces cryptographic mutual authentication (mTLS) with TLS 1.3, SPIFFE URI identity verification, and CRL revocation checking across inter-node consensus RPCs. Includes an autonomous internal Root Certificate Authority (CA) with ECDSA P-256 and dual-trust cert pool rotation, alongside an isolated software HSM / PKCS#11 cryptoki key slot engine featuring constant-time PIN authentication and cryptographic zeroization barriers.
 - **Automated License Reseller & Marketplace Webhooks Bridge (v1.8.0)**: Connects Stripe, Lemon Squeezy, and Paddle webhook events directly to automated license provisioning, tier seat scaling, and refund revocations. Inbound webhooks undergo constant-time HMAC signature verification (`hmac.Equal`), timestamp replay drift mitigation (&plusmn;300s window), thread-safe LRU idempotency caching, and real-time SSE stream kill-switch pushes to sever running client sessions immediately upon cancellation or dispute.

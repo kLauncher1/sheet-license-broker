@@ -760,5 +760,42 @@ export class SheetLicenseClient {
     async rebalanceHealingQuotas() {
         return this.request('POST', '/api/healing/quota/rebalance', {});
     }
+    async getHsmStatus() {
+        return this.request('GET', '/api/hsm/status');
+    }
+    async listHsmSlots() {
+        return this.request('GET', '/api/hsm/slots');
+    }
+    async hsmLogin(slotId, pin, userType = 'USER') {
+        return this.request('POST', '/api/hsm/login', {
+            slot_id: slotId,
+            user_type: userType,
+            pin,
+        });
+    }
+    async hsmLogout(slotId = 0) {
+        return this.request('POST', '/api/hsm/logout', { slot_id: slotId });
+    }
+    async deriveHsmKey(params) {
+        return this.request('POST', '/api/hsm/derive', params);
+    }
+    async encryptHsmEnvelope(params) {
+        return this.request('POST', '/api/hsm/encrypt', params);
+    }
+    async decryptHsmEnvelope(params) {
+        return this.request('POST', '/api/hsm/decrypt', params);
+    }
+    async runHsmSelfTest() {
+        return this.request('POST', '/api/hsm/fips/selftest', {});
+    }
+    async getHsmFipsReport() {
+        return this.request('GET', '/api/hsm/fips/report');
+    }
+    async simulateHsmTamper(sensorId = 'DEFAULT_BREACH') {
+        return this.request('POST', '/api/hsm/tamper/simulate', { sensor_id: sensorId });
+    }
+    async zeroizeHsm() {
+        return this.request('POST', '/api/hsm/zeroize', {});
+    }
 }
 //# sourceMappingURL=client.js.map

@@ -1064,6 +1064,153 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/hsm/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            initialized: true,
+            hardware_available: true,
+            fips_level: 'FIPS_140_3_LEVEL_4',
+            slots_total: 3,
+            active_sessions: 1,
+            tamper_detected: false,
+            locked_out: false,
+            master_key_present: true,
+            operations_count: 42,
+            last_self_test: new Date().toISOString(),
+            uptime_seconds: 1200
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/slots' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            slots: [
+              {
+                slot_id: 0,
+                description: 'Hardware HSM Cryptoki Slot 0',
+                manufacturer_id: 'CloudHSM Cryptoki Enterprise Inc.',
+                hardware_version: '4.2.0',
+                firmware_version: '4.2.0-FIPS',
+                mechanisms: ['CKM_AES_GCM', 'CKM_HKDF_DERIVE'],
+                token_present: true,
+                removable: false,
+                hardware_slot: true
+              }
+            ]
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/login' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            authenticated: true,
+            slot_id: body.slot_id,
+            user_type: body.user_type || 'USER'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/logout' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            logged_out: true,
+            slot_id: body.slot_id || 0
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/derive' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            slot_id: body.slot_id || 0,
+            purpose: body.purpose,
+            derived_key_handle: 123456789,
+            fingerprint: 'HSM-KEY-TS-FPR-01',
+            key_length_bits: 256,
+            algorithm: 'AES_256_GCM_HKDF_SHA256',
+            derived_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/encrypt' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            slot_id: body.slot_id,
+            ciphertext_hex: 'a1b2c3d4e5f6',
+            nonce_hex: '00112233445566778899aabb',
+            key_fingerprint: 'HSM-KEY-TS-FPR-01',
+            algorithm: 'AES_256_GCM_FIPS_140_3',
+            encrypted_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/decrypt' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            slot_id: 1,
+            plaintext: 'CONFIDENTIAL-TS-ENVELOPE',
+            authenticated: true,
+            decrypted_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/fips/selftest' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            self_tests: [
+              { test_name: 'KAT-SHA-256', passed: true, execution_time_us: 15, algorithm_tested: 'SHA-256', details: 'Passed' },
+              { test_name: 'KAT-AES-256-GCM', passed: true, execution_time_us: 25, algorithm_tested: 'AES-256-GCM', details: 'Passed' }
+            ],
+            count: 2
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/fips/report' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            certification_level: 'FIPS_140_3_LEVEL_4',
+            hardware_model: 'FIPS-140-3-L4-VAULT',
+            serial_number: 'HSM4-ROOT-9842',
+            firmware_revision: '4.2.0-FIPS',
+            tamper_state: 'SECURE_NORMAL',
+            active_slots: 3,
+            kat_passed: true,
+            self_tests: [],
+            zeroize_on_tamper: true,
+            generated_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/tamper/simulate' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            tamper_latched: true,
+            sensor_id: body.sensor_id,
+            zeroized: true
+          }));
+          return;
+        }
+
+        if (req.url === '/api/hsm/zeroize' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            zeroized: true
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -1555,6 +1702,63 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
 
     const rebal = await client.rebalanceHealingQuotas();
     assert.strictEqual(rebal.status, 'rebalanced');
+  });
+
+  it('queries HSM status, lists slots, logs in/out, derives key, encrypts/decrypts envelope, runs FIPS self-test, gets report, simulates tamper, and zeroizes', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const status = await client.getHsmStatus();
+    assert.strictEqual(status.initialized, true);
+    assert.strictEqual(status.fips_level, 'FIPS_140_3_LEVEL_4');
+    assert.strictEqual(status.slots_total, 3);
+
+    const slotsResp = await client.listHsmSlots();
+    assert.strictEqual(slotsResp.slots.length, 1);
+    assert.strictEqual(slotsResp.slots[0].token_present, true);
+
+    const login = await client.hsmLogin(0, 'FIPS-ROOT-PIN-9842', 'USER');
+    assert.strictEqual(login.authenticated, true);
+    assert.strictEqual(login.slot_id, 0);
+
+    const logout = await client.hsmLogout(0);
+    assert.strictEqual(logout.logged_out, true);
+
+    const derive = await client.deriveHsmKey({
+      slot_id: 0,
+      purpose: 'audit_token_encryption',
+      context: 'TEST-CTX',
+    });
+    assert.strictEqual(derive.fingerprint, 'HSM-KEY-TS-FPR-01');
+
+    const enc = await client.encryptHsmEnvelope({
+      slot_id: 1,
+      plaintext: 'CONFIDENTIAL-TS-ENVELOPE',
+      associated_data: 'AAD-TS',
+    });
+    assert.strictEqual(enc.ciphertext_hex, 'a1b2c3d4e5f6');
+
+    const dec = await client.decryptHsmEnvelope({
+      slot_id: 1,
+      ciphertext_hex: enc.ciphertext_hex,
+      nonce_hex: enc.nonce_hex,
+      associated_data: 'AAD-TS',
+    });
+    assert.strictEqual(dec.plaintext, 'CONFIDENTIAL-TS-ENVELOPE');
+    assert.strictEqual(dec.authenticated, true);
+
+    const selfTests = await client.runHsmSelfTest();
+    assert.strictEqual(selfTests.count, 2);
+    assert.strictEqual(selfTests.self_tests[0].passed, true);
+
+    const report = await client.getHsmFipsReport();
+    assert.strictEqual(report.certification_level, 'FIPS_140_3_LEVEL_4');
+    assert.strictEqual(report.tamper_state, 'SECURE_NORMAL');
+
+    const tamper = await client.simulateHsmTamper('SENSOR_DRILL_BREACH');
+    assert.strictEqual(tamper.tamper_latched, true);
+    assert.strictEqual(tamper.zeroized, true);
+
+    const zeroize = await client.zeroizeHsm();
+    assert.strictEqual(zeroize.zeroized, true);
   });
 });
 

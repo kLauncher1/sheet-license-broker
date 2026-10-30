@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.2.x   | :white_check_mark: |
 | 2.1.x   | :white_check_mark: |
 | 2.0.x   | :white_check_mark: |
 | 1.9.x   | :white_check_mark: |
@@ -167,6 +168,12 @@
     - **HMAC-SHA256 Healing Ticket Verification**: Disconnected clients receive cryptographically signed reconnect tickets (`HealingTicket`). Reconnection requests are authenticated using constant-time signature evaluation (`crypto/subtle.ConstantTimeCompare`), preventing unauthorized session hijacking or forgery.
     - **Bounded Ephemeral Delta Replay**: Reconnect state updates are served from an in-memory ring-buffer with strict capacity boundaries (default 1,000 entries), filtering events by tenant namespace and client identifier to ensure zero cross-tenant leakage.
     - **Surplus Headroom Invariants & Preemptive Recall**: Quota borrowing requires lending tenants to maintain at least 30% unallocated headroom. If lender utilization exceeds 85%, active leases are automatically recalled to protect the primary lender's operations.
+
+28. **Hardware Security Module (HSM) PKCS#11 Vault & FIPS 140-3 Level 4 Security**:
+    - **Direct PKCS#11 Cryptoki Binding**: Slot isolation, session management, and User/SO authentication are enforced at the hardware cryptoki boundary. Session handles are validated against active slot bounds and cleared upon logout.
+    - **Constant-Time PIN Verification**: PIN comparisons for both User and Security Officer (SO) roles utilize constant-time comparison (`crypto/subtle.ConstantTimeCompare`) with maximum failed attempt lockout counters to protect against brute-force attacks.
+    - **HSM-Backed HKDF Master Key Derivation**: Master keys are derived on-demand inside the HSM using RFC 5869 HKDF-SHA256 with distinct domain separation contexts (audit tokens vs database snapshots), preventing cleartext master key leakage.
+    - **FIPS 140-3 Level 4 Tamper Response & Emergency Zeroization**: Hardware physical sensor trips (`PHYSICAL_MESH_BREACH`, `THERMAL_OUT_OF_RANGE`, `VOLTAGE_GLITCH`) immediately trigger the emergency zeroization barrier, purging all token key memory and locking the module into a fail-secure state until authorized re-initialization.
 
 ## Reporting a Vulnerability
 

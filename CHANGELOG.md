@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-10-30
+
+### Added
+- Hardware Security Module (HSM) PKCS#11 Vault Integration subsystem (`internal/hsm/types.go`, `internal/hsm/cryptoki.go`, `internal/hsm/derive.go`, `internal/hsm/fips.go`, `internal/hsm/manager.go`, `internal/hsm/hsm_test.go`) implemented in pure Go standard library with zero third-party dependencies.
+- Direct PKCS#11 hardware cryptoki engine binding with slot abstraction, token initialization, user and security officer (SO) PIN authentication, session handle lifecycles, and cryptographic zeroization barriers.
+- HSM-backed master key derivation (`deriveMasterKey`) using HKDF-SHA256 with slot domain separation, providing cryptographic key material for audit tokens and backup snapshot encryption without ever exposing master keys in cleartext memory.
+- FIPS 140-3 Level 4 tamper-resistant storage certification bridge with hardware tamper sensor trip simulations (`PHYSICAL_MESH_BREACH`, `THERMAL_OUT_OF_RANGE`, `VOLTAGE_GLITCH`), power-on and on-demand cryptographic self-tests, audit certification reporting, and emergency zeroization.
+- Proxy integration layer (`internal/proxy/hsm.go`, `internal/proxy/hsm_test.go`) binding HSM vault operations, key derivations, envelope encryption, and FIPS self-tests to the unified broker gateway and Google Apps Script persistence.
+- Dedicated REST routing layer (`routes_hsm.go`, `routes_hsm_test.go`) exposing `GET /api/hsm/status`, `GET /api/hsm/slots`, `POST /api/hsm/login`, `POST /api/hsm/logout`, `POST /api/hsm/derive`, `POST /api/hsm/encrypt`, `POST /api/hsm/decrypt`, `POST /api/hsm/fips/selftest`, `GET /api/hsm/fips/report`, `POST /api/hsm/tamper/simulate`, and `POST /api/hsm/zeroize`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic sheet initialization and persistent audit logging for `HSM_Audit_Log` and `HSM_Vault_Keys` sheets, with `hsm_log_event`, `hsm_get_status`, and `hsm_record_derivation` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/hsm.go`, `sdk/go/hsm_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting HSM status queries, slot listings, session PIN login/logout, key derivations, envelope encryption/decryption, FIPS self-tests, tamper simulations, and emergency zeroization with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) implementing edge-side HSM vault telemetry and FIPS 140-3 compliance reporting (`/edge/hsm/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Hardware HSM & PKCS#11 Vault" tab with FIPS 140-3 Level 4 status cards, PKCS#11 cryptoki slot tables, key derivation modals, envelope encryption/decryption tools, self-test runners, tamper simulators, and zeroization barriers.
+- Version bump to 2.2.0 across core binary, manifests, documentation, and client libraries.
+
 ## [2.1.0] - 2026-10-27
 
 ### Added

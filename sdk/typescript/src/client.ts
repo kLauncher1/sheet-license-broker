@@ -78,6 +78,17 @@ import type {
   HealingResumeResponse,
   HealingBorrowResponse,
   HealingRebalanceResponse,
+  HSMSlotInfo,
+  HSMTokenInfo,
+  HSMVaultStatus,
+  HSMKeyDerivationRequest,
+  HSMKeyDerivationResponse,
+  HSMEnvelopeEncryptRequest,
+  HSMEnvelopeEncryptResponse,
+  HSMEnvelopeDecryptRequest,
+  HSMEnvelopeDecryptResponse,
+  HSMSelfTestResult,
+  HSMFIPS140AuditReport,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -1018,6 +1029,87 @@ export class SheetLicenseClient {
    */
   public async rebalanceHealingQuotas(): Promise<HealingRebalanceResponse> {
     return this.request<HealingRebalanceResponse>('POST', '/api/healing/quota/rebalance', {});
+  }
+
+  /**
+   * Queries real-time telemetry, FIPS 140-3 certification level, and operational status of the HSM vault.
+   */
+  public async getHsmStatus(): Promise<HSMVaultStatus> {
+    return this.request<HSMVaultStatus>('GET', '/api/hsm/status');
+  }
+
+  /**
+   * Lists all provisioned PKCS#11 hardware slots and token descriptors.
+   */
+  public async listHsmSlots(): Promise<{ slots: HSMSlotInfo[] }> {
+    return this.request<{ slots: HSMSlotInfo[] }>('GET', '/api/hsm/slots');
+  }
+
+  /**
+   * Authenticates an ephemeral session against a hardware slot token using constant-time PIN evaluation.
+   */
+  public async hsmLogin(slotId: number, pin: string, userType: 'USER' | 'SO' = 'USER'): Promise<{ authenticated: boolean; slot_id: number; user_type: string }> {
+    return this.request<{ authenticated: boolean; slot_id: number; user_type: string }>('POST', '/api/hsm/login', {
+      slot_id: slotId,
+      user_type: userType,
+      pin,
+    });
+  }
+
+  /**
+   * Revokes an active authenticated session on the specified slot.
+   */
+  public async hsmLogout(slotId: number = 0): Promise<{ logged_out: boolean; slot_id: number }> {
+    return this.request<{ logged_out: boolean; slot_id: number }>('POST', '/api/hsm/logout', { slot_id: slotId });
+  }
+
+  /**
+   * Derives a dedicated envelope or storage encryption key inside the hardware cryptoki boundary using HKDF-SHA256.
+   */
+  public async deriveHsmKey(params: HSMKeyDerivationRequest): Promise<HSMKeyDerivationResponse> {
+    return this.request<HSMKeyDerivationResponse>('POST', '/api/hsm/derive', params);
+  }
+
+  /**
+   * Performs authenticated AES-256-GCM envelope encryption under an HSM-derived key.
+   */
+  public async encryptHsmEnvelope(params: HSMEnvelopeEncryptRequest): Promise<HSMEnvelopeEncryptResponse> {
+    return this.request<HSMEnvelopeEncryptResponse>('POST', '/api/hsm/encrypt', params);
+  }
+
+  /**
+   * Performs authenticated AES-256-GCM envelope decryption and verification under an HSM-derived key.
+   */
+  public async decryptHsmEnvelope(params: HSMEnvelopeDecryptRequest): Promise<HSMEnvelopeDecryptResponse> {
+    return this.request<HSMEnvelopeDecryptResponse>('POST', '/api/hsm/decrypt', params);
+  }
+
+  /**
+   * Triggers on-demand FIPS 140-3 Known Answer Tests (KAT) for all approved cryptographic primitives.
+   */
+  public async runHsmSelfTest(): Promise<{ self_tests: HSMSelfTestResult[]; count: number }> {
+    return this.request<{ self_tests: HSMSelfTestResult[]; count: number }>('POST', '/api/hsm/fips/selftest', {});
+  }
+
+  /**
+   * Retrieves the formal FIPS 140-3 Level 4 compliance audit report and certification evidence.
+   */
+  public async getHsmFipsReport(): Promise<HSMFIPS140AuditReport> {
+    return this.request<HSMFIPS140AuditReport>('GET', '/api/hsm/fips/report');
+  }
+
+  /**
+   * Simulates an environmental or physical tamper sensor trip, latching hardware zeroization.
+   */
+  public async simulateHsmTamper(sensorId: string = 'DEFAULT_BREACH'): Promise<{ tamper_latched: boolean; sensor_id: string; zeroized: boolean }> {
+    return this.request<{ tamper_latched: boolean; sensor_id: string; zeroized: boolean }>('POST', '/api/hsm/tamper/simulate', { sensor_id: sensorId });
+  }
+
+  /**
+   * Performs immediate administrative zeroization across all hardware slots and key registers.
+   */
+  public async zeroizeHsm(): Promise<{ zeroized: boolean }> {
+    return this.request<{ zeroized: boolean }>('POST', '/api/hsm/zeroize', {});
   }
 }
 

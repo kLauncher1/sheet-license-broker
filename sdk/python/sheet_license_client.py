@@ -903,6 +903,96 @@ class SheetLicenseClient:
         """Triggers an automated distributed quota rebalancing evaluation."""
         return self._request("POST", "/api/healing/quota/rebalance", {})
 
+    def get_hsm_status(self) -> Dict[str, Any]:
+        """Queries real-time telemetry, FIPS 140-3 certification level, and operational status of the HSM vault."""
+        return self._request("GET", "/api/hsm/status")
+
+    def list_hsm_slots(self) -> Dict[str, Any]:
+        """Lists all provisioned PKCS#11 hardware slots and token descriptors."""
+        return self._request("GET", "/api/hsm/slots")
+
+    def hsm_login(self, slot_id: int, pin: str, user_type: str = "USER") -> Dict[str, Any]:
+        """Authenticates an ephemeral session against a hardware slot token using constant-time PIN evaluation."""
+        payload = {
+            "slot_id": slot_id,
+            "user_type": user_type,
+            "pin": pin,
+        }
+        return self._request("POST", "/api/hsm/login", payload)
+
+    def hsm_logout(self, slot_id: int = 0) -> Dict[str, Any]:
+        """Revokes an active authenticated session on the specified slot."""
+        return self._request("POST", "/api/hsm/logout", {"slot_id": slot_id})
+
+    def derive_hsm_key(
+        self,
+        slot_id: int,
+        purpose: str,
+        context: str,
+        salt_hex: str = "",
+        key_length_bits: int = 256,
+    ) -> Dict[str, Any]:
+        """Derives a dedicated envelope key inside the hardware cryptoki boundary using HKDF-SHA256."""
+        payload = {
+            "slot_id": slot_id,
+            "purpose": purpose,
+            "context": context,
+            "salt_hex": salt_hex,
+            "key_length_bits": key_length_bits,
+        }
+        return self._request("POST", "/api/hsm/derive", payload)
+
+    def encrypt_hsm_envelope(
+        self,
+        slot_id: int,
+        plaintext: str,
+        associated_data: str = "",
+        purpose: str = "audit_token_encryption",
+    ) -> Dict[str, Any]:
+        """Performs authenticated AES-256-GCM envelope encryption under an HSM-derived key."""
+        payload = {
+            "slot_id": slot_id,
+            "plaintext": plaintext,
+            "associated_data": associated_data,
+            "purpose": purpose,
+        }
+        return self._request("POST", "/api/hsm/encrypt", payload)
+
+    def decrypt_hsm_envelope(
+        self,
+        slot_id: int,
+        ciphertext_hex: str,
+        nonce_hex: str,
+        associated_data: str = "",
+        purpose: str = "audit_token_encryption",
+    ) -> Dict[str, Any]:
+        """Performs authenticated AES-256-GCM envelope decryption and verification under an HSM-derived key."""
+        payload = {
+            "slot_id": slot_id,
+            "ciphertext_hex": ciphertext_hex,
+            "nonce_hex": nonce_hex,
+            "associated_data": associated_data,
+            "purpose": purpose,
+        }
+        return self._request("POST", "/api/hsm/decrypt", payload)
+
+    def run_hsm_self_test(self) -> Dict[str, Any]:
+        """Triggers on-demand FIPS 140-3 Known Answer Tests (KAT) for all approved cryptographic primitives."""
+        return self._request("POST", "/api/hsm/fips/selftest", {})
+
+    def get_hsm_fips_report(self) -> Dict[str, Any]:
+        """Retrieves the formal FIPS 140-3 Level 4 compliance audit report and certification evidence."""
+        return self._request("GET", "/api/hsm/fips/report")
+
+    def simulate_hsm_tamper(self, sensor_id: str = "DEFAULT_BREACH") -> Dict[str, Any]:
+        """Simulates an environmental or physical tamper sensor trip, latching hardware zeroization."""
+        return self._request("POST", "/api/hsm/tamper/simulate", {"sensor_id": sensor_id})
+
+    def zeroize_hsm(self) -> Dict[str, Any]:
+        """Performs immediate administrative zeroization across all hardware slots and key registers."""
+        return self._request("POST", "/api/hsm/zeroize", {})
+
+
 
 if __name__ == "__main__":
     import sys

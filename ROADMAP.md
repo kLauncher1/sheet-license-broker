@@ -183,10 +183,14 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, C#, and Cloudflare Worker (`sdk/`, `edge/cloudflare/worker.js`)
 - [x] Embedded admin console Autonomous Healing & Quotas interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 22: Hardware Security Module (HSM) PKCS#11 Vault Integration (v2.2.0)
-- [ ] Direct PKCS#11 hardware cryptoki engine binding
-- [ ] HSM-backed master key derivation for audit token and snapshot encryption
-- [ ] FIPS 140-3 Level 4 tamper-resistant storage certification bridge
+## Phase 22: Hardware Security Module (HSM) PKCS#11 Vault Integration (v2.2.0) - Completed
+- [x] Direct PKCS#11 hardware cryptoki engine binding (`internal/hsm/cryptoki.go`)
+- [x] HSM-backed master key derivation for audit token and snapshot encryption (`internal/hsm/derive.go`)
+- [x] FIPS 140-3 Level 4 tamper-resistant storage certification bridge (`internal/hsm/fips.go`)
+- [x] Dedicated HSM REST router (`routes_hsm.go`) and proxy orchestration (`internal/proxy/hsm.go`)
+- [x] Google Apps Script backend sheets (`HSM_Audit_Log`, `HSM_Vault_Keys`) and action handlers (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, C#, and Cloudflare Worker (`sdk/`, `edge/cloudflare/worker.js`)
+- [x] Embedded admin console Hardware HSM & PKCS#11 Vault interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 23: Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography (v2.3.0)
 - [ ] NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM / Kyber-768/1024)
@@ -287,6 +291,16 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Peer-to-peer gossip mesh for autonomous license state consensus and partition recovery
 - [ ] Cryptographically blinded ephemeral micro-entitlements with hardware-enforced monotonic counter bounds
 - [ ] Zero-dependency distributed lease synchronization without centralized origin bottlenecks
+
+## Phase 43: Autonomous Post-Quantum Key Encapsulation (ML-KEM) & Ephemeral Forward Secrecy (v4.3.0)
+- [ ] NIST FIPS 203 ML-KEM-768/1024 post-quantum key encapsulation mechanism implementation
+- [ ] Hybrid classical/post-quantum ephemeral session tunnels (ECDH P-256 + ML-KEM) with forward secrecy
+- [ ] Backward-compatible cryptographic agility negotiation and downgrade protection
+
+## Phase 44: Hardware-Attested Tamper-Proof Cryptographic Telemetry Enclaves (v4.4.0)
+- [ ] Platform Security Processor (PSP) and ARM TrustZone cryptographically bound hardware credentials
+- [ ] Measured boot log verification with PCR extension and remote attestation validation
+- [ ] Tamper-proof ephemeral session generation anchored directly to hardware PUF (Physically Unclonable Function)
 
 
 
