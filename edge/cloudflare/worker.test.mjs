@@ -308,5 +308,17 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.equal(data.zeroize_on_tamper, true);
     assert.equal(data.tamper_detected, false);
   });
+
+  test('reports ML-KEM post-quantum telemetry and hybrid tunnel capabilities at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/pqc/kem/status');
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_pqc_kem_enabled, true);
+    assert.equal(data.default_algorithm, 'ML-KEM-768');
+    assert.equal(data.forward_secrecy, true);
+    assert.equal(data.fips_standard, 'NIST_FIPS_203');
+    assert.ok(data.supported_algorithms.includes('Hybrid-ECDH-P256-MLKEM768'));
+  });
 });
 

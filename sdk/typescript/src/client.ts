@@ -89,6 +89,13 @@ import type {
   HSMEnvelopeDecryptResponse,
   HSMSelfTestResult,
   HSMFIPS140AuditReport,
+  MLKEMStatus,
+  MLKEMPublicKey,
+  MLKEMEncapsulationResult,
+  MLKEMDecapsulationResponse,
+  HybridHandshakeRequest,
+  HybridHandshakeResponse,
+  HybridSessionVerification,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -1110,6 +1117,60 @@ export class SheetLicenseClient {
    */
   public async zeroizeHsm(): Promise<{ zeroized: boolean }> {
     return this.request<{ zeroized: boolean }>('POST', '/api/hsm/zeroize', {});
+  }
+
+  /**
+   * Queries real-time operational status and telemetry for ML-KEM.
+   */
+  public async getMLKEMStatus(): Promise<MLKEMStatus> {
+    return this.request<MLKEMStatus>('GET', '/api/pqc/kem/status');
+  }
+
+  /**
+   * Lists all registered public encapsulation keys.
+   */
+  public async listMLKEMKeys(): Promise<MLKEMPublicKey[]> {
+    const res = await this.request<{ keys: MLKEMPublicKey[] }>('GET', '/api/pqc/kem/keys');
+    return res.keys || [];
+  }
+
+  /**
+   * Generates and registers a new lattice keypair (ML-KEM-768 or ML-KEM-1024).
+   */
+  public async generateMLKEMKey(algorithm: string = 'ML-KEM-768'): Promise<MLKEMPublicKey> {
+    return this.request<MLKEMPublicKey>('POST', '/api/pqc/kem/keys/generate', { algorithm });
+  }
+
+  /**
+   * Encapsulates a shared secret against the specified (or default) public key.
+   */
+  public async encapsulateMLKEM(keyId?: string): Promise<MLKEMEncapsulationResult> {
+    return this.request<MLKEMEncapsulationResult>('POST', '/api/pqc/kem/encapsulate', { key_id: keyId || '' });
+  }
+
+  /**
+   * Decapsulates a ciphertext using the server-side private key.
+   */
+  public async decapsulateMLKEM(keyId: string, ciphertextHex: string): Promise<string> {
+    const res = await this.request<MLKEMDecapsulationResponse>('POST', '/api/pqc/kem/decapsulate', {
+      key_id: keyId,
+      ciphertext_hex: ciphertextHex,
+    });
+    return res.shared_secret_hex;
+  }
+
+  /**
+   * Executes a post-quantum hybrid key exchange handshake (ECDH P-256 + ML-KEM).
+   */
+  public async hybridKEMHandshake(req: HybridHandshakeRequest): Promise<HybridHandshakeResponse> {
+    return this.request<HybridHandshakeResponse>('POST', '/api/pqc/kem/handshake', req);
+  }
+
+  /**
+   * Verifies an active ephemeral hybrid session.
+   */
+  public async verifyHybridKEMSession(sessionId: string): Promise<HybridSessionVerification> {
+    return this.request<HybridSessionVerification>('GET', `/api/pqc/kem/sessions/verify?session_id=${encodeURIComponent(sessionId)}`);
   }
 }
 

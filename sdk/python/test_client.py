@@ -463,6 +463,54 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/pqc/kem/status":
+            self._send_json(
+                200,
+                {
+                    "initialized": True,
+                    "active_keys_count": 2,
+                    "default_algorithm": "ML-KEM-768",
+                    "active_sessions_count": 1,
+                    "quantum_enforced": False,
+                    "total_encapsulations": 12,
+                    "total_decapsulations": 12,
+                    "total_handshakes": 6,
+                    "uptime_seconds": 300,
+                },
+            )
+            return
+
+        if path == "/api/pqc/kem/keys":
+            self._send_json(
+                200,
+                {
+                    "keys": [
+                        {
+                            "key_id": "mlkem-768-py-01",
+                            "algorithm": "ML-KEM-768",
+                            "fingerprint": "fp-py-768-01",
+                            "raw_hex": "010203040506",
+                        }
+                    ]
+                },
+            )
+            return
+
+        if path.startswith("/api/pqc/kem/sessions/verify"):
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+            sid = qs.get("session_id", ["sess-py-pqc-01"])[0]
+            self._send_json(
+                200,
+                {
+                    "valid": True,
+                    "session_id": sid,
+                    "agreed_mode": "hybrid",
+                    "algorithm": "ML-KEM-768",
+                    "quantum_resistant": True,
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -987,6 +1035,57 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"zeroized": True})
             return
 
+        if path == "/api/pqc/kem/keys/generate":
+            algo = payload.get("algorithm", "ML-KEM-1024")
+            self._send_json(
+                200,
+                {
+                    "key_id": "mlkem-1024-py-02",
+                    "algorithm": algo,
+                    "fingerprint": "fp-py-1024-02",
+                    "raw_hex": "aabbccddeeff",
+                },
+            )
+            return
+
+        if path == "/api/pqc/kem/encapsulate":
+            key_id = payload.get("key_id", "mlkem-768-py-01")
+            self._send_json(
+                200,
+                {
+                    "key_id": key_id,
+                    "algorithm": "ML-KEM-768",
+                    "ciphertext_hex": "py_ciphertext_hex_999",
+                    "shared_secret_hex": "py_shared_secret_hex_888",
+                },
+            )
+            return
+
+        if path == "/api/pqc/kem/decapsulate":
+            self._send_json(
+                200,
+                {
+                    "key_id": payload.get("key_id"),
+                    "shared_secret_hex": "py_shared_secret_hex_888",
+                },
+            )
+            return
+
+        if path == "/api/pqc/kem/handshake":
+            self._send_json(
+                200,
+                {
+                    "session_id": "sess-py-pqc-01",
+                    "server_ecdh_pub_hex": "04112233445566778899aabbccddeeff",
+                    "ciphertext_hex": "py_ciphertext_hex_999",
+                    "auth_tag_hex": "py_auth_tag_hex_777",
+                    "agreed_mode": payload.get("requested_mode", "hybrid"),
+                    "algorithm": payload.get("algorithm", "ML-KEM-768"),
+                    "quantum_resistant": True,
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -1322,6 +1421,41 @@ class TestSheetLicenseClient(unittest.TestCase):
 
         zeroize = client.zeroize_hsm()
         self.assertTrue(zeroize.get("zeroized"))
+
+    def test_mlkem_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_mlkem_status()
+        self.assertTrue(st.get("initialized"))
+        self.assertEqual(st.get("default_algorithm"), "ML-KEM-768")
+        self.assertEqual(st.get("active_keys_count"), 2)
+
+        keys = client.list_mlkem_keys()
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(keys[0].get("algorithm"), "ML-KEM-768")
+
+        gen = client.generate_mlkem_key("ML-KEM-1024")
+        self.assertEqual(gen.get("key_id"), "mlkem-1024-py-02")
+        self.assertEqual(gen.get("algorithm"), "ML-KEM-1024")
+
+        encap = client.encapsulate_mlkem(gen.get("key_id"))
+        self.assertEqual(encap.get("ciphertext_hex"), "py_ciphertext_hex_999")
+        self.assertEqual(encap.get("shared_secret_hex"), "py_shared_secret_hex_888")
+
+        decap_ss = client.decapsulate_mlkem(gen.get("key_id"), encap.get("ciphertext_hex"))
+        self.assertEqual(decap_ss, "py_shared_secret_hex_888")
+
+        hs = client.hybrid_kem_handshake(
+            client_ecdh_pub_hex="0411223344556677889900aabbccddeeff",
+            requested_mode="hybrid",
+            algorithm="ML-KEM-768",
+        )
+        self.assertEqual(hs.get("session_id"), "sess-py-pqc-01")
+        self.assertTrue(hs.get("quantum_resistant"))
+
+        verify = client.verify_hybrid_kem_session(hs.get("session_id"))
+        self.assertTrue(verify.get("valid"))
+        self.assertEqual(verify.get("session_id"), "sess-py-pqc-01")
 
 
 if __name__ == "__main__":

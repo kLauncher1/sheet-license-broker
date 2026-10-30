@@ -32,6 +32,7 @@ type ProxyConfig struct {
 	PaddleWebhookSecret       string
 	MTLSEnforced              bool
 	HSMPIN                    string
+	MLKEMQuantumEnforced      bool
 }
 
 // VerifyResult captures the unified result of a license check.

@@ -211,6 +211,8 @@
       <span>•</span>
       <span id="hsm-badge" style="color: #60a5fa;">HSM: FIPS-140-3 L4</span>
       <span>•</span>
+      <span id="mlkem-badge" style="color: #34d399;">ML-KEM: FIPS 203 Active</span>
+      <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
@@ -272,6 +274,7 @@
       <button class="tab-btn" id="tab-btn-zerotrust" onclick="switchTab('zerotrust')">Zero-Trust &amp; mTLS</button>
       <button class="tab-btn" id="tab-btn-healing" onclick="switchTab('healing')">Autonomous Healing &amp; Quotas</button>
       <button class="tab-btn" id="tab-btn-hsm" onclick="switchTab('hsm')">Hardware HSM &amp; PKCS#11 Vault</button>
+      <button class="tab-btn" id="tab-btn-mlkem" onclick="switchTab('mlkem')">Quantum ML-KEM &amp; Lattice KEM</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1456,6 +1459,60 @@
 
       <div id="hsm-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab 22: Quantum-Resistant ML-KEM & Lattice Cryptography -->
+    <div id="panel-mlkem" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 24px;">
+        <div class="card">
+          <div class="card-title">FIPS Standard</div>
+          <div class="card-value" id="val-mlkem-standard" style="color: #34d399;">NIST FIPS 203</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Default Algorithm</div>
+          <div class="card-value" id="val-mlkem-algo" style="color: #60a5fa;">ML-KEM-768</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Lattice Keys</div>
+          <div class="card-value" id="val-mlkem-keys" style="color: #f59e0b;">1 Key</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Ephemeral Hybrid Sessions</div>
+          <div class="card-value" id="val-mlkem-sessions" style="color: #a78bfa;">0 Active</div>
+        </div>
+      </div>
+
+      <div class="action-bar" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+        <button class="btn-action" onclick="promptMLKEMGenerateKey()">🔑 Generate Lattice Keypair</button>
+        <button class="btn-action btn-secondary" onclick="promptMLKEMEncapsulate()">⚡ Encapsulate Secret</button>
+        <button class="btn-action btn-secondary" onclick="promptMLKEMDecapsulate()">🔓 Decapsulate Ciphertext</button>
+        <button class="btn-action btn-secondary" onclick="promptMLKEMHandshake()">🤝 Hybrid Handshake Test</button>
+        <button class="btn-action btn-secondary" onclick="promptMLKEMVerifySession()">🔍 Verify Session</button>
+        <button class="btn-action btn-secondary" onclick="refreshMLKEMTab()">🔄 Refresh ML-KEM</button>
+      </div>
+
+      <div class="table-container" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: var(--text-main);">
+          Registered ML-KEM Public Encapsulation Keys
+        </div>
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Key ID</th>
+              <th>Algorithm</th>
+              <th>Fingerprint</th>
+              <th>Raw Length</th>
+              <th>Created At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="mlkem-keys-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading ML-KEM keys...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="mlkem-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1463,7 +1520,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm', 'mlkem'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1490,6 +1547,7 @@
       document.getElementById('panel-zerotrust').style.display = tab === 'zerotrust' ? 'block' : 'none';
       document.getElementById('panel-healing').style.display = tab === 'healing' ? 'block' : 'none';
       document.getElementById('panel-hsm').style.display = tab === 'hsm' ? 'block' : 'none';
+      document.getElementById('panel-mlkem').style.display = tab === 'mlkem' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1514,6 +1572,7 @@
       if (tab === 'zerotrust') refreshZeroTrustTab();
       if (tab === 'healing') refreshHealingTab();
       if (tab === 'hsm') refreshHSMTab();
+      if (tab === 'mlkem') refreshMLKEMTab();
     }
 
     async function refresh() {
@@ -1584,6 +1643,14 @@
           const hb = document.getElementById('hsm-badge');
           if (hb) {
             hb.textContent = `HSM: FIPS 140-3 ${hsm.fips_level || 'L4'} (${hsm.slots_count || 3} Slots)`;
+          }
+        }
+
+        if (health && health.mlkem) {
+          const kem = health.mlkem;
+          const kb = document.getElementById('mlkem-badge');
+          if (kb) {
+            kb.textContent = `ML-KEM: FIPS 203 (${kem.default_algorithm || 'ML-KEM-768'})`;
           }
         }
 
@@ -4094,6 +4161,197 @@
         refreshHSMTab();
       } catch (err) {
         out.textContent = 'Zeroization failed: ' + err.message;
+      }
+    }
+
+    async function refreshMLKEMTab() {
+      try {
+        const [statusRes, keysRes] = await Promise.all([
+          fetch('/api/pqc/kem/status').then(r => r.json()).catch(() => ({})),
+          fetch('/api/pqc/kem/keys').then(r => r.json()).catch(() => ({ keys: [] }))
+        ]);
+
+        if (statusRes.fips_standard) {
+          document.getElementById('val-mlkem-standard').textContent = statusRes.fips_standard;
+          document.getElementById('val-mlkem-algo').textContent = statusRes.default_algorithm || 'ML-KEM-768';
+          document.getElementById('val-mlkem-keys').textContent = `${statusRes.key_count || (keysRes.keys ? keysRes.keys.length : 0)} Keys`;
+          document.getElementById('val-mlkem-sessions').textContent = `${statusRes.active_sessions || 0} Active`;
+        }
+
+        const tbody = document.getElementById('mlkem-keys-body');
+        if (tbody) {
+          if (!keysRes.keys || keysRes.keys.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">No registered ML-KEM keys found. Click "+ Generate Lattice Keypair" above.</td></tr>';
+          } else {
+            tbody.innerHTML = keysRes.keys.map(k => {
+              const createdDate = k.created_at ? new Date(k.created_at * 1000).toLocaleString() : 'N/A';
+              const rawLen = k.public_key_hex ? `${Math.floor(k.public_key_hex.length / 2)} B` : (k.algorithm === 'ML-KEM-1024' ? '1568 B' : '1184 B');
+              const fpShort = k.fingerprint ? (k.fingerprint.length > 20 ? k.fingerprint.substring(0, 18) + '...' : k.fingerprint) : 'N/A';
+              return `<tr>
+                <td style="font-family: monospace; font-weight: 600; color: #34d399;">${k.id}</td>
+                <td><span class="pill pill-active" style="background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3);">${k.algorithm}</span></td>
+                <td style="font-family: monospace; font-size: 11px; color: #94a3b8;" title="${k.fingerprint || ''}">${fpShort}</td>
+                <td style="font-family: monospace; font-size: 11px;">${rawLen}</td>
+                <td style="color: #94a3b8; font-size: 12px;">${createdDate}</td>
+                <td>
+                  <button class="btn-action btn-secondary" style="padding: 3px 8px; font-size: 11px; margin-right: 4px;" onclick="promptMLKEMEncapsulate('${k.id}')">⚡ Encapsulate</button>
+                  <button class="btn-action btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="promptMLKEMDecapsulate('${k.id}')">🔓 Decapsulate</button>
+                </td>
+              </tr>`;
+            }).join('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to refresh ML-KEM tab:', err);
+      }
+    }
+
+    async function promptMLKEMGenerateKey() {
+      const algo = prompt('Select ML-KEM Parameter Set (ML-KEM-768 or ML-KEM-1024):', 'ML-KEM-768');
+      if (!algo) return;
+
+      const out = document.getElementById('mlkem-output');
+      out.style.display = 'block';
+      out.textContent = `Generating ${algo} lattice encapsulation keypair (NIST FIPS 203)...`;
+
+      try {
+        const res = await fetch('/api/pqc/kem/keys/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ algorithm: algo.trim() })
+        }).then(r => r.json());
+
+        out.textContent = 'ML-KEM Lattice Keypair Generated Successfully:\n\n' + JSON.stringify(res, null, 2);
+        refreshMLKEMTab();
+      } catch (err) {
+        out.textContent = 'Key generation failed: ' + err.message;
+      }
+    }
+
+    async function promptMLKEMEncapsulate(defaultKeyId) {
+      const keyId = prompt('ML-KEM Key ID to encapsulate against (leave empty for default active key):', defaultKeyId || '');
+      if (keyId === null) return;
+
+      const out = document.getElementById('mlkem-output');
+      out.style.display = 'block';
+      out.textContent = 'Performing NIST FIPS 203 Encapsulation (K-PKE + Fujisaki-Okamoto)...';
+
+      try {
+        const payload = {};
+        if (keyId && keyId.trim() !== '') {
+          payload.key_id = keyId.trim();
+        }
+        const res = await fetch('/api/pqc/kem/encapsulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+
+        out.textContent = 'ML-KEM Encapsulation Result (Ciphertext & Shared Secret):\n\n' + JSON.stringify(res, null, 2);
+        refreshMLKEMTab();
+      } catch (err) {
+        out.textContent = 'Encapsulation failed: ' + err.message;
+      }
+    }
+
+    async function promptMLKEMDecapsulate(defaultKeyId) {
+      const keyId = prompt('ML-KEM Key ID:', defaultKeyId || '');
+      if (keyId === null) return;
+      const ctHex = prompt('Ciphertext (Hex string):');
+      if (!ctHex) return;
+
+      const out = document.getElementById('mlkem-output');
+      out.style.display = 'block';
+      out.textContent = 'Performing NIST FIPS 203 Decapsulation (Constant-Time Verification)...';
+
+      try {
+        const res = await fetch('/api/pqc/kem/decapsulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key_id: keyId.trim(),
+            ciphertext_hex: ctHex.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'ML-KEM Decapsulation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshMLKEMTab();
+      } catch (err) {
+        out.textContent = 'Decapsulation failed: ' + err.message;
+      }
+    }
+
+    async function promptMLKEMHandshake() {
+      const keyId = prompt('ML-KEM Key ID for hybrid exchange (blank for active key):', '');
+      if (keyId === null) return;
+      const enforceQuantum = confirm('Enforce quantum-resistant handshake (Prevent classical downgrade)?\n\nClick OK for Quantum-Enforced, Cancel for Fallback-Permitted.');
+
+      const out = document.getElementById('mlkem-output');
+      out.style.display = 'block';
+      out.textContent = 'Initiating Ephemeral Hybrid P-256 + ML-KEM Handshake...';
+
+      try {
+        const encRes = await fetch('/api/pqc/kem/encapsulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(keyId && keyId.trim() !== '' ? { key_id: keyId.trim() } : {})
+        }).then(r => r.json());
+
+        if (!encRes.ciphertext_hex) {
+          throw new Error(encRes.error || 'Failed to encapsulate KEM ciphertext for handshake test');
+        }
+
+        const fakeEcdhPub = '04' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join('');
+
+        const hsRes = await fetch('/api/pqc/kem/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kem_key_id: encRes.key_id,
+            client_ecdh_pub_hex: fakeEcdhPub,
+            client_kem_ct_hex: encRes.ciphertext_hex,
+            quantum_enforced: enforceQuantum
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Hybrid Post-Quantum TLS/ECDH Handshake Established:\n\n' + JSON.stringify({
+          encapsulation: {
+            algorithm: encRes.algorithm,
+            key_id: encRes.key_id,
+            shared_secret_sample: encRes.shared_secret_hex ? encRes.shared_secret_hex.substring(0, 16) + '...' : ''
+          },
+          handshake_session: hsRes
+        }, null, 2);
+        refreshMLKEMTab();
+      } catch (err) {
+        out.textContent = 'Handshake failed: ' + err.message;
+      }
+    }
+
+    async function promptMLKEMVerifySession() {
+      const sessionId = prompt('Session ID to verify:');
+      if (!sessionId) return;
+      const authTag = prompt('Auth Tag Hex:');
+      if (!authTag) return;
+
+      const out = document.getElementById('mlkem-output');
+      out.style.display = 'block';
+      out.textContent = `Verifying session [${sessionId}] in cryptographic ledger...`;
+
+      try {
+        const res = await fetch('/api/pqc/kem/sessions/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId.trim(),
+            auth_tag_hex: authTag.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Session Verification Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshMLKEMTab();
+      } catch (err) {
+        out.textContent = 'Session verification failed: ' + err.message;
       }
     }
 

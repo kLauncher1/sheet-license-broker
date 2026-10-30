@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2026-10-30
+
+### Added
+- Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography subsystem (`internal/mlkem/types.go`, `internal/mlkem/poly.go`, `internal/mlkem/kem.go`, `internal/mlkem/hybrid.go`, `internal/mlkem/manager.go`, `internal/mlkem/mlkem_test.go`) implemented entirely in pure Go standard library with zero external dependencies.
+- NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism implementation supporting both ML-KEM-768 (NIST Category 3 / AES-192 security level) and ML-KEM-1024 (NIST Category 5 / AES-256 security level) parameter sets.
+- Complete polynomial arithmetic in the quotient ring $R_q = \mathbb{Z}_q[X]/(X^{256} + 1)$ with modulus $q = 3329$, negacyclic polynomial multiplication, Centered Binomial Distribution ($\eta = 2$) pseudorandom sampling, deterministic matrix expansion, and byte vector compression/decompression.
+- Chosen-Ciphertext IND-CCA2 security using the Fujisaki-Okamoto (FO) transform with constant-time equality checks and pseudorandom seed derivation ($Z$) for implicit rejection of manipulated ciphertexts.
+- Post-quantum hybrid TLS/ECDH key exchange wrappers combining classical ephemeral NIST P-256 elliptic curves with post-quantum ML-KEM encapsulation, deriving shared session keys through RFC 5869 HKDF-SHA256, sealed with AES-256-GCM authentication confirmation tags.
+- Post-quantum downgrade prevention enforcement, guaranteeing that clients requesting quantum security cannot be silently downgraded to classical-only handshakes by man-in-the-middle attackers.
+- Proxy integration layer (`internal/proxy/mlkem.go`, `internal/proxy/mlkem_test.go`) binding ML-KEM key registries, hybrid handshake negotiation, ephemeral session lifecycles, and Google Apps Script audit persistence.
+- Dedicated REST routing layer (`routes_mlkem.go`, `routes_mlkem_test.go`) exposing `GET /api/pqc/kem/status`, `GET /api/pqc/kem/keys`, `POST /api/pqc/kem/keys/generate`, `POST /api/pqc/kem/encapsulate`, `POST /api/pqc/kem/decapsulate`, `POST /api/pqc/kem/handshake`, and `POST /api/pqc/kem/sessions/verify`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic sheet initialization and persistent audit logging for `MLKEM_Key_Ledger` and `MLKEM_Sessions` sheets, with `mlkem_log_key`, `mlkem_log_session`, and `mlkem_get_status` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/mlkem.go`, `sdk/go/mlkem_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting ML-KEM status queries, key generation, encapsulation, decapsulation, hybrid handshakes, and session verification with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) implementing edge-side ML-KEM post-quantum telemetry and algorithm capabilities reporting (`/edge/pqc/kem/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring an interactive "Quantum ML-KEM & Lattice KEM" tab with NIST FIPS 203 status cards, active encapsulation key tables, keypair generation modals, encapsulation/decapsulation tools, hybrid handshake simulators, and cryptographic session verification.
+- Version bump to 2.3.0 across core binary, manifests, documentation, and client libraries.
+
 ## [2.2.0] - 2026-10-30
 
 ### Added

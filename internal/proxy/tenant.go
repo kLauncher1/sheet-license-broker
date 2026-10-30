@@ -217,4 +217,7 @@ func (p *Proxy) Close() {
 	if p.p2pMesh != nil {
 		p.p2pMesh.Close()
 	}
+	if p.mlkemManager != nil {
+		p.mlkemManager.Close()
+	}
 }

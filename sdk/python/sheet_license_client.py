@@ -992,6 +992,55 @@ class SheetLicenseClient:
         """Performs immediate administrative zeroization across all hardware slots and key registers."""
         return self._request("POST", "/api/hsm/zeroize", {})
 
+    def get_mlkem_status(self) -> Dict[str, Any]:
+        """Queries operational telemetry for the ML-KEM post-quantum lattice subsystem."""
+        return self._request("GET", "/api/pqc/kem/status")
+
+    def list_mlkem_keys(self) -> List[Dict[str, Any]]:
+        """Lists all registered public encapsulation keys."""
+        res = self._request("GET", "/api/pqc/kem/keys")
+        return res.get("keys", [])
+
+    def generate_mlkem_key(self, algorithm: str = "ML-KEM-768") -> Dict[str, Any]:
+        """Generates and registers a new lattice keypair (ML-KEM-768 or ML-KEM-1024)."""
+        return self._request("POST", "/api/pqc/kem/keys/generate", {"algorithm": algorithm})
+
+    def encapsulate_mlkem(self, key_id: Optional[str] = None) -> Dict[str, Any]:
+        """Encapsulates a shared secret against the specified (or default) public key."""
+        return self._request("POST", "/api/pqc/kem/encapsulate", {"key_id": key_id or ""})
+
+    def decapsulate_mlkem(self, key_id: str, ciphertext_hex: str) -> str:
+        """Decapsulates a ciphertext using the server-side private key."""
+        payload = {
+            "key_id": key_id,
+            "ciphertext_hex": ciphertext_hex,
+        }
+        res = self._request("POST", "/api/pqc/kem/decapsulate", payload)
+        return res.get("shared_secret_hex", "")
+
+    def hybrid_kem_handshake(
+        self,
+        client_ecdh_pub_hex: str,
+        client_mlkem_key_id: Optional[str] = None,
+        requested_mode: str = "hybrid",
+        algorithm: str = "ML-KEM-768",
+        client_nonce: str = "",
+    ) -> Dict[str, Any]:
+        """Executes a post-quantum hybrid key exchange handshake (ECDH P-256 + ML-KEM)."""
+        payload = {
+            "client_ecdh_pub_hex": client_ecdh_pub_hex,
+            "client_mlkem_key_id": client_mlkem_key_id or "",
+            "requested_mode": requested_mode,
+            "algorithm": algorithm,
+            "client_nonce": client_nonce,
+        }
+        return self._request("POST", "/api/pqc/kem/handshake", payload)
+
+    def verify_hybrid_kem_session(self, session_id: str) -> Dict[str, Any]:
+        """Verifies an active ephemeral hybrid session."""
+        endpoint = f"/api/pqc/kem/sessions/verify?session_id={urllib.parse.quote(session_id)}"
+        return self._request("GET", endpoint)
+
 
 
 if __name__ == "__main__":

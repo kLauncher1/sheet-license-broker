@@ -34,6 +34,8 @@ const SHEET_HEALING_LEASES = 'Healing_Leases';
 const SHEET_HEALING_TUNNELS = 'Healing_Tunnels';
 const SHEET_HSM_AUDIT_LOG = 'HSM_Audit_Log';
 const SHEET_HSM_VAULT_KEYS = 'HSM_Vault_Keys';
+const SHEET_MLKEM_KEY_LEDGER = 'MLKEM_Key_Ledger';
+const SHEET_MLKEM_SESSIONS = 'MLKEM_Sessions';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -253,6 +255,15 @@ function handleRequest(e, method) {
       case 'hsm_record_derivation':
         return handleHSMRecordDerivation(output, payload);
 
+      case 'mlkem_log_key':
+        return handleMLKEMLogKey(output, payload);
+
+      case 'mlkem_log_session':
+        return handleMLKEMLogSession(output, payload);
+
+      case 'mlkem_get_status':
+        return handleMLKEMGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -292,7 +303,9 @@ function initSheets() {
     { name: SHEET_HEALING_LEASES, cols: ['lease_id', 'borrower_tenant', 'lender_tenant', 'amount', 'borrowed_at', 'expires_at', 'status', 'recall_reason'] },
     { name: SHEET_HEALING_TUNNELS, cols: ['session_id', 'client_id', 'hwid', 'tenant_id', 'state', 'connected_at', 'last_heartbeat', 'updated_at'] },
     { name: SHEET_HSM_AUDIT_LOG, cols: ['timestamp', 'event_type', 'slot_id', 'purpose', 'fingerprint', 'sensor_id', 'details'] },
-    { name: SHEET_HSM_VAULT_KEYS, cols: ['key_id', 'slot_id', 'purpose', 'algorithm', 'fingerprint', 'status', 'created_at'] }
+    { name: SHEET_HSM_VAULT_KEYS, cols: ['key_id', 'slot_id', 'purpose', 'algorithm', 'fingerprint', 'status', 'created_at'] },
+    { name: SHEET_MLKEM_KEY_LEDGER, cols: ['key_id', 'algorithm', 'fingerprint', 'status', 'created_at'] },
+    { name: SHEET_MLKEM_SESSIONS, cols: ['session_id', 'agreed_mode', 'algorithm', 'quantum_resistant', 'expires_at', 'created_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -1969,6 +1982,63 @@ function handleHSMRecordDerivation(output, payload) {
     ]);
   }
   return jsonResponse(output, { status: 'success', key_id: keyId, created_at: createdAt });
+}
+
+function handleMLKEMLogKey(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MLKEM_KEY_LEDGER);
+  const createdAt = payload.created_at || new Date().toISOString();
+  if (sheet) {
+    sheet.appendRow([
+      payload.key_id || Utilities.getUuid(),
+      payload.algorithm || 'ML-KEM-768',
+      payload.fingerprint || '',
+      'active',
+      createdAt
+    ]);
+  }
+  return jsonResponse(output, { status: 'success', key_id: payload.key_id, logged_at: createdAt });
+}
+
+function handleMLKEMLogSession(output, payload) {
+  payload = payload || {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MLKEM_SESSIONS);
+  const createdAt = new Date().toISOString();
+  if (sheet) {
+    sheet.appendRow([
+      payload.session_id || Utilities.getUuid(),
+      payload.agreed_mode || 'hybrid',
+      payload.algorithm || 'ML-KEM-768',
+      payload.quantum_resistant === true,
+      payload.expires_at || '',
+      createdAt
+    ]);
+  }
+  return jsonResponse(output, { status: 'success', session_id: payload.session_id, logged_at: createdAt });
+}
+
+function handleMLKEMGetStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const keySheet = ss.getSheetByName(SHEET_MLKEM_KEY_LEDGER);
+  const sessSheet = ss.getSheetByName(SHEET_MLKEM_SESSIONS);
+  let totalKeys = 0;
+  let totalSessions = 0;
+  if (keySheet) {
+    totalKeys = Math.max(0, keySheet.getLastRow() - 1);
+  }
+  if (sessSheet) {
+    totalSessions = Math.max(0, sessSheet.getLastRow() - 1);
+  }
+  return jsonResponse(output, {
+    status: 'success',
+    fips_standard: 'NIST_FIPS_203_ML_KEM',
+    registered_keys: totalKeys,
+    active_sessions: totalSessions,
+    quantum_resistant: true,
+    timestamp: new Date().toISOString()
+  });
 }
 
 
