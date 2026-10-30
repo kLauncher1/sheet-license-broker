@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.3.x   | :white_check_mark: |
 | 2.2.x   | :white_check_mark: |
 | 2.1.x   | :white_check_mark: |
 | 2.0.x   | :white_check_mark: |
@@ -174,6 +175,13 @@
     - **Constant-Time PIN Verification**: PIN comparisons for both User and Security Officer (SO) roles utilize constant-time comparison (`crypto/subtle.ConstantTimeCompare`) with maximum failed attempt lockout counters to protect against brute-force attacks.
     - **HSM-Backed HKDF Master Key Derivation**: Master keys are derived on-demand inside the HSM using RFC 5869 HKDF-SHA256 with distinct domain separation contexts (audit tokens vs database snapshots), preventing cleartext master key leakage.
     - **FIPS 140-3 Level 4 Tamper Response & Emergency Zeroization**: Hardware physical sensor trips (`PHYSICAL_MESH_BREACH`, `THERMAL_OUT_OF_RANGE`, `VOLTAGE_GLITCH`) immediately trigger the emergency zeroization barrier, purging all token key memory and locking the module into a fail-secure state until authorized re-initialization.
+
+29. **Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography Security (NIST FIPS 203)**:
+    - **Post-Quantum Cryptographic Assurance**: Implements NIST FIPS 203 ML-KEM (Module-Lattice-Based Key-Encapsulation Mechanism) with parameter sets ML-KEM-768 (Category 3 / 192-bit quantum security) and ML-KEM-1024 (Category 5 / 256-bit quantum security). Protects session key exchange against "Harvest Now, Decrypt Later" (HNDL) attacks by quantum computers capable of running Shor's algorithm.
+    - **Fujisaki-Okamoto Transform Implicit Rejection**: Decapsulation applies the Fujisaki-Okamoto (FO) transform with constant-time equality checks (`subtle.ConstantTimeCompare`). If an attacker tampers with or crafts an invalid ciphertext, the algorithm yields a deterministic pseudorandom value derived from the secret seed $Z$ without alerting the attacker or leaking side-channel timing information (IND-CCA2 chosen-ciphertext security).
+    - **Hybrid Ephemeral Post-Quantum Forward Secrecy**: Combines classical ephemeral NIST P-256 ECDH with post-quantum ML-KEM key encapsulation. Shared secrets are derived using RFC 5869 HKDF-SHA256 (`hkdfExtractAndExpand`), requiring both the classical discrete logarithm and the module-lattice learning-with-errors (LWE) problem to be simultaneously broken to compromise the session key.
+    - **Strict Downgrade Prevention Enforcement**: When quantum enforcement (`QuantumEnforced = true`) is enabled on a tenant or endpoint, classical-only fallback handshakes are rejected with an explicit downgrade violation error, preventing man-in-the-middle attackers from stripping post-quantum encapsulation ciphertexts.
+    - **Ephemeral Session Lifecycles & Memory Zeroization**: Key exchange sessions enforce a short TTL (15 minutes), single-use token binding, and background reaper sweeps. Sensitive shared secrets and intermediate seed buffers are deterministically zeroized in memory upon derivation.
 
 ## Reporting a Vulnerability
 

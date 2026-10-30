@@ -797,5 +797,31 @@ export class SheetLicenseClient {
     async zeroizeHsm() {
         return this.request('POST', '/api/hsm/zeroize', {});
     }
+    async getMLKEMStatus() {
+        return this.request('GET', '/api/pqc/kem/status');
+    }
+    async listMLKEMKeys() {
+        const res = await this.request('GET', '/api/pqc/kem/keys');
+        return res.keys || [];
+    }
+    async generateMLKEMKey(algorithm = 'ML-KEM-768') {
+        return this.request('POST', '/api/pqc/kem/keys/generate', { algorithm });
+    }
+    async encapsulateMLKEM(keyId) {
+        return this.request('POST', '/api/pqc/kem/encapsulate', { key_id: keyId || '' });
+    }
+    async decapsulateMLKEM(keyId, ciphertextHex) {
+        const res = await this.request('POST', '/api/pqc/kem/decapsulate', {
+            key_id: keyId,
+            ciphertext_hex: ciphertextHex,
+        });
+        return res.shared_secret_hex;
+    }
+    async hybridKEMHandshake(req) {
+        return this.request('POST', '/api/pqc/kem/handshake', req);
+    }
+    async verifyHybridKEMSession(sessionId) {
+        return this.request('GET', `/api/pqc/kem/sessions/verify?session_id=${encodeURIComponent(sessionId)}`);
+    }
 }
 //# sourceMappingURL=client.js.map

@@ -192,10 +192,16 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [x] Multi-language client SDK methods across Go, TypeScript, Python, C#, and Cloudflare Worker (`sdk/`, `edge/cloudflare/worker.js`)
 - [x] Embedded admin console Hardware HSM & PKCS#11 Vault interactive dashboard tab (`web/dist/index.html`)
 
-## Phase 23: Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography (v2.3.0)
-- [ ] NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM / Kyber-768/1024)
-- [ ] Post-quantum hybrid TLS key exchange wrappers and ephemeral forward secrecy
-- [ ] Post-quantum client SDK handshakes with fallback resilience
+## Phase 23: Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography (v2.3.0) - Completed
+- [x] NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM / Kyber-768/1024) with pure Go standard library
+- [x] Ring arithmetic in R_q, CBD sampling, deterministic uniform matrix generation, and Fujisaki-Okamoto implicit rejection
+- [x] Post-quantum hybrid TLS/ECDH (P-256 + ML-KEM) key exchange wrappers with ephemeral forward secrecy and AES-256-GCM auth confirmation
+- [x] Strict downgrade prevention enforcement and classical fallback compatibility modes
+- [x] Dedicated ML-KEM REST router (
+outes_mlkem.go) and proxy orchestration (internal/proxy/mlkem.go)
+- [x] Google Apps Script backend sheets (MLKEM_Key_Ledger, MLKEM_Sessions) and action handlers (gas/Code.gs)
+- [x] Multi-language client SDK bindings across Go, TypeScript, Python, C#, and Cloudflare Edge Worker (sdk/, edge/cloudflare/worker.js)
+- [x] Embedded admin console Quantum ML-KEM & Lattice KEM interactive dashboard tab (web/dist/index.html)
 
 ## Phase 24: Confidential Computing SEV-SNP Remote Enclave Validation (v2.4.0)
 - [ ] AMD SEV-SNP and Intel TDX remote attestation report cryptographic verification
@@ -302,5 +308,13 @@ This roadmap outlines the planned development trajectory for `sheet-license-brok
 - [ ] Measured boot log verification with PCR extension and remote attestation validation
 - [ ] Tamper-proof ephemeral session generation anchored directly to hardware PUF (Physically Unclonable Function)
 
+## Phase 45: Autonomous Post-Quantum Hybrid TLS 1.3 KEM-Extension & Zero-Round-Trip Pre-Shared Keys (v4.5.0)
+- [ ] NIST FIPS 203 ML-KEM-768/1024 TLS 1.3 Key Exchange Negotiation and 0-RTT PSK Replay Resistance
+- [ ] Hardware-accelerated Kyber matrix vector arithmetic and SIMD constant-time NTT transforms
+- [ ] Cross-cloud zero-trust hybrid KEM session migration with cryptographic forward secrecy
 
+## Phase 46: Oblivious Verifiable Entitlement Trees & Ephemeral Zero-Knowledge Blind Tokens (v4.6.0)
+- [ ] Privacy-preserving blind entitlement tokens using Groth16 / Plonk zk-SNARK proof circuits
+- [ ] Decentralized anonymous license verification without tenant identity disclosure
+- [ ] Tamper-evident merkle tree membership proofs with constant-time verification gas optimization
 

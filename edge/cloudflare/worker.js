@@ -55,7 +55,12 @@ export default {
       return handleEdgeHSMStatus(request, env);
     }
 
-    // 8. Forward all other routes to origin
+    // 8. Intercept Post-Quantum ML-KEM telemetry & hybrid tunnel capability at edge
+    if (url.pathname === '/edge/pqc/kem/status' && request.method === 'GET') {
+      return handleEdgeMLKEMStatus(request, env);
+    }
+
+    // 9. Forward all other routes to origin
     return forwardToOrigin(request, env);
   }
 };
@@ -543,6 +548,24 @@ export async function handleEdgeHSMStatus(request, env) {
     supported_mechanisms: ['CKM_AES_GCM', 'CKM_HKDF_DERIVE', 'CKM_ECDSA'],
     zeroize_on_tamper: true,
     tamper_detected: false,
+    timestamp: new Date().toISOString()
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Broker-Edge': 'cloudflare-worker'
+    }
+  });
+}
+
+export async function handleEdgeMLKEMStatus(request, env) {
+  return new Response(JSON.stringify({
+    edge_pqc_kem_enabled: true,
+    supported_algorithms: ['ML-KEM-768', 'ML-KEM-1024', 'Hybrid-ECDH-P256-MLKEM768'],
+    default_algorithm: 'ML-KEM-768',
+    forward_secrecy: true,
+    fips_standard: 'NIST_FIPS_203',
+    quantum_enforced: false,
     timestamp: new Date().toISOString()
   }), {
     status: 200,

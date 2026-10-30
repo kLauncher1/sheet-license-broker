@@ -1082,6 +1082,86 @@ namespace SheetLicenseBroker
         public string ZeroizeHSM() =>
             ZeroizeHSMAsync().GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Queries real-time operational status and telemetry for the ML-KEM lattice subsystem.
+        /// </summary>
+        public async Task<string> GetMLKEMStatusAsync() =>
+            await SendRequestAsync("GET", "/api/pqc/kem/status", null).ConfigureAwait(false);
+
+        public string GetMLKEMStatus() =>
+            GetMLKEMStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Lists all registered public encapsulation keys.
+        /// </summary>
+        public async Task<string> ListMLKEMKeysAsync() =>
+            await SendRequestAsync("GET", "/api/pqc/kem/keys", null).ConfigureAwait(false);
+
+        public string ListMLKEMKeys() =>
+            ListMLKEMKeysAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Generates and registers a new lattice keypair (ML-KEM-768 or ML-KEM-1024).
+        /// </summary>
+        public async Task<string> GenerateMLKEMKeyAsync(string algorithm = "ML-KEM-768")
+        {
+            string body = string.Format("{{\"algorithm\":\"{0}\"}}", EscapeJson(algorithm ?? "ML-KEM-768"));
+            return await SendRequestAsync("POST", "/api/pqc/kem/keys/generate", body).ConfigureAwait(false);
+        }
+
+        public string GenerateMLKEMKey(string algorithm = "ML-KEM-768") =>
+            GenerateMLKEMKeyAsync(algorithm).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Encapsulates a shared secret against the specified (or default) public key.
+        /// </summary>
+        public async Task<string> EncapsulateMLKEMAsync(string keyId = "")
+        {
+            string body = string.Format("{{\"key_id\":\"{0}\"}}", EscapeJson(keyId ?? ""));
+            return await SendRequestAsync("POST", "/api/pqc/kem/encapsulate", body).ConfigureAwait(false);
+        }
+
+        public string EncapsulateMLKEM(string keyId = "") =>
+            EncapsulateMLKEMAsync(keyId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Decapsulates a ciphertext using the server-side private key.
+        /// </summary>
+        public async Task<string> DecapsulateMLKEMAsync(string keyId, string ciphertextHex)
+        {
+            string body = string.Format("{{\"key_id\":\"{0}\",\"ciphertext_hex\":\"{1}\"}}",
+                EscapeJson(keyId ?? ""), EscapeJson(ciphertextHex ?? ""));
+            return await SendRequestAsync("POST", "/api/pqc/kem/decapsulate", body).ConfigureAwait(false);
+        }
+
+        public string DecapsulateMLKEM(string keyId, string ciphertextHex) =>
+            DecapsulateMLKEMAsync(keyId, ciphertextHex).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Executes a post-quantum hybrid key exchange handshake (ECDH P-256 + ML-KEM).
+        /// </summary>
+        public async Task<string> HybridKEMHandshakeAsync(string clientEcdhPubHex, string clientMlkemKeyId = "", string requestedMode = "hybrid", string algorithm = "ML-KEM-768", string clientNonce = "")
+        {
+            string body = string.Format("{{\"client_ecdh_pub_hex\":\"{0}\",\"client_mlkem_key_id\":\"{1}\",\"requested_mode\":\"{2}\",\"algorithm\":\"{3}\",\"client_nonce\":\"{4}\"}}",
+                EscapeJson(clientEcdhPubHex ?? ""), EscapeJson(clientMlkemKeyId ?? ""), EscapeJson(requestedMode ?? "hybrid"), EscapeJson(algorithm ?? "ML-KEM-768"), EscapeJson(clientNonce ?? ""));
+            return await SendRequestAsync("POST", "/api/pqc/kem/handshake", body).ConfigureAwait(false);
+        }
+
+        public string HybridKEMHandshake(string clientEcdhPubHex, string clientMlkemKeyId = "", string requestedMode = "hybrid", string algorithm = "ML-KEM-768", string clientNonce = "") =>
+            HybridKEMHandshakeAsync(clientEcdhPubHex, clientMlkemKeyId, requestedMode, algorithm, clientNonce).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Verifies an active ephemeral hybrid session.
+        /// </summary>
+        public async Task<string> VerifyHybridKEMSessionAsync(string sessionId)
+        {
+            string url = "/api/pqc/kem/sessions/verify?session_id=" + Uri.EscapeDataString(sessionId ?? "");
+            return await SendRequestAsync("GET", url, null).ConfigureAwait(false);
+        }
+
+        public string VerifyHybridKEMSession(string sessionId) =>
+            VerifyHybridKEMSessionAsync(sessionId).GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

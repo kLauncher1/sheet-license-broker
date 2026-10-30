@@ -1211,6 +1211,108 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/pqc/kem/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            initialized: true,
+            active_keys_count: 2,
+            default_algorithm: 'ML-KEM-768',
+            active_sessions_count: 1,
+            quantum_enforced: false,
+            total_encapsulations: 10,
+            total_decapsulations: 10,
+            total_handshakes: 5,
+            fallback_attempts: 1,
+            fallback_rejected: 0,
+            uptime_seconds: 120
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/kem/keys' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            keys: [
+              {
+                key_id: 'mlkem-768-mock-01',
+                algorithm: 'ML-KEM-768',
+                fingerprint: 'fp-mock-768-01',
+                raw_hex: '0102030405',
+                created_at: new Date().toISOString()
+              }
+            ]
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/kem/keys/generate' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            key_id: 'mlkem-1024-mock-02',
+            algorithm: body.algorithm || 'ML-KEM-1024',
+            fingerprint: 'fp-mock-1024-02',
+            raw_hex: '0908070605',
+            created_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/kem/encapsulate' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            key_id: body.key_id || 'mlkem-768-mock-01',
+            algorithm: 'ML-KEM-768',
+            ciphertext_hex: 'c0ffeec0ffee',
+            shared_secret_hex: 'feedfacefeedfacefeedfacefeedface',
+            encapsulated_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/kem/decapsulate' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            key_id: body.key_id,
+            shared_secret_hex: 'feedfacefeedfacefeedfacefeedface'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/pqc/kem/handshake' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            session_id: 'sess-pqc-mock-777',
+            server_ecdh_pub_hex: '04aabbccddeeff00112233445566778899',
+            ciphertext_hex: 'c0ffeec0ffee',
+            auth_tag_hex: 'aabbcc112233',
+            agreed_mode: body.requested_mode || 'hybrid',
+            algorithm: body.algorithm || 'ML-KEM-768',
+            quantum_resistant: true,
+            expires_at: new Date(Date.now() + 900000).toISOString()
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/pqc/kem/sessions/verify') && req.method === 'GET') {
+          const urlObj = new URL(req.url, 'http://127.0.0.1');
+          const sid = urlObj.searchParams.get('session_id');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            valid: true,
+            session_id: sid || 'sess-pqc-mock-777',
+            agreed_mode: 'hybrid',
+            algorithm: 'ML-KEM-768',
+            quantum_resistant: true,
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 900000).toISOString()
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -1759,6 +1861,44 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
 
     const zeroize = await client.zeroizeHsm();
     assert.strictEqual(zeroize.zeroized, true);
+  });
+
+  it('queries ML-KEM status, lists keys, generates key, encapsulates/decapsulates, performs hybrid handshake, and verifies session', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const status = await client.getMLKEMStatus();
+    assert.strictEqual(status.initialized, true);
+    assert.strictEqual(status.default_algorithm, 'ML-KEM-768');
+    assert.strictEqual(status.active_keys_count, 2);
+
+    const keys = await client.listMLKEMKeys();
+    assert.strictEqual(keys.length, 1);
+    assert.strictEqual(keys[0].algorithm, 'ML-KEM-768');
+
+    const generated = await client.generateMLKEMKey('ML-KEM-1024');
+    assert.strictEqual(generated.key_id, 'mlkem-1024-mock-02');
+    assert.strictEqual(generated.algorithm, 'ML-KEM-1024');
+
+    const encap = await client.encapsulateMLKEM(generated.key_id);
+    assert.strictEqual(encap.key_id, generated.key_id);
+    assert.strictEqual(encap.ciphertext_hex, 'c0ffeec0ffee');
+
+    const decapSS = await client.decapsulateMLKEM(generated.key_id, encap.ciphertext_hex);
+    assert.strictEqual(decapSS, encap.shared_secret_hex);
+
+    const hs = await client.hybridKEMHandshake({
+      client_ecdh_pub_hex: '0411223344556677889900aabbccddeeff0011223344556677889900aabbccddeeff',
+      requested_mode: 'hybrid',
+      algorithm: 'ML-KEM-768',
+      client_nonce: 'ts-nonce-456',
+    });
+    assert.strictEqual(hs.session_id, 'sess-pqc-mock-777');
+    assert.strictEqual(hs.quantum_resistant, true);
+    assert.strictEqual(hs.agreed_mode, 'hybrid');
+
+    const sessVerify = await client.verifyHybridKEMSession(hs.session_id);
+    assert.strictEqual(sessVerify.valid, true);
+    assert.strictEqual(sessVerify.session_id, hs.session_id);
+    assert.strictEqual(sessVerify.quantum_resistant, true);
   });
 });
 

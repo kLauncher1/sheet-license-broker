@@ -997,6 +997,71 @@ export interface HSMFIPS140AuditReport {
   generated_at: string;
 }
 
+export interface MLKEMStatus {
+  initialized: boolean;
+  active_keys_count: number;
+  default_algorithm: string;
+  active_sessions_count: number;
+  quantum_enforced: boolean;
+  total_encapsulations: number;
+  total_decapsulations: number;
+  total_handshakes: number;
+  fallback_attempts: number;
+  fallback_rejected: number;
+  last_handshake_at?: string;
+  uptime_seconds: number;
+}
+
+export interface MLKEMPublicKey {
+  key_id: string;
+  algorithm: string;
+  fingerprint: string;
+  raw_hex: string;
+  created_at: string;
+}
+
+export interface MLKEMEncapsulationResult {
+  key_id: string;
+  algorithm: string;
+  ciphertext_hex: string;
+  shared_secret_hex: string;
+  encapsulated_at: string;
+}
+
+export interface MLKEMDecapsulationResponse {
+  key_id: string;
+  shared_secret_hex: string;
+}
+
+export interface HybridHandshakeRequest {
+  client_ecdh_pub_hex: string;
+  client_mlkem_key_id?: string;
+  requested_mode?: 'hybrid' | 'pqc-only' | 'classical-fallback' | string;
+  algorithm?: string;
+  client_nonce?: string;
+}
+
+export interface HybridHandshakeResponse {
+  session_id: string;
+  server_ecdh_pub_hex: string;
+  ciphertext_hex: string;
+  auth_tag_hex: string;
+  agreed_mode: string;
+  algorithm: string;
+  quantum_resistant: boolean;
+  expires_at: string;
+}
+
+export interface HybridSessionVerification {
+  valid: boolean;
+  session_id: string;
+  agreed_mode: string;
+  algorithm: string;
+  quantum_resistant: boolean;
+  created_at?: string;
+  expires_at?: string;
+}
+
 
 
 

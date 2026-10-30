@@ -466,6 +466,41 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"zeroized\":true}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"initialized\":true,\"active_keys_count\":2,\"default_algorithm\":\"ML-KEM-768\",\"quantum_enforced\":false,\"active_sessions_count\":1}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/keys")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"keys\":[{\"key_id\":\"mlkem-768-cs-01\",\"algorithm\":\"ML-KEM-768\",\"fingerprint\":\"fp-cs-768\"}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/keys/generate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"key_id\":\"mlkem-1024-cs-02\",\"algorithm\":\"ML-KEM-1024\",\"fingerprint\":\"fp-cs-1024\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/encapsulate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"key_id\":\"mlkem-768-cs-01\",\"algorithm\":\"ML-KEM-768\",\"ciphertext_hex\":\"cs_cipher_hex_777\",\"shared_secret_hex\":\"cs_ss_hex_888\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/decapsulate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"key_id\":\"mlkem-768-cs-01\",\"shared_secret_hex\":\"cs_ss_hex_888\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/handshake")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"session_id\":\"sess-cs-pqc-01\",\"server_ecdh_pub_hex\":\"04aabbcc\",\"ciphertext_hex\":\"cs_cipher_hex_777\",\"auth_tag_hex\":\"cs_auth_tag\",\"agreed_mode\":\"hybrid\",\"algorithm\":\"ML-KEM-768\",\"quantum_resistant\":true}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/pqc/kem/sessions/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"session_id\":\"sess-cs-pqc-01\",\"agreed_mode\":\"hybrid\",\"algorithm\":\"ML-KEM-768\",\"quantum_resistant\":true}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -1050,7 +1085,52 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: HSM status, slots, login/logout, derive key, envelope encrypt/decrypt, FIPS test/report, tamper, and zeroize");
 
-                Console.WriteLine("=== All 25 C# Client Tests Passed Successfully! ===");
+                // 26. Test ML-KEM Post-Quantum Key Exchange and Hybrid Sessions
+                string kemStatusRaw = client.GetMLKEMStatusAsync().GetAwaiter().GetResult();
+                if (!kemStatusRaw.Contains("\"initialized\":true") || !kemStatusRaw.Contains("ML-KEM-768"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM status failed: " + kemStatusRaw);
+                    return 1;
+                }
+                string kemKeysRaw = client.ListMLKEMKeysAsync().GetAwaiter().GetResult();
+                if (!kemKeysRaw.Contains("mlkem-768-cs-01"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM keys failed: " + kemKeysRaw);
+                    return 1;
+                }
+                string kemGenRaw = client.GenerateMLKEMKeyAsync("ML-KEM-1024").GetAwaiter().GetResult();
+                if (!kemGenRaw.Contains("mlkem-1024-cs-02") || !kemGenRaw.Contains("ML-KEM-1024"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM generate failed: " + kemGenRaw);
+                    return 1;
+                }
+                string kemEncapRaw = client.EncapsulateMLKEMAsync("mlkem-768-cs-01").GetAwaiter().GetResult();
+                if (!kemEncapRaw.Contains("cs_cipher_hex_777") || !kemEncapRaw.Contains("cs_ss_hex_888"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM encapsulate failed: " + kemEncapRaw);
+                    return 1;
+                }
+                string kemDecapRaw = client.DecapsulateMLKEMAsync("mlkem-768-cs-01", "cs_cipher_hex_777").GetAwaiter().GetResult();
+                if (!kemDecapRaw.Contains("cs_ss_hex_888"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM decapsulate failed: " + kemDecapRaw);
+                    return 1;
+                }
+                string kemHSRaw = client.HybridKEMHandshakeAsync("04112233", "mlkem-768-cs-01", "hybrid", "ML-KEM-768", "cs-nonce").GetAwaiter().GetResult();
+                if (!kemHSRaw.Contains("sess-cs-pqc-01") || !kemHSRaw.Contains("\"quantum_resistant\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM handshake failed: " + kemHSRaw);
+                    return 1;
+                }
+                string kemVerifyRaw = client.VerifyHybridKEMSessionAsync("sess-cs-pqc-01").GetAwaiter().GetResult();
+                if (!kemVerifyRaw.Contains("\"valid\":true") || !kemVerifyRaw.Contains("sess-cs-pqc-01"))
+                {
+                    Console.Error.WriteLine("FAIL: ML-KEM verify session failed: " + kemVerifyRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: ML-KEM status, keys, generate key, encapsulate/decapsulate, hybrid handshake, and verify session");
+
+                Console.WriteLine("=== All 26 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally
