@@ -529,6 +529,52 @@ export class SheetLicenseClient {
         return this.request('GET', '/api/enclave/status');
     }
     /**
+     * Submits an Intel TDX Quote v4 for cryptographic and policy verification.
+     */
+    async verifyTDXQuote(params) {
+        const res = await this.request('POST', '/api/enclave/tdx/verify', {
+            quote: params.quoteHex,
+            nonce: params.nonce,
+            policy_id: params.policyId,
+        });
+        return res.attestation;
+    }
+    /**
+     * Requests an immutable signed attestation token binding hardware measurements and SVN.
+     */
+    async issueAttestationToken(params) {
+        const res = await this.request('POST', '/api/enclave/token/issue', {
+            platform: params.platform || 'intel_tdx',
+            measurement: params.measurement,
+            rtmr0: params.rtmr0,
+            svn: params.svn,
+            debug: params.debug ?? false,
+            nonce: params.nonce,
+            enclave_pub_key: params.enclavePubKey,
+            ttl_seconds: params.ttlSeconds ?? 1800,
+        });
+        return res.token;
+    }
+    /**
+     * Validates an attestation token against minimum SVN and debug posture requirements.
+     */
+    async verifyAttestationToken(params) {
+        const res = await this.request('POST', '/api/enclave/token/verify', {
+            token_id: params.tokenId,
+            token: params.token,
+            min_svn: params.minSVN,
+            allow_debug: params.allowDebug ?? false,
+        });
+        return res.result;
+    }
+    /**
+     * Requests hardware-isolated memory execution and sensitive license evaluation.
+     */
+    async executeIsolatedDecryption(params) {
+        const res = await this.request('POST', '/api/enclave/isolated/decrypt', params);
+        return res.result;
+    }
+    /**
      * Queries the nearest edge Anycast Point of Presence based on coordinates, country, or region.
      */
     async getAnycastRoute(options) {

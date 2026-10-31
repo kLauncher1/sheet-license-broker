@@ -320,5 +320,18 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.equal(data.fips_standard, 'NIST_FIPS_203');
     assert.ok(data.supported_algorithms.includes('Hybrid-ECDH-P256-MLKEM768'));
   });
+
+  test('reports SEV-SNP & Intel TDX confidential enclave capabilities at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/enclave/status');
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_enclave_supported, true);
+    assert.equal(data.remote_attestation_verified, true);
+    assert.equal(data.attestation_tokens_supported, true);
+    assert.equal(data.isolated_memory_execution, true);
+    assert.ok(data.supported_platforms.includes('intel_tdx'));
+    assert.ok(data.supported_platforms.includes('amd_sev_snp'));
+  });
 });
 

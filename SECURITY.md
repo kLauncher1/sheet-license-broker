@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.4.x   | :white_check_mark: |
 | 2.3.x   | :white_check_mark: |
 | 2.2.x   | :white_check_mark: |
 | 2.1.x   | :white_check_mark: |
@@ -182,6 +183,11 @@
     - **Hybrid Ephemeral Post-Quantum Forward Secrecy**: Combines classical ephemeral NIST P-256 ECDH with post-quantum ML-KEM key encapsulation. Shared secrets are derived using RFC 5869 HKDF-SHA256 (`hkdfExtractAndExpand`), requiring both the classical discrete logarithm and the module-lattice learning-with-errors (LWE) problem to be simultaneously broken to compromise the session key.
     - **Strict Downgrade Prevention Enforcement**: When quantum enforcement (`QuantumEnforced = true`) is enabled on a tenant or endpoint, classical-only fallback handshakes are rejected with an explicit downgrade violation error, preventing man-in-the-middle attackers from stripping post-quantum encapsulation ciphertexts.
     - **Ephemeral Session Lifecycles & Memory Zeroization**: Key exchange sessions enforce a short TTL (15 minutes), single-use token binding, and background reaper sweeps. Sensitive shared secrets and intermediate seed buffers are deterministically zeroized in memory upon derivation.
+
+30. **Intel TDX Remote Attestation & Hardware-Isolated Memory Execution Guarantees**:
+    - **Intel TDX Quote v4 Cryptographic Validation**: Validates 48-byte quote headers, 584-byte TDReports, SHA-384 measurements (MRTD and RTMR[0..3]), Security Version Numbers (TCB SVN), and ECDSA P-256 / P-384 signatures against trusted root keys.
+    - **Attestation Token Lifecycle**: Issues HMAC-SHA256 hardware-anchored attestation tokens carrying hardware platform identifiers, measurement digests, security version numbers, and enforced expiration TTLs with constant-time signature verification.
+    - **Hardware-Isolated License Decryption**: Sensitive license keys are decrypted exclusively inside memory-isolated sandboxes (`IsolatedMemorySandbox`); cleartext data is managed inside zero-allocation `SecureBuffer` memory constructs and wiped immediately (`defer secBuf.Destroy()`) upon evaluation, preventing exposure to host OS, hypervisor, or broker layers.
 
 ## Reporting a Vulnerability
 

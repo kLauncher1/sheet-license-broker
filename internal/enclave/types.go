@@ -10,6 +10,7 @@ type PlatformType string
 const (
 	PlatformSGX    PlatformType = "intel_sgx"
 	PlatformSEVSNP PlatformType = "amd_sev_snp"
+	PlatformTDX    PlatformType = "intel_tdx"
 )
 
 // SGXReport represents the core measured properties of an Intel SGX enclave.
@@ -60,6 +61,34 @@ type SEVSNPReport struct {
 	Signature      []byte   `json:"signature"`
 }
 
+// TDXReport models the Trust Domain execution report from Intel TDX hardware.
+type TDXReport struct {
+	TeeType        uint32      `json:"tee_type"`        // 0x00000081 (Intel TDX)
+	TeeTcbSvn      [16]byte    `json:"tee_tcb_svn"`     // Security Version Numbers of TDX TEE components
+	MRSeam         [48]byte    `json:"mr_seam"`         // SHA-384 measurement of Intel SEAM module
+	MRSignerSeam   [48]byte    `json:"mr_signer_seam"`  // SHA-384 measurement of SEAM signer
+	SeamAttributes [8]byte     `json:"seam_attributes"` // Attributes of SEAM module
+	TDAttributes   [8]byte     `json:"td_attributes"`   // Bit 0: DEBUG (must be 0 in production), Bit 30: PKS
+	XFAM           [8]byte     `json:"xfam"`            // Extended Features Allowed Mask
+	MRTD           [48]byte    `json:"mrtd"`            // SHA-384 initial guest memory & vCPU measurement
+	RTMR           [4][48]byte `json:"rtmr"`            // 4 Runtime Measurement Registers (SHA-384)
+	ReportData     [64]byte    `json:"report_data"`     // 64-byte user report data (e.g., nonce / key binding)
+}
+
+// TDXQuoteV4 represents an Intel TDX Quote (Version 4 format).
+type TDXQuoteV4 struct {
+	Version            uint16    `json:"version"`              // 4
+	AttestationKeyType uint16    `json:"attestation_key_type"` // 2 = ECDSA P-256, 3 = ECDSA P-384
+	TeeType            uint32    `json:"tee_type"`             // 0x00000081
+	QESVN              uint16    `json:"qe_svn"`
+	PCESVN             uint16    `json:"pce_svn"`
+	VendorID           [16]byte  `json:"vendor_id"`
+	UserData           [20]byte  `json:"user_data"`
+	Report             TDXReport `json:"report"`
+	Signature          []byte    `json:"signature"`
+	AttestationKey     []byte    `json:"attestation_key"` // ECDSA public key
+}
+
 // EnclavePolicy defines authorization constraints for acceptable hardware enclaves.
 type EnclavePolicy struct {
 	ID                  string       `json:"id"`
@@ -83,6 +112,8 @@ type AttestationResult struct {
 	MREnclave      string       `json:"mr_enclave,omitempty"`
 	MRSigner       string       `json:"mr_signer,omitempty"`
 	Measurement    string       `json:"measurement,omitempty"`
+	MRTD           string       `json:"mrtd,omitempty"`
+	RTMR0          string       `json:"rtmr0,omitempty"`
 	SVN            uint32       `json:"svn"`
 	Debug          bool         `json:"debug"`
 	ReportDataHex  string       `json:"report_data_hex"`
@@ -127,4 +158,58 @@ type EnclaveTelemetry struct {
 	FailedAttestations  int64            `json:"failed_attestations"`
 	QuotesByPlatform    map[string]int64 `json:"quotes_by_platform"`
 	ActivePoliciesCount int              `json:"active_policies_count"`
+	ActiveTokensCount   int              `json:"active_tokens_count"`
+	IsolatedDecryptions int64            `json:"isolated_decryptions"`
+}
+
+// AttestationToken represents a signed binding between hardware measurements, SVN, nonce, and session.
+type AttestationToken struct {
+	TokenID        string       `json:"token_id"`
+	Platform       PlatformType `json:"platform"`
+	Measurement    string       `json:"measurement"`    // Hex measurement (SEV launch digest or TDX MRTD)
+	RTMR0          string       `json:"rtmr0,omitempty"` // TDX RTMR[0]
+	SVN            uint32       `json:"svn"`            // GuestSVN or TeeTcbSvn
+	DebugAllowed   bool         `json:"debug_allowed"`
+	ChallengeNonce string       `json:"challenge_nonce"`
+	EnclavePubKey  string       `json:"enclave_pub_key,omitempty"` // Hex public key
+	IssuedAt       time.Time    `json:"issued_at"`
+	ExpiresAt      time.Time    `json:"expires_at"`
+	Signature      string       `json:"signature"` // Hex HMAC-SHA256 signature by Broker Root
+}
+
+// TokenVerifyResult models the outcome of validating an attestation token.
+type TokenVerifyResult struct {
+	Valid        bool              `json:"valid"`
+	Token        *AttestationToken `json:"token,omitempty"`
+	Platform     PlatformType      `json:"platform,omitempty"`
+	SVN          uint32            `json:"svn,omitempty"`
+	Measurement  string            `json:"measurement,omitempty"`
+	ErrorMessage string            `json:"error_message,omitempty"`
+}
+
+// IsolatedDecryptionRequest specifies an encrypted license payload to be decrypted
+// strictly inside attested hardware-isolated enclave memory.
+type IsolatedDecryptionRequest struct {
+	Platform            PlatformType `json:"platform"`
+	EnclaveToken        string       `json:"attestation_token"`
+	EncryptedPayloadHex string       `json:"encrypted_payload_hex"`
+	NonceHex            string       `json:"nonce_hex"`
+	SessionID           string       `json:"session_id,omitempty"`
+}
+
+// IsolatedDecryptionResult reports the outcome of the in-enclave evaluation without exposing cleartext.
+type IsolatedDecryptionResult struct {
+	Success               bool         `json:"success"`
+	LicenseKeyMasked      string       `json:"license_key_masked"`
+	Tier                  string       `json:"tier"`
+	Features              []string     `json:"features"`
+	ExpiresAt             string       `json:"expires_at"`
+	Platform              PlatformType `json:"platform"`
+	SVN                   uint32       `json:"svn"`
+	HardwareIsolated      bool         `json:"hardware_isolated"`
+	MemoryZeroized        bool         `json:"memory_zeroized"`
+	ExecutionTimeMicrosec int64        `json:"execution_time_us"`
+	EvaluationDigest      string       `json:"evaluation_digest"` // SHA-256 of verdict
+	EvaluatedAt           time.Time    `json:"evaluated_at"`
+	ErrorMessage          string       `json:"error_message,omitempty"`
 }

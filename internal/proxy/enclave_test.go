@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -117,5 +119,104 @@ func TestProxyEnclaveIntegration(t *testing.T) {
 	telemetry := px.GetEnclaveTelemetry()
 	if telemetry.VerifiedQuotes < 1 || telemetry.TotalEvaluations < 1 {
 		t.Fatalf("enclave telemetry not recorded properly: %+v", telemetry)
+	}
+}
+
+func TestProxyTDXAndIsolatedDecryption(t *testing.T) {
+	px, err := NewProxy(ProxyConfig{OfflineMode: true})
+	if err != nil {
+		t.Fatalf("failed to create proxy: %v", err)
+	}
+	defer px.Close()
+
+	ctx := context.Background()
+
+	// Pre-seed an active license
+	lic, err := px.CreateLicense(ctx, 30, 1)
+	if err != nil {
+		t.Fatalf("failed to create license: %v", err)
+	}
+
+	// 1. Generate challenge nonce
+	nonce, err := px.GenerateEnclaveChallenge()
+	if err != nil {
+		t.Fatalf("failed to generate challenge: %v", err)
+	}
+
+	// 2. TDX Quote generation
+	var mrtd [48]byte
+	var rtmr [4][48]byte
+	var reportData [64]byte
+	var svn [16]byte
+	copy(mrtd[:], []byte("intel_tdx_mrtd_launch_digest_mock_384_bytes_0000"))
+	copy(rtmr[0][:], []byte("intel_tdx_rtmr_0_kernel_measurement_mock_bytes00"))
+	expectedReportData := sha256.Sum256([]byte(nonce))
+	copy(reportData[:], expectedReportData[:])
+	svn[0] = 2
+
+	privKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	rawQuote, err := enclave.GenerateMockTDXQuote(mrtd, rtmr, reportData, svn, false, privKey)
+	if err != nil {
+		t.Fatalf("failed to generate mock TDX quote: %v", err)
+	}
+
+	// 3. Verify TDX Quote via proxy
+	attestRes, err := px.VerifyTDXQuote(rawQuote, nonce, "default-tdx")
+	if err != nil {
+		t.Fatalf("px.VerifyTDXQuote failed: %v", err)
+	}
+	if !attestRes.Valid || attestRes.Platform != enclave.PlatformTDX {
+		t.Errorf("expected valid PlatformTDX result, got %+v", attestRes)
+	}
+
+	// 4. Issue Attestation Token via proxy
+	tok, err := px.IssueEnclaveAttestationToken(
+		enclave.PlatformTDX,
+		attestRes.Measurement,
+		attestRes.RTMR0,
+		attestRes.SVN,
+		attestRes.Debug,
+		nonce,
+		"pub_key_hex_test",
+		1800,
+	)
+	if err != nil {
+		t.Fatalf("px.IssueEnclaveAttestationToken failed: %v", err)
+	}
+
+	// 5. Verify Attestation Token via proxy
+	vTokRes, err := px.VerifyEnclaveAttestationToken(tok, 1, false)
+	if err != nil || !vTokRes.Valid {
+		t.Fatalf("px.VerifyEnclaveAttestationToken failed: %v", err)
+	}
+
+	// 6. Test Isolated License Decryption via proxy
+	sessionKey := make([]byte, 32)
+	copy(sessionKey, []byte("32_byte_aes_gcm_session_key_123!"))
+	decNonce := make([]byte, 12)
+	copy(decNonce, []byte("12_byte_nonc"))
+
+	// Encrypt license payload
+	block, _ := aes.NewCipher(sessionKey)
+	gcm, _ := cipher.NewGCM(block)
+	payloadBytes, _ := json.Marshal(enclave.EnclaveEvalPayload{LicenseKey: lic.LicenseKey})
+	ciphertext := gcm.Seal(nil, decNonce, payloadBytes, nil)
+
+	decReq := &enclave.IsolatedDecryptionRequest{
+		Platform:            enclave.PlatformTDX,
+		EnclaveToken:        tok.TokenID,
+		EncryptedPayloadHex: hex.EncodeToString(ciphertext),
+		NonceHex:            hex.EncodeToString(decNonce),
+	}
+
+	decRes, err := px.ExecuteIsolatedLicenseDecryption(ctx, decReq, sessionKey, tok)
+	if err != nil {
+		t.Fatalf("px.ExecuteIsolatedLicenseDecryption failed: %v", err)
+	}
+	if !decRes.Success || !decRes.HardwareIsolated || !decRes.MemoryZeroized {
+		t.Errorf("expected successful isolated decryption, got %+v", decRes)
+	}
+	if decRes.LicenseKeyMasked == lic.LicenseKey {
+		t.Errorf("license key should be masked, got cleartext: %s", decRes.LicenseKeyMasked)
 	}
 }

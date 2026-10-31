@@ -606,6 +606,84 @@ class SheetLicenseClient:
         """Queries confidential computing operational telemetry and registered policies."""
         return self._request("GET", "/api/enclave/status")
 
+    def verify_tdx_quote(
+        self,
+        quote_hex: str,
+        nonce: str,
+        policy_id: str = "",
+    ) -> Dict[str, Any]:
+        """Submits an Intel TDX Quote v4 for cryptographic and policy verification."""
+        payload = {
+            "quote": quote_hex,
+            "nonce": nonce,
+            "policy_id": policy_id,
+        }
+        res = self._request("POST", "/api/enclave/tdx/verify", payload)
+        return res.get("attestation", res)
+
+    def issue_attestation_token(
+        self,
+        platform: str = "intel_tdx",
+        measurement: str = "",
+        rtmr0: str = "",
+        svn: int = 1,
+        debug: bool = False,
+        nonce: str = "",
+        enclave_pub_key: str = "",
+        ttl_seconds: int = 1800,
+    ) -> Dict[str, Any]:
+        """Requests an immutable signed attestation token binding hardware measurements and SVN."""
+        payload = {
+            "platform": platform,
+            "measurement": measurement,
+            "rtmr0": rtmr0,
+            "svn": svn,
+            "debug": debug,
+            "nonce": nonce,
+            "enclave_pub_key": enclave_pub_key,
+            "ttl_seconds": ttl_seconds,
+        }
+        res = self._request("POST", "/api/enclave/token/issue", payload)
+        return res.get("token", res)
+
+    def verify_attestation_token(
+        self,
+        token_id: str = "",
+        token: Optional[Dict[str, Any]] = None,
+        min_svn: int = 0,
+        allow_debug: bool = False,
+    ) -> Dict[str, Any]:
+        """Validates an attestation token against minimum SVN and debug posture requirements."""
+        payload = {
+            "token_id": token_id,
+            "token": token,
+            "min_svn": min_svn,
+            "allow_debug": allow_debug,
+        }
+        res = self._request("POST", "/api/enclave/token/verify", payload)
+        return res.get("result", res)
+
+    def execute_isolated_decryption(
+        self,
+        platform: str = "intel_tdx",
+        token_id: str = "",
+        token: Optional[Dict[str, Any]] = None,
+        encrypted_payload_hex: str = "",
+        nonce_hex: str = "",
+        session_key_hex: str = "",
+    ) -> Dict[str, Any]:
+        """Requests hardware-isolated memory execution and sensitive license evaluation."""
+        payload = {
+            "platform": platform,
+            "token_id": token_id,
+            "token": token,
+            "encrypted_payload_hex": encrypted_payload_hex,
+            "nonce_hex": nonce_hex,
+            "session_key_hex": session_key_hex,
+        }
+        res = self._request("POST", "/api/enclave/isolated/decrypt", payload)
+        return res.get("result", res)
+
     def get_anycast_route(
         self,
         lat: float = 0.0,

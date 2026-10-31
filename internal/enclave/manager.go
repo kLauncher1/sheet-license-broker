@@ -25,22 +25,27 @@ type Manager struct {
 	policies     map[string]*EnclavePolicy
 	nonces       map[string]time.Time
 	tunnelMgr    *TunnelManager
+	tokenMgr     *TokenManager
+	sandbox      *IsolatedMemorySandbox
 	telemetry    EnclaveTelemetry
 	vcekKey      interface{} // Optional custom VCEK key for SEV-SNP
 }
 
 // NewManager creates and initializes the confidential computing enclave coordinator.
 func NewManager() *Manager {
+	tokenMgr := NewTokenManager(nil)
 	m := &Manager{
 		policies:  make(map[string]*EnclavePolicy),
 		nonces:    make(map[string]time.Time),
 		tunnelMgr: NewTunnelManager(),
+		tokenMgr:  tokenMgr,
+		sandbox:   NewIsolatedMemorySandbox(tokenMgr),
 		telemetry: EnclaveTelemetry{
 			QuotesByPlatform: make(map[string]int64),
 		},
 	}
 
-	// Register default baseline policies for SGX and SEV-SNP
+	// Register default baseline policies for SGX, SEV-SNP, and Intel TDX
 	m.RegisterPolicy(&EnclavePolicy{
 		ID:          "default-sgx",
 		Name:        "Production Intel SGX Strict Policy",
@@ -61,8 +66,28 @@ func NewManager() *Manager {
 		UpdatedAt:   time.Now().UTC(),
 	})
 
+	m.RegisterPolicy(&EnclavePolicy{
+		ID:          "default-tdx",
+		Name:        "Production Intel TDX Strict Policy",
+		Platform:    PlatformTDX,
+		MinGuestSVN: 1,
+		AllowDebug:  false,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	})
+
 	go m.nonceCleanupLoop()
 	return m
+}
+
+// TokenManager returns the attestation token manager.
+func (m *Manager) TokenManager() *TokenManager {
+	return m.tokenMgr
+}
+
+// Sandbox returns the hardware-isolated memory execution sandbox.
+func (m *Manager) Sandbox() *IsolatedMemorySandbox {
+	return m.sandbox
 }
 
 // GenerateChallenge produces a fresh, single-use 32-byte cryptographic nonce for attestation binding.
@@ -177,6 +202,15 @@ func (m *Manager) AttestQuote(platform PlatformType, rawQuote []byte, nonce stri
 		}
 		result, err = VerifySEVSNPReport(report, rawQuote, expectedDigest[:], nil, policy)
 
+	case PlatformTDX:
+		var quote *TDXQuoteV4
+		quote, err = ParseTDXQuote(rawQuote)
+		if err != nil {
+			m.recordFailure()
+			return nil, err
+		}
+		result, err = VerifyTDXQuote(quote, rawQuote, expectedDigest[:], nil, policy)
+
 	default:
 		m.recordFailure()
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, platform)
@@ -242,6 +276,16 @@ func (m *Manager) EstablishTunnel(platform PlatformType, rawQuote []byte, nonce 
 			return nil, "", err
 		}
 		if _, err := VerifySEVSNPReport(report, rawQuote, boundDigest, nil, policy); err != nil {
+			m.recordFailure()
+			return nil, "", err
+		}
+	case PlatformTDX:
+		quote, err := ParseTDXQuote(rawQuote)
+		if err != nil {
+			m.recordFailure()
+			return nil, "", err
+		}
+		if _, err := VerifyTDXQuote(quote, rawQuote, boundDigest, nil, policy); err != nil {
 			m.recordFailure()
 			return nil, "", err
 		}
@@ -334,6 +378,13 @@ func (m *Manager) GetTelemetry() EnclaveTelemetry {
 	res := m.telemetry
 	res.ActiveTunnels = m.tunnelMgr.ActiveCount()
 	res.ActivePoliciesCount = len(m.policies)
+	if m.tokenMgr != nil {
+		res.ActiveTokensCount = m.tokenMgr.ActiveCount()
+	}
+	if m.sandbox != nil {
+		decryptions, _ := m.sandbox.GetMetrics()
+		res.IsolatedDecryptions = decryptions
+	}
 
 	// Deep copy platform map
 	res.QuotesByPlatform = make(map[string]int64)

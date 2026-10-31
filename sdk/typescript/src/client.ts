@@ -42,6 +42,10 @@ import type {
   AnomalyIncidentGraph,
   AnomalyTelemetrySummary,
   EnclaveAttestationResult,
+  EnclaveAttestationToken,
+  EnclaveTokenVerifyResult,
+  EnclaveIsolatedDecryptionRequest,
+  EnclaveIsolatedDecryptionResult,
   EnclaveHandshakeResponse,
   EnclaveEncryptedMessage,
   EnclaveTelemetry,
@@ -729,6 +733,74 @@ export class SheetLicenseClient {
    */
   public async getEnclaveStatus(): Promise<{ telemetry: EnclaveTelemetry; policies: any[] }> {
     return this.request<{ telemetry: EnclaveTelemetry; policies: any[] }>('GET', '/api/enclave/status');
+  }
+
+  /**
+   * Submits an Intel TDX Quote v4 for cryptographic and policy verification.
+   */
+  public async verifyTDXQuote(params: {
+    quoteHex: string;
+    nonce: string;
+    policyId?: string;
+  }): Promise<EnclaveAttestationResult> {
+    const res = await this.request<{ valid: boolean; attestation: EnclaveAttestationResult }>('POST', '/api/enclave/tdx/verify', {
+      quote: params.quoteHex,
+      nonce: params.nonce,
+      policy_id: params.policyId,
+    });
+    return res.attestation;
+  }
+
+  /**
+   * Requests an immutable signed attestation token binding hardware measurements and SVN.
+   */
+  public async issueAttestationToken(params: {
+    platform?: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
+    measurement: string;
+    rtmr0?: string;
+    svn: number;
+    debug?: boolean;
+    nonce: string;
+    enclavePubKey?: string;
+    ttlSeconds?: number;
+  }): Promise<EnclaveAttestationToken> {
+    const res = await this.request<{ token: EnclaveAttestationToken }>('POST', '/api/enclave/token/issue', {
+      platform: params.platform || 'intel_tdx',
+      measurement: params.measurement,
+      rtmr0: params.rtmr0,
+      svn: params.svn,
+      debug: params.debug ?? false,
+      nonce: params.nonce,
+      enclave_pub_key: params.enclavePubKey,
+      ttl_seconds: params.ttlSeconds ?? 1800,
+    });
+    return res.token;
+  }
+
+  /**
+   * Validates an attestation token against minimum SVN and debug posture requirements.
+   */
+  public async verifyAttestationToken(params: {
+    tokenId?: string;
+    token?: EnclaveAttestationToken;
+    minSVN?: number;
+    allowDebug?: boolean;
+  }): Promise<EnclaveTokenVerifyResult> {
+    const res = await this.request<{ valid: boolean; result: EnclaveTokenVerifyResult }>('POST', '/api/enclave/token/verify', {
+      token_id: params.tokenId,
+      token: params.token,
+      min_svn: params.minSVN,
+      allow_debug: params.allowDebug ?? false,
+    });
+    return res.result;
+  }
+
+  /**
+   * Requests hardware-isolated memory execution and sensitive license evaluation.
+   */
+  public async executeIsolatedDecryption(params: EnclaveIsolatedDecryptionRequest): Promise<EnclaveIsolatedDecryptionResult> {
+    const res = await this.request<{ result: EnclaveIsolatedDecryptionResult }>('POST', '/api/enclave/isolated/decrypt', params);
+    return res.result;
   }
 
   /**

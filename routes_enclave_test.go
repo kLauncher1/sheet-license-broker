@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -190,5 +192,145 @@ func TestEnclaveRoutes(t *testing.T) {
 	}
 	if !verdict.Valid || !verdict.ZeroPlaintextGuarantee {
 		t.Fatalf("expected valid zero-plaintext verdict, got: %+v", verdict)
+	}
+}
+
+func TestTDXAndTokenRoutes(t *testing.T) {
+	px, err := proxy.NewProxy(proxy.ProxyConfig{OfflineMode: true})
+	if err != nil {
+		t.Fatalf("failed to create proxy: %v", err)
+	}
+	defer px.Close()
+
+	ctx := context.Background()
+	lic, err := px.CreateLicense(ctx, 30, 1)
+	if err != nil {
+		t.Fatalf("failed to seed license: %v", err)
+	}
+
+	guard := security.NewGuard([]byte(""), 5*time.Minute, false)
+	server := &AppServer{proxy: px, guard: guard}
+
+	apiMux := http.NewServeMux()
+	server.registerEnclaveRoutes(apiMux)
+
+	// 1. Generate challenge nonce
+	reqChall := httptest.NewRequest(http.MethodPost, "/api/enclave/challenge", nil)
+	wChall := httptest.NewRecorder()
+	apiMux.ServeHTTP(wChall, reqChall)
+	var challResp struct {
+		Challenge string `json:"challenge"`
+	}
+	json.NewDecoder(wChall.Body).Decode(&challResp)
+
+	// 2. Generate authentic mock TDX quote
+	var mrtd [48]byte
+	var rtmr [4][48]byte
+	var reportData [64]byte
+	var svn [16]byte
+	copy(mrtd[:], []byte("intel_tdx_mrtd_launch_digest_mock_384_bytes_0000"))
+	copy(rtmr[0][:], []byte("intel_tdx_rtmr_0_kernel_measurement_mock_bytes00"))
+	expectedReportData := sha256.Sum256([]byte(challResp.Challenge))
+	copy(reportData[:], expectedReportData[:])
+	svn[0] = 2
+
+	privKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	rawQuote, err := enclave.GenerateMockTDXQuote(mrtd, rtmr, reportData, svn, false, privKey)
+	if err != nil {
+		t.Fatalf("failed to generate mock TDX quote: %v", err)
+	}
+
+	// 3. POST /api/enclave/tdx/verify
+	tdxReqBody, _ := json.Marshal(map[string]interface{}{
+		"quote":     hex.EncodeToString(rawQuote),
+		"nonce":     challResp.Challenge,
+		"policy_id": "default-tdx",
+	})
+	reqTDX := httptest.NewRequest(http.MethodPost, "/api/enclave/tdx/verify", bytes.NewReader(tdxReqBody))
+	wTDX := httptest.NewRecorder()
+	apiMux.ServeHTTP(wTDX, reqTDX)
+	if wTDX.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/enclave/tdx/verify, got %d: %s", wTDX.Code, wTDX.Body.String())
+	}
+
+	var tdxVerifyResp struct {
+		Valid       bool                      `json:"valid"`
+		Attestation *enclave.AttestationResult `json:"attestation"`
+	}
+	json.NewDecoder(wTDX.Body).Decode(&tdxVerifyResp)
+	if !tdxVerifyResp.Valid || tdxVerifyResp.Attestation.Platform != enclave.PlatformTDX {
+		t.Fatalf("invalid TDX attestation response: %+v", tdxVerifyResp)
+	}
+
+	// 4. POST /api/enclave/token/issue
+	issueBody, _ := json.Marshal(map[string]interface{}{
+		"platform":        "intel_tdx",
+		"measurement":     tdxVerifyResp.Attestation.Measurement,
+		"rtmr0":           tdxVerifyResp.Attestation.RTMR0,
+		"svn":             tdxVerifyResp.Attestation.SVN,
+		"debug":           false,
+		"nonce":           challResp.Challenge,
+		"enclave_pub_key": "04abcdef123456",
+		"ttl_seconds":     1800,
+	})
+	reqIssue := httptest.NewRequest(http.MethodPost, "/api/enclave/token/issue", bytes.NewReader(issueBody))
+	wIssue := httptest.NewRecorder()
+	apiMux.ServeHTTP(wIssue, reqIssue)
+	if wIssue.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/enclave/token/issue, got %d: %s", wIssue.Code, wIssue.Body.String())
+	}
+
+	var issueResp struct {
+		Token *enclave.AttestationToken `json:"token"`
+	}
+	json.NewDecoder(wIssue.Body).Decode(&issueResp)
+	if issueResp.Token == nil || issueResp.Token.TokenID == "" {
+		t.Fatalf("expected issued token, got nil")
+	}
+
+	// 5. POST /api/enclave/token/verify
+	verifyTokenBody, _ := json.Marshal(map[string]interface{}{
+		"token_id":    issueResp.Token.TokenID,
+		"min_svn":     1,
+		"allow_debug": false,
+	})
+	reqTokVerify := httptest.NewRequest(http.MethodPost, "/api/enclave/token/verify", bytes.NewReader(verifyTokenBody))
+	wTokVerify := httptest.NewRecorder()
+	apiMux.ServeHTTP(wTokVerify, reqTokVerify)
+	if wTokVerify.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/enclave/token/verify, got %d: %s", wTokVerify.Code, wTokVerify.Body.String())
+	}
+
+	// 6. POST /api/enclave/isolated/decrypt
+	sessionKey := make([]byte, 32)
+	copy(sessionKey, []byte("32_byte_aes_gcm_session_key_123!"))
+	decNonce := make([]byte, 12)
+	copy(decNonce, []byte("12_byte_nonc"))
+
+	block, _ := aes.NewCipher(sessionKey)
+	gcm, _ := cipher.NewGCM(block)
+	payloadBytes, _ := json.Marshal(enclave.EnclaveEvalPayload{LicenseKey: lic.LicenseKey})
+	ciphertext := gcm.Seal(nil, decNonce, payloadBytes, nil)
+
+	decBody, _ := json.Marshal(map[string]interface{}{
+		"platform":              "intel_tdx",
+		"token_id":              issueResp.Token.TokenID,
+		"encrypted_payload_hex": hex.EncodeToString(ciphertext),
+		"nonce_hex":             hex.EncodeToString(decNonce),
+		"session_key_hex":       hex.EncodeToString(sessionKey),
+	})
+	reqDec := httptest.NewRequest(http.MethodPost, "/api/enclave/isolated/decrypt", bytes.NewReader(decBody))
+	wDec := httptest.NewRecorder()
+	apiMux.ServeHTTP(wDec, reqDec)
+	if wDec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/enclave/isolated/decrypt, got %d: %s", wDec.Code, wDec.Body.String())
+	}
+
+	var decResp struct {
+		Result *enclave.IsolatedDecryptionResult `json:"result"`
+	}
+	json.NewDecoder(wDec.Body).Decode(&decResp)
+	if decResp.Result == nil || !decResp.Result.Success || !decResp.Result.HardwareIsolated {
+		t.Fatalf("isolated decryption failed: %+v", decResp)
 	}
 }

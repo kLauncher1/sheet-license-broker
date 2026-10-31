@@ -125,3 +125,102 @@ func TestGoClientEnclaveWorkflow(t *testing.T) {
 		t.Fatal("expected telemetry in status response")
 	}
 }
+
+func TestGoClientTDXAndIsolatedDecryption(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/enclave/tdx/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid": true,
+			"attestation": enclave.AttestationResult{
+				Valid:       true,
+				Platform:    enclave.PlatformTDX,
+				Measurement: "mrtd_hex_val",
+				RTMR0:       "rtmr0_hex_val",
+				SVN:         2,
+				Debug:       false,
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/enclave/token/issue", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"token": &enclave.AttestationToken{
+				TokenID:     "tok_mock_123",
+				Platform:    enclave.PlatformTDX,
+				Measurement: "mrtd_hex_val",
+				SVN:         2,
+				Signature:   "mock_sig_hex",
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/enclave/token/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid": true,
+			"result": &enclave.TokenVerifyResult{
+				Valid:    true,
+				Platform: enclave.PlatformTDX,
+				SVN:      2,
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/enclave/isolated/decrypt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"result": &enclave.IsolatedDecryptionResult{
+				Success:          true,
+				LicenseKeyMasked: "SLB-****-****-ABCD",
+				Tier:             "enterprise",
+				HardwareIsolated: true,
+				MemoryZeroized:   true,
+			},
+		})
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := NewClient(server.URL, nil, 5*time.Second)
+	ctx := context.Background()
+
+	// 1. Verify TDX Quote
+	tdxRes, err := client.VerifyTDXQuote(ctx, []byte("tdx_quote_bytes"), "nonce_123", "default-tdx")
+	if err != nil {
+		t.Fatalf("VerifyTDXQuote failed: %v", err)
+	}
+	if !tdxRes.Valid || tdxRes.Platform != enclave.PlatformTDX {
+		t.Errorf("unexpected TDX result: %+v", tdxRes)
+	}
+
+	// 2. Issue Attestation Token
+	tok, err := client.IssueAttestationToken(ctx, enclave.PlatformTDX, "mrtd_hex_val", "rtmr0_hex_val", 2, false, "nonce_123", "pub", 1800)
+	if err != nil {
+		t.Fatalf("IssueAttestationToken failed: %v", err)
+	}
+	if tok == nil || tok.TokenID != "tok_mock_123" {
+		t.Errorf("unexpected token issued: %+v", tok)
+	}
+
+	// 3. Verify Attestation Token
+	tokRes, err := client.VerifyAttestationToken(ctx, tok.TokenID, tok, 1, false)
+	if err != nil {
+		t.Fatalf("VerifyAttestationToken failed: %v", err)
+	}
+	if !tokRes.Valid || tokRes.SVN != 2 {
+		t.Errorf("unexpected token verify result: %+v", tokRes)
+	}
+
+	// 4. Execute Isolated Decryption
+	decRes, err := client.ExecuteIsolatedDecryption(ctx, enclave.PlatformTDX, tok.TokenID, tok, "deadbeef", "0102030405060708090a0b0c", "key_32_bytes_hex")
+	if err != nil {
+		t.Fatalf("ExecuteIsolatedDecryption failed: %v", err)
+	}
+	if !decRes.Success || !decRes.HardwareIsolated || !decRes.MemoryZeroized {
+		t.Errorf("unexpected isolated decryption result: %+v", decRes)
+	}
+}

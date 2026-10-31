@@ -217,7 +217,7 @@
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
       <span>•</span>
-      <span id="enclave-badge" style="color: #34d399;">Enclaves: SGX/SEV-SNP</span>
+      <span id="enclave-badge" style="color: #34d399;">Enclaves: SEV-SNP/TDX/SGX</span>
       <span>•</span>
       <span id="cache-badge">Cache: 0 items</span>
     </div>
@@ -951,12 +951,22 @@
         <div class="card">
           <div class="card-title">Attested Quotes</div>
           <div class="card-value" id="val-enclave-quotes" style="color: var(--accent-green);">0</div>
-          <div class="card-subtext">Intel SGX &amp; AMD SEV-SNP</div>
+          <div class="card-subtext">Intel TDX, SGX &amp; AMD SEV-SNP</div>
         </div>
         <div class="card">
           <div class="card-title">Active Encrypted Tunnels</div>
           <div class="card-value" id="val-enclave-tunnels" style="color: var(--accent-blue);">0</div>
           <div class="card-subtext">Ephemeral ECDH P-256 + HKDF</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Attestation Tokens</div>
+          <div class="card-value" id="val-enclave-tokens" style="color: #f59e0b;">0</div>
+          <div class="card-subtext">Hardware Measurement &amp; SVN Bound</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Isolated Decryptions</div>
+          <div class="card-value" id="val-enclave-isolated" style="color: #ec4899;">0</div>
+          <div class="card-subtext">Hardware Memory Sandbox</div>
         </div>
         <div class="card">
           <div class="card-title">Zero-Plaintext Evaluations</div>
@@ -966,7 +976,7 @@
         <div class="card">
           <div class="card-title">Active Enclave Policies</div>
           <div class="card-value" id="val-enclave-policies" style="color: #38bdf8;">0</div>
-          <div class="card-subtext">MREnclave / SVN / Debug Gate</div>
+          <div class="card-subtext">MRTD / MREnclave / SVN Gate</div>
         </div>
         <div class="card">
           <div class="card-title">Attestation Failures</div>
@@ -977,6 +987,9 @@
 
       <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
         <button class="btn-action" onclick="promptRequestEnclaveChallenge()">🔑 Request Challenge Nonce</button>
+        <button class="btn-action btn-secondary" onclick="promptVerifyTDXQuote()">⚡ Verify TDX Quote</button>
+        <button class="btn-action btn-secondary" onclick="promptIssueAttestationToken()">🎫 Issue Attestation Token</button>
+        <button class="btn-action btn-secondary" onclick="promptIsolatedDecryption()">🔐 Isolated Decrypt &amp; Eval</button>
         <button class="btn-action btn-secondary" onclick="promptAttestEnclaveQuote()">🛡️ Attest Enclave Quote</button>
         <button class="btn-action btn-secondary" onclick="promptEstablishEnclaveTunnel()">🔒 Establish Encrypted Tunnel</button>
         <button class="btn-action btn-secondary" onclick="promptEvaluateEnclaveLicense()">⚡ Zero-Plaintext Evaluate</button>
@@ -985,16 +998,17 @@
       </div>
 
       <div class="panel-box" style="margin-bottom: 20px;">
-        <div class="panel-title">🔒 Hardware Enclave Architecture &amp; Zero-Plaintext Guarantee</div>
+        <div class="panel-title">🔒 Confidential Computing SEV-SNP &amp; Intel TDX Remote Enclave Validation</div>
         <div class="panel-desc">
-          Enforces hardware-rooted trust via Intel SGX Quote v3/v4 ECDSA P-256 signatures and AMD SEV-SNP 1184-byte cryptographically signed attestation reports.
-          Following mutual attestation, an ephemeral ECDH tunnel with RFC 5869 HKDF-SHA256 and AES-256-GCM is established.
-          License tokens, entitlement tiers, and feature flags are evaluated inside the secure enclave memory with strictly monotonic sequence counters — the host hypervisor and broker transit layers never observe plaintext keys.
+          Enforces hardware-rooted trust via AMD SEV-SNP 1184-byte cryptographically signed attestation reports and Intel TDX (Trust Domain Extensions) Quote v4 verification with MRTD and RTMR[0..3] hardware measurements.
+          Cryptographically signed Attestation Tokens bind hardware measurements, TCB security version numbers (SVN), and single-use challenge nonces.
+          Sensitive license payloads are decrypted and evaluated strictly inside hardware-isolated memory sandboxes with deterministic zeroization barriers (`SecureBuffer`), guaranteeing that cleartext keys are never exposed to the host hypervisor or memory scrapers.
         </div>
         <div style="display: flex; gap: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
-          <div><span style="color: #34d399;">● Intel SGX:</span> MREnclave (SHA-256) &amp; MRSigner Verification</div>
-          <div><span style="color: #38bdf8;">● AMD SEV-SNP:</span> Launch Measurement &amp; Guest Policy Bit 17 Enforcement</div>
-          <div><span style="color: #c084fc;">● Zero-Plaintext:</span> Memory-Barrier Zeroization (`subtle.ConstantTimeCompare`)</div>
+          <div><span style="color: #38bdf8;">● Intel TDX:</span> Quote v4, MRTD (SHA-384) &amp; RTMR[0..3] Measurement Checks</div>
+          <div><span style="color: #34d399;">● AMD SEV-SNP:</span> VCEK Signature &amp; Guest SVN Bit 17 Policy Enforcement</div>
+          <div><span style="color: #f59e0b;">● Attestation Tokens:</span> Hardware Measurement &amp; SVN Cryptographic Binding</div>
+          <div><span style="color: #ec4899;">● Memory Sandbox:</span> Zero-Plaintext Decryption &amp; SHA-256 Verifiable Digests</div>
         </div>
       </div>
 
@@ -3057,6 +3071,12 @@
         document.getElementById('val-enclave-evals').textContent = telem.total_evaluations || 0;
         document.getElementById('val-enclave-policies').textContent = telem.active_policies_count || 0;
         document.getElementById('val-enclave-failures').textContent = telem.failed_attestations || 0;
+        if (document.getElementById('val-enclave-tokens')) {
+          document.getElementById('val-enclave-tokens').textContent = telem.active_tokens_count || 0;
+        }
+        if (document.getElementById('val-enclave-isolated')) {
+          document.getElementById('val-enclave-isolated').textContent = telem.isolated_decryptions || 0;
+        }
 
         const pols = res.policies || [];
         const tbody = document.getElementById('enclave-policies-body');
@@ -3127,6 +3147,96 @@
         refreshEnclaveTab();
       } catch (e) {
         out.textContent = 'Quote attestation failed: ' + e.message;
+      }
+    }
+
+    async function promptVerifyTDXQuote() {
+      const quoteHex = prompt('Enter Intel TDX Quote v4 hex payload:', '0400020081000000' + '00'.repeat(380)) || ('0400020081000000' + '00'.repeat(380));
+      const nonce = prompt('Enter single-use challenge nonce:') || '';
+      if (!nonce) {
+        alert('Challenge nonce is required.');
+        return;
+      }
+      const policyId = prompt('Enter policy ID (default-tdx):', 'default-tdx') || 'default-tdx';
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Verifying Intel TDX remote attestation quote against policy...';
+
+      try {
+        const res = await fetch('/api/enclave/tdx/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quote: quoteHex.trim(), nonce: nonce.trim(), policy_id: policyId.trim() })
+        }).then(r => r.json());
+
+        out.textContent = 'Intel TDX Remote Attestation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'TDX Quote verification failed: ' + e.message;
+      }
+    }
+
+    async function promptIssueAttestationToken() {
+      const platform = prompt('Enter platform (intel_tdx or amd_sev_snp):', 'intel_tdx') || 'intel_tdx';
+      const measurement = prompt('Enter hardware launch measurement hex (MRTD/Launch Digest):', 'mrtd_sha384_launch_measurement_hex') || 'mrtd_sha384_launch_measurement_hex';
+      const rtmr0 = prompt('Enter optional RTMR[0] measurement hex:', '') || '';
+      const svnStr = prompt('Enter Security Version Number (SVN):', '2') || '2';
+      const nonce = prompt('Enter bound challenge nonce:') || 'challenge_nonce_demo';
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Issuing cryptographically signed Attestation Token...';
+
+      try {
+        const res = await fetch('/api/enclave/token/issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: platform.trim(),
+            measurement: measurement.trim(),
+            rtmr0: rtmr0.trim(),
+            svn: parseInt(svnStr, 10),
+            debug: false,
+            nonce: nonce.trim(),
+            ttl_seconds: 1800
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Cryptographic Attestation Token Issued:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'Attestation token issuance failed: ' + e.message;
+      }
+    }
+
+    async function promptIsolatedDecryption() {
+      const tokenId = prompt('Enter active Attestation Token ID (e.g. tok_...):', '') || '';
+      const cipherHex = prompt('Enter encrypted license payload hex:', 'deadbeefcafebabe') || 'deadbeefcafebabe';
+      const nonceHex = prompt('Enter 12-byte GCM nonce hex:', '0102030405060708090a0b0c') || '0102030405060708090a0b0c';
+      const keyHex = prompt('Enter 32-byte AES-GCM session key hex:', '00'.repeat(32)) || '00'.repeat(32);
+
+      const out = document.getElementById('enclave-output');
+      out.style.display = 'block';
+      out.textContent = 'Executing hardware-isolated memory decryption and license evaluation...';
+
+      try {
+        const res = await fetch('/api/enclave/isolated/decrypt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: 'intel_tdx',
+            token_id: tokenId.trim(),
+            encrypted_payload_hex: cipherHex.trim(),
+            nonce_hex: nonceHex.trim(),
+            session_key_hex: keyHex.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Hardware Memory Sandbox Isolated Decryption Verdict:\n\n' + JSON.stringify(res, null, 2);
+        refreshEnclaveTab();
+      } catch (e) {
+        out.textContent = 'Isolated memory evaluation failed: ' + e.message;
       }
     }
 

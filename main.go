@@ -143,7 +143,7 @@ func main() {
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
-	log.Printf("  Sheet-License-Broker Server active on http://%s (v2.3.0)", addr)
+	log.Printf("  Sheet-License-Broker Server active on http://%s (v2.4.0)", addr)
 
 	s := &http.Server{Addr: addr, Handler: mux, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second}
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -155,7 +155,7 @@ func (s *AppServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":      "healthy",
 		"service":     "sheet-license-broker",
-		"version":     "2.3.0",
+		"version":     "2.4.0",
 		"proxy":       s.proxy.Status(),
 		"consensus":   s.proxy.ClusterStatus(),
 		"zkp":         s.proxy.GetZKPStatus(),

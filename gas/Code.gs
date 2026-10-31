@@ -24,6 +24,7 @@ const SHEET_PQC_KEYS = 'PQC_Keys';
 const SHEET_ANOMALY_INCIDENTS = 'Anomaly_Incidents';
 const SHEET_ENCLAVE_ATTESTATIONS = 'Enclave_Attestations';
 const SHEET_ENCLAVE_POLICIES = 'Enclave_Policies';
+const SHEET_ENCLAVE_TOKENS = 'Enclave_Tokens';
 const SHEET_GEO_POPS = 'Geo_POPs';
 const SHEET_PARTITION_EVENTS = 'Partition_Events';
 const SHEET_MARKETPLACE_TRANSACTIONS = 'Marketplace_Transactions';
@@ -195,6 +196,12 @@ function handleRequest(e, method) {
       case 'enclave_policy_list':
         return handleEnclavePolicyList(output, payload);
 
+      case 'enclave_token_record':
+        return handleEnclaveTokenRecord(output, payload);
+
+      case 'enclave_token_list':
+        return handleEnclaveTokenList(output, payload);
+
       case 'anycast_pop_heartbeat':
         return handleAnycastPOPHeartbeat(output, payload);
 
@@ -294,6 +301,7 @@ function initSheets() {
     { name: SHEET_ANOMALY_INCIDENTS, cols: ['timestamp', 'license_key', 'hwid', 'ip', 'country', 'risk_score', 'reason'] },
     { name: SHEET_ENCLAVE_ATTESTATIONS, cols: ['timestamp', 'platform', 'mr_enclave', 'mr_signer', 'measurement', 'svn', 'debug', 'report_data', 'status'] },
     { name: SHEET_ENCLAVE_POLICIES, cols: ['policy_id', 'name', 'platform', 'min_svn', 'allow_debug', 'allowed_measurements', 'created_at'] },
+    { name: SHEET_ENCLAVE_TOKENS, cols: ['token_id', 'platform', 'measurement', 'rtmr0', 'svn', 'debug', 'nonce', 'signature', 'expires_at', 'status'] },
     { name: SHEET_GEO_POPS, cols: ['pop_id', 'name', 'region', 'country', 'latitude', 'longitude', 'status', 'weight', 'rtt_ms', 'last_seen'] },
     { name: SHEET_PARTITION_EVENTS, cols: ['timestamp', 'region_id', 'status', 'mitigation_token', 'details'] },
     { name: SHEET_MARKETPLACE_TRANSACTIONS, cols: ['id', 'event_id', 'provider', 'action', 'customer_email', 'license_key', 'tier', 'seats', 'status', 'error_message', 'processed_at'] },
@@ -1370,6 +1378,52 @@ function handleEnclavePolicyList(output, payload) {
     });
   }
   return jsonResponse(output, { status: 'success', count: policies.length, policies: policies });
+}
+
+function handleEnclaveTokenRecord(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ENCLAVE_TOKENS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Enclave_Tokens sheet missing' });
+
+  const tokenId = payload.token_id || ('tok_' + Utilities.getUuid().substring(0, 16));
+  sheet.appendRow([
+    tokenId,
+    payload.platform || 'intel_tdx',
+    payload.measurement || '',
+    payload.rtmr0 || '',
+    payload.svn || 1,
+    payload.debug ? 'true' : 'false',
+    payload.nonce || '',
+    payload.signature || '',
+    payload.expires_at || '',
+    payload.status || 'ACTIVE'
+  ]);
+  return jsonResponse(output, { status: 'success', token_id: tokenId });
+}
+
+function handleEnclaveTokenList(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_ENCLAVE_TOKENS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Enclave_Tokens sheet missing' });
+
+  const data = sheet.getDataRange().getValues();
+  const tokens = [];
+  const limit = payload.limit || 50;
+  for (let i = Math.max(1, data.length - limit); i < data.length; i++) {
+    tokens.push({
+      token_id: data[i][0],
+      platform: data[i][1],
+      measurement: data[i][2],
+      rtmr0: data[i][3],
+      svn: data[i][4],
+      debug: data[i][5] === 'true',
+      nonce: data[i][6],
+      signature: data[i][7],
+      expires_at: data[i][8],
+      status: data[i][9]
+    });
+  }
+  return jsonResponse(output, { status: 'success', count: tokens.length, tokens: tokens });
 }
 
 function handleAnycastPOPHeartbeat(output, payload) {
