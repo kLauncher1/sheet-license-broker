@@ -1386,6 +1386,146 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/transparency/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            log_id: 'slb-transparency-mock-01',
+            tree_size: 10,
+            root_hash_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            active_witnesses: 3,
+            total_entries: 10,
+            operating_mode: 'active',
+            compliance_rfc: 'RFC 6962',
+            latest_sth: {
+              tree_size: 10,
+              timestamp: 1700000000000,
+              root_hash_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+              log_id: 'slb-transparency-mock-01',
+              tree_head_signature: 'sig-sth-mock-123'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/transparency/append' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'success',
+            entry: {
+              index: 10,
+              timestamp: Date.now(),
+              action: body.action || 'audit_event',
+              tenant_id: body.tenant_id || 'default',
+              payload: body.payload || {},
+              leaf_hash_hex: 'a1b2c3d4e5f6',
+              signature: 'sig-entry-mock'
+            },
+            sth: {
+              tree_size: 11,
+              timestamp: Date.now(),
+              root_hash_hex: 'f0e1d2c3b4a5',
+              log_id: 'slb-transparency-mock-01',
+              tree_head_signature: 'sig-sth-mock-updated'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/transparency/sth' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            tree_size: 10,
+            timestamp: 1700000000000,
+            root_hash_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            log_id: 'slb-transparency-mock-01',
+            tree_head_signature: 'sig-sth-mock-123',
+            witness_signatures: [
+              {
+                witness_id: 'witness-enclave-sgx',
+                tree_size: 10,
+                root_hash_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                timestamp: 1700000000100,
+                signature: 'wit-sig-sgx-mock',
+                status: 'verified'
+              }
+            ]
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/transparency/entries') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            start: 0,
+            count: 2,
+            entries: [
+              { index: 0, action: 'license_issued', leaf_hash_hex: 'hash0' },
+              { index: 1, action: 'license_revoked', leaf_hash_hex: 'hash1' }
+            ]
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/transparency/inclusion-proof') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            leaf_index: 3,
+            tree_size: 10,
+            leaf_hash_hex: 'leafhashmock',
+            root_hash_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            audit_path_hex: ['path0', 'path1', 'path2']
+          }));
+          return;
+        }
+
+        if (req.url === '/api/transparency/inclusion-proof/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ verified: true, leaf_index: 3, tree_size: 10 }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/transparency/consistency-proof') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            first_size: 4,
+            second_size: 10,
+            first_root_hex: 'root4mock',
+            second_root_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            proof_hex: ['conspath0', 'conspath1']
+          }));
+          return;
+        }
+
+        if (req.url === '/api/transparency/consistency-proof/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ verified: true, first_size: 4, second_size: 10 }));
+          return;
+        }
+
+        if (req.url === '/api/transparency/witness/cosign' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            witness_id: body.witness_id || 'witness-enclave-sgx',
+            tree_size: 10,
+            root_hash_hex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            timestamp: Date.now(),
+            signature: 'cosign-sig-mock-789',
+            status: 'verified'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/transparency/witnesses' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            witnesses: ['witness-enclave-sgx', 'witness-node-iad', 'witness-edge-fra'],
+            count: 3
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -2027,6 +2167,53 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     assert.strictEqual(sessVerify.valid, true);
     assert.strictEqual(sessVerify.session_id, hs.session_id);
     assert.strictEqual(sessVerify.quantum_resistant, true);
+  });
+
+  it('queries transparency status, appends entry, retrieves STH, checks inclusion and consistency proofs, and co-signs via witness', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const status = await client.getTransparencyStatus();
+    assert.strictEqual(status.log_id, 'slb-transparency-mock-01');
+    assert.strictEqual(status.tree_size, 10);
+    assert.strictEqual(status.compliance_rfc, 'RFC 6962');
+    assert.strictEqual(status.active_witnesses, 3);
+
+    const appendRes = await client.appendTransparencyEntry('license_granted', 'tenant-zeta', { seat: 12 });
+    assert.strictEqual(appendRes.status, 'success');
+    assert.strictEqual(appendRes.entry.index, 10);
+    assert.strictEqual(appendRes.sth.tree_size, 11);
+
+    const sth = await client.getTransparencySTH();
+    assert.strictEqual(sth.tree_size, 10);
+    assert.strictEqual(sth.witness_signatures.length, 1);
+    assert.strictEqual(sth.witness_signatures[0].witness_id, 'witness-enclave-sgx');
+
+    const entriesRes = await client.getTransparencyEntries(0, 2);
+    assert.strictEqual(entriesRes.count, 2);
+    assert.strictEqual(entriesRes.entries[0].action, 'license_issued');
+
+    const incProof = await client.getTransparencyInclusionProof(3, 10);
+    assert.strictEqual(incProof.leaf_index, 3);
+    assert.strictEqual(incProof.tree_size, 10);
+    assert.strictEqual(incProof.audit_path_hex.length, 3);
+
+    const incVerify = await client.verifyTransparencyInclusionProof(incProof);
+    assert.strictEqual(incVerify.verified, true);
+
+    const consProof = await client.getTransparencyConsistencyProof(4, 10);
+    assert.strictEqual(consProof.first_size, 4);
+    assert.strictEqual(consProof.second_size, 10);
+
+    const consVerify = await client.verifyTransparencyConsistencyProof(consProof);
+    assert.strictEqual(consVerify.verified, true);
+
+    const cosignRes = await client.cosignTransparencySTH('witness-enclave-sgx');
+    assert.strictEqual(cosignRes.witness_id, 'witness-enclave-sgx');
+    assert.strictEqual(cosignRes.status, 'verified');
+
+    const witnesses = await client.listTransparencyWitnesses();
+    assert.strictEqual(witnesses.length, 3);
+    assert.strictEqual(witnesses[0], 'witness-enclave-sgx');
   });
 });
 

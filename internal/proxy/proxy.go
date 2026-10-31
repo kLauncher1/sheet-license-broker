@@ -28,6 +28,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/sso"
 	"github.com/kLauncher1/sheet-license-broker/internal/stream"
 	"github.com/kLauncher1/sheet-license-broker/internal/tenant"
+	"github.com/kLauncher1/sheet-license-broker/internal/transparency"
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 	"github.com/kLauncher1/sheet-license-broker/internal/airgap"
 	"github.com/kLauncher1/sheet-license-broker/internal/anycast"
@@ -73,6 +74,7 @@ type Proxy struct {
 	healingManager     *healing.HealingManager
 	hsmManager         *hsm.HSMManager
 	mlkemManager       *mlkem.Manager
+	transparencyManager *transparency.Manager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -122,6 +124,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initHealing(cfg)
 	p.initHSM(cfg)
 	p.initMLKEM(cfg)
+	p.initTransparency(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

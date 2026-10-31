@@ -194,7 +194,7 @@
 <body>
   <header class="header">
     <div class="logo-area">
-      <div class="logo-badge">SHEET-LICENSE-BROKER v2.2.0</div>
+      <div class="logo-badge">SHEET-LICENSE-BROKER v2.5.0</div>
       <div class="logo-title">Serverless Multi-Tenant License Gateway</div>
     </div>
     <div class="header-meta">
@@ -212,6 +212,8 @@
       <span id="hsm-badge" style="color: #60a5fa;">HSM: FIPS-140-3 L4</span>
       <span>•</span>
       <span id="mlkem-badge" style="color: #34d399;">ML-KEM: FIPS 203 Active</span>
+      <span>•</span>
+      <span id="transparency-badge" style="color: #38bdf8;">Transparency: RFC 6962 Active</span>
       <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
@@ -275,6 +277,7 @@
       <button class="tab-btn" id="tab-btn-healing" onclick="switchTab('healing')">Autonomous Healing &amp; Quotas</button>
       <button class="tab-btn" id="tab-btn-hsm" onclick="switchTab('hsm')">Hardware HSM &amp; PKCS#11 Vault</button>
       <button class="tab-btn" id="tab-btn-mlkem" onclick="switchTab('mlkem')">Quantum ML-KEM &amp; Lattice KEM</button>
+      <button class="tab-btn" id="tab-btn-transparency" onclick="switchTab('transparency')">Verifiable Transparency Logs</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1527,6 +1530,81 @@
 
       <div id="mlkem-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab: Verifiable Transparency Logs -->
+    <div id="panel-transparency" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Compliance Standard</div>
+          <div class="card-value" id="val-trans-standard" style="color: #38bdf8;">RFC 6962</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Merkle Tree Size</div>
+          <div class="card-value" id="val-trans-size" style="color: #34d399;">0 Leaves</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Latest Root Hash</div>
+          <div class="card-value" id="val-trans-root" style="color: #60a5fa; font-size: 14px; word-break: break-all;">--</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Witnesses</div>
+          <div class="card-value" id="val-trans-witnesses" style="color: #f59e0b;">3 Nodes</div>
+        </div>
+      </div>
+
+      <div class="action-bar" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+        <button class="btn-action" onclick="promptAppendTransparencyRecord()">📝 Append Audit Event</button>
+        <button class="btn-action btn-secondary" onclick="promptViewTransparencySTH()">📜 View Signed Tree Head (STH)</button>
+        <button class="btn-action btn-secondary" onclick="promptGetInclusionProof()">🔍 Inclusion Proof (RFC 6962)</button>
+        <button class="btn-action btn-secondary" onclick="promptGetConsistencyProof()">🛡️ Consistency Proof (RFC 6962)</button>
+        <button class="btn-action btn-secondary" onclick="promptCosignTransparency()">✍️ Witness Co-Sign</button>
+        <button class="btn-action btn-secondary" onclick="refreshTransparencyTab()">🔄 Refresh Ledger</button>
+      </div>
+
+      <div class="table-container" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: var(--text-main);">
+          Immutable Append-Only Audit Entries (Merkle Leaves)
+        </div>
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Index</th>
+              <th>Action</th>
+              <th>Tenant</th>
+              <th>Leaf Hash (SHA-256)</th>
+              <th>Timestamp</th>
+              <th>Signature</th>
+            </tr>
+          </thead>
+          <tbody id="transparency-entries-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading transparency entries...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-container" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: var(--text-main);">
+          Multi-Party Witness Co-Signatures (Split-View Defense)
+        </div>
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Witness ID</th>
+              <th>Tree Size</th>
+              <th>Status</th>
+              <th>Root Hash Witnessed</th>
+              <th>Timestamp</th>
+              <th>Signature</th>
+            </tr>
+          </thead>
+          <tbody id="transparency-witnesses-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading witness signatures...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="transparency-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1534,7 +1612,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm', 'mlkem'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm', 'mlkem', 'transparency'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1562,6 +1640,7 @@
       document.getElementById('panel-healing').style.display = tab === 'healing' ? 'block' : 'none';
       document.getElementById('panel-hsm').style.display = tab === 'hsm' ? 'block' : 'none';
       document.getElementById('panel-mlkem').style.display = tab === 'mlkem' ? 'block' : 'none';
+      document.getElementById('panel-transparency').style.display = tab === 'transparency' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1587,6 +1666,7 @@
       if (tab === 'healing') refreshHealingTab();
       if (tab === 'hsm') refreshHSMTab();
       if (tab === 'mlkem') refreshMLKEMTab();
+      if (tab === 'transparency') refreshTransparencyTab();
     }
 
     async function refresh() {
@@ -4462,6 +4542,170 @@
         refreshMLKEMTab();
       } catch (err) {
         out.textContent = 'Session verification failed: ' + err.message;
+      }
+    }
+
+    async function refreshTransparencyTab() {
+      try {
+        const status = await fetch('/api/transparency/status').then(r => r.json());
+        document.getElementById('val-trans-standard').textContent = status.compliance_rfc || 'RFC 6962';
+        document.getElementById('val-trans-size').textContent = (status.tree_size || 0) + ' Leaves';
+        document.getElementById('val-trans-root').textContent = status.root_hash_hex || '--';
+        document.getElementById('val-trans-witnesses').textContent = (status.active_witnesses || 0) + ' Nodes';
+
+        const entriesRes = await fetch('/api/transparency/entries?start=0&count=20').then(r => r.json());
+        const tbody = document.getElementById('transparency-entries-body');
+        if (entriesRes.entries && entriesRes.entries.length > 0) {
+          tbody.innerHTML = entriesRes.entries.map(e => `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding: 10px 16px; font-weight: 600;">${e.index}</td>
+              <td style="padding: 10px 16px;"><span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${e.action}</span></td>
+              <td style="padding: 10px 16px;">${e.tenant_id}</td>
+              <td style="padding: 10px 16px; font-family: monospace; font-size: 11px;">${e.leaf_hash_hex ? e.leaf_hash_hex.substring(0, 16) + '...' : '--'}</td>
+              <td style="padding: 10px 16px; font-size: 12px; color: var(--text-muted);">${new Date(e.timestamp).toLocaleTimeString()}</td>
+              <td style="padding: 10px 16px; font-family: monospace; font-size: 11px;">${e.signature ? e.signature.substring(0, 12) + '...' : '--'}</td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">No transparency entries logged yet. Click "Append Audit Event" to create the first record.</td></tr>';
+        }
+
+        const sth = await fetch('/api/transparency/sth').then(r => r.json());
+        const witBody = document.getElementById('transparency-witnesses-body');
+        if (sth && sth.witness_signatures && sth.witness_signatures.length > 0) {
+          witBody.innerHTML = sth.witness_signatures.map(w => `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding: 10px 16px; font-weight: 600; color: #60a5fa;">${w.witness_id}</td>
+              <td style="padding: 10px 16px;">${w.tree_size}</td>
+              <td style="padding: 10px 16px;"><span class="badge" style="background: rgba(52, 211, 153, 0.15); color: #34d399;">${(w.status || 'verified').toUpperCase()}</span></td>
+              <td style="padding: 10px 16px; font-family: monospace; font-size: 11px;">${w.root_hash_hex ? w.root_hash_hex.substring(0, 16) + '...' : '--'}</td>
+              <td style="padding: 10px 16px; font-size: 12px; color: var(--text-muted);">${new Date(w.timestamp).toLocaleTimeString()}</td>
+              <td style="padding: 10px 16px; font-family: monospace; font-size: 11px;">${w.signature ? w.signature.substring(0, 12) + '...' : '--'}</td>
+            </tr>
+          `).join('');
+        } else {
+          witBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">No witness co-signatures recorded yet. Click "Witness Co-Sign" to co-sign.</td></tr>';
+        }
+      } catch (err) {
+        console.error('Failed to refresh transparency tab:', err);
+      }
+    }
+
+    async function promptAppendTransparencyRecord() {
+      const action = prompt('Audit action (e.g. license_issued, key_rotated, tenant_registered):', 'license_issued');
+      if (!action) return;
+      const tenant = prompt('Tenant namespace:', 'default');
+      if (!tenant) return;
+      const details = prompt('Event JSON payload:', '{"reason":"manual_audit_test","operator":"admin"}');
+      if (!details) return;
+
+      const out = document.getElementById('transparency-output');
+      out.style.display = 'block';
+      out.textContent = 'Appending record to append-only Merkle ledger...';
+
+      try {
+        let payload = {};
+        try { payload = JSON.parse(details); } catch(e) { payload = { raw: details }; }
+
+        const res = await fetch('/api/transparency/append', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action.trim(), tenant_id: tenant.trim(), payload })
+        }).then(r => r.json());
+
+        out.textContent = 'Appended Record & Updated Signed Tree Head (STH):\n\n' + JSON.stringify(res, null, 2);
+        refreshTransparencyTab();
+      } catch (err) {
+        out.textContent = 'Failed to append record: ' + err.message;
+      }
+    }
+
+    async function promptViewTransparencySTH() {
+      const out = document.getElementById('transparency-output');
+      out.style.display = 'block';
+      out.textContent = 'Fetching current Signed Tree Head (STH)...';
+
+      try {
+        const sth = await fetch('/api/transparency/sth').then(r => r.json());
+        out.textContent = 'Signed Tree Head (RFC 6962):\n\n' + JSON.stringify(sth, null, 2);
+      } catch (err) {
+        out.textContent = 'Failed to fetch STH: ' + err.message;
+      }
+    }
+
+    async function promptGetInclusionProof() {
+      const indexStr = prompt('Leaf Index to prove:');
+      if (indexStr === null) return;
+      const sizeStr = prompt('Tree Size snapshot:');
+      if (sizeStr === null) return;
+
+      const out = document.getElementById('transparency-output');
+      out.style.display = 'block';
+      out.textContent = `Computing RFC 6962 inclusion proof for leaf [${indexStr}] in tree size [${sizeStr}]...`;
+
+      try {
+        const proof = await fetch(`/api/transparency/inclusion-proof?index=${indexStr}&tree_size=${sizeStr}`).then(r => r.json());
+        const verifyRes = await fetch('/api/transparency/inclusion-proof/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(proof)
+        }).then(r => r.json());
+
+        out.textContent = 'RFC 6962 Inclusion Audit Path:\n\n' + JSON.stringify({
+          proof: proof,
+          verification_verdict: verifyRes
+        }, null, 2);
+      } catch (err) {
+        out.textContent = 'Failed to compute/verify inclusion proof: ' + err.message;
+      }
+    }
+
+    async function promptGetConsistencyProof() {
+      const firstStr = prompt('First Tree Size (m):');
+      if (firstStr === null) return;
+      const secondStr = prompt('Second Tree Size (n):');
+      if (secondStr === null) return;
+
+      const out = document.getElementById('transparency-output');
+      out.style.display = 'block';
+      out.textContent = `Computing RFC 6962 consistency proof between tree size [${firstStr}] and [${secondStr}]...`;
+
+      try {
+        const proof = await fetch(`/api/transparency/consistency-proof?first=${firstStr}&second=${secondStr}`).then(r => r.json());
+        const verifyRes = await fetch('/api/transparency/consistency-proof/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(proof)
+        }).then(r => r.json());
+
+        out.textContent = 'RFC 6962 Consistency Proof (Append-Only Guarantee):\n\n' + JSON.stringify({
+          proof: proof,
+          consistency_verdict: verifyRes
+        }, null, 2);
+      } catch (err) {
+        out.textContent = 'Failed to compute/verify consistency proof: ' + err.message;
+      }
+    }
+
+    async function promptCosignTransparency() {
+      const witnessId = prompt('Witness Node Identifier (e.g. witness-enclave-sgx, witness-node-iad, witness-edge-fra):', 'witness-enclave-sgx');
+      if (!witnessId) return;
+
+      const out = document.getElementById('transparency-output');
+      out.style.display = 'block';
+      out.textContent = `Dispatching STH to witness [${witnessId}] for consistency verification & co-signing...`;
+
+      try {
+        const res = await fetch('/api/transparency/witness/cosign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ witness_id: witnessId.trim() })
+        }).then(r => r.json());
+
+        out.textContent = 'Witness Co-Signature Issued:\n\n' + JSON.stringify(res, null, 2);
+        refreshTransparencyTab();
+      } catch (err) {
+        out.textContent = 'Failed to co-sign STH: ' + err.message;
       }
     }
 

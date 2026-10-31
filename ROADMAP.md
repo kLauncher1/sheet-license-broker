@@ -212,9 +212,12 @@ outes_mlkem.go) and proxy orchestration (internal/proxy/mlkem.go)
 - [x] Embedded admin console Confidential Enclaves interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 25: Real-Time Decentralized Audit Ledger & Verifiable Transparency Logs (v2.5.0)
-- [ ] Cryptographic Merkle tree transparency log with RFC 6962 inclusion and consistency proofs
-- [ ] Tamper-evident verifiable log server endpoints (`/api/transparency/inclusion-proof`)
-- [ ] Continuous signed tree head (STH) publishing and multi-party witness co-signing
+- [x] Cryptographic Merkle tree transparency log with RFC 6962 inclusion and consistency proofs
+- [x] Tamper-evident verifiable log server endpoints (`/api/transparency/inclusion-proof`)
+- [x] Continuous signed tree head (STH) publishing and multi-party witness co-signing
+- [x] Multi-platform SDK support (Go, TypeScript, Python, C#) with inclusion and consistency verification
+- [x] Cloudflare Edge Worker gateway RFC 6962 transparency telemetry and verification pass-through
+- [x] Admin console Verifiable Transparency Logs dashboard with tree head status, proof inspector, and witness pool
 
 ## Phase 26: Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation (v2.6.0)
 - [ ] Multi-vector client security posture analyzer (OS patch level, secure boot status, AV health)
@@ -331,3 +334,12 @@ outes_mlkem.go) and proxy orchestration (internal/proxy/mlkem.go)
 - [ ] Asynchronous batch entitlement updates across distributed broker nodes with zero-knowledge verification
 - [ ] Quantum-resistant cryptographic membership proofs resisting Shor's and Grover's attack vectors
 
+## Phase 49: Quantum-Resistant Stateful Leighton-Micali Hash-Based Signatures (LMS/HSS) (v4.9.0)
+- [ ] NIST SP 800-208 stateful hash-based hierarchical signature scheme (LMS/HSS) with SHA-256 / SHAKE-256
+- [ ] Non-volatile persistent monotonic signature counter management and state reservation pool preventing key reuse
+- [ ] Fast standalone signature verification routines across client SDKs and edge gateways with minimal public key footprint
+
+## Phase 50: Autonomous Zero-Knowledge Cross-Cloud Sovereign Identity Federation (v5.0.0)
+- [ ] Decentralized cross-cloud sovereign identity proofs using pairing-free zero-knowledge range and membership arguments
+- [ ] Multi-sovereign federation protocols without central clearinghouse or cross-tenant metadata leakage
+- [ ] Automated cryptographic trust boundary negotiation and verifiable credential exchange across isolated cloud enclaves

@@ -511,6 +511,92 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/transparency/status":
+            self._send_json(
+                200,
+                {
+                    "log_id": "slb-transparency-py-mock",
+                    "tree_size": 15,
+                    "root_hash_hex": "aabbccddeeff00112233445566778899",
+                    "active_witnesses": 3,
+                    "total_entries": 15,
+                    "operating_mode": "active",
+                    "compliance_rfc": "RFC 6962",
+                },
+            )
+            return
+
+        if path == "/api/transparency/sth":
+            self._send_json(
+                200,
+                {
+                    "tree_size": 15,
+                    "timestamp": 1700000000000,
+                    "root_hash_hex": "aabbccddeeff00112233445566778899",
+                    "log_id": "slb-transparency-py-mock",
+                    "tree_head_signature": "py-sig-sth-123",
+                    "witness_signatures": [
+                        {
+                            "witness_id": "witness-enclave-sgx",
+                            "tree_size": 15,
+                            "root_hash_hex": "aabbccddeeff00112233445566778899",
+                            "status": "verified",
+                        }
+                    ],
+                },
+            )
+            return
+
+        if path.startswith("/api/transparency/entries"):
+            self._send_json(
+                200,
+                {
+                    "start": 0,
+                    "count": 2,
+                    "entries": [
+                        {"index": 0, "action": "license_issued"},
+                        {"index": 1, "action": "license_revoked"},
+                    ],
+                },
+            )
+            return
+
+        if path.startswith("/api/transparency/inclusion-proof"):
+            self._send_json(
+                200,
+                {
+                    "leaf_index": 5,
+                    "tree_size": 15,
+                    "leaf_hash_hex": "py_leaf_hash",
+                    "root_hash_hex": "aabbccddeeff00112233445566778899",
+                    "audit_path_hex": ["path0", "path1", "path2"],
+                },
+            )
+            return
+
+        if path.startswith("/api/transparency/consistency-proof"):
+            self._send_json(
+                200,
+                {
+                    "first_size": 8,
+                    "second_size": 15,
+                    "first_root_hex": "py_root_8",
+                    "second_root_hex": "aabbccddeeff00112233445566778899",
+                    "proof_hex": ["cons0", "cons1"],
+                },
+            )
+            return
+
+        if path == "/api/transparency/witnesses":
+            self._send_json(
+                200,
+                {
+                    "witnesses": ["witness-enclave-sgx", "witness-node-iad", "witness-edge-fra"],
+                    "count": 3,
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -1146,6 +1232,45 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/transparency/append":
+            self._send_json(
+                201,
+                {
+                    "status": "success",
+                    "entry": {
+                        "index": 15,
+                        "action": payload.get("action", "audit_event"),
+                        "tenant_id": payload.get("tenant_id", "default"),
+                        "leaf_hash_hex": "leaf_hex_py_15",
+                    },
+                    "sth": {
+                        "tree_size": 16,
+                        "root_hash_hex": "new_root_hex_16",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/transparency/inclusion-proof/verify":
+            self._send_json(200, {"verified": True, "leaf_index": 5, "tree_size": 15})
+            return
+
+        if path == "/api/transparency/consistency-proof/verify":
+            self._send_json(200, {"verified": True, "first_size": 8, "second_size": 15})
+            return
+
+        if path == "/api/transparency/witness/cosign":
+            self._send_json(
+                200,
+                {
+                    "witness_id": payload.get("witness_id", "witness-enclave-sgx"),
+                    "tree_size": 15,
+                    "root_hash_hex": "aabbccddeeff00112233445566778899",
+                    "status": "verified",
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -1541,6 +1666,48 @@ class TestSheetLicenseClient(unittest.TestCase):
         verify = client.verify_hybrid_kem_session(hs.get("session_id"))
         self.assertTrue(verify.get("valid"))
         self.assertEqual(verify.get("session_id"), "sess-py-pqc-01")
+
+    def test_transparency_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_transparency_status()
+        self.assertEqual(st.get("log_id"), "slb-transparency-py-mock")
+        self.assertEqual(st.get("tree_size"), 15)
+        self.assertEqual(st.get("compliance_rfc"), "RFC 6962")
+        self.assertEqual(st.get("active_witnesses"), 3)
+
+        app = client.append_transparency_entry("license_created", "tenant-py", {"seats": 5})
+        self.assertEqual(app.get("status"), "success")
+        self.assertEqual(app.get("entry", {}).get("index"), 15)
+        self.assertEqual(app.get("sth", {}).get("tree_size"), 16)
+
+        sth = client.get_transparency_sth()
+        self.assertEqual(sth.get("tree_size"), 15)
+        self.assertEqual(len(sth.get("witness_signatures", [])), 1)
+
+        entries = client.get_transparency_entries(0, 2)
+        self.assertEqual(entries.get("count"), 2)
+
+        inc = client.get_transparency_inclusion_proof(5, 15)
+        self.assertEqual(inc.get("leaf_index"), 5)
+        self.assertEqual(inc.get("tree_size"), 15)
+
+        v_inc = client.verify_transparency_inclusion_proof(inc)
+        self.assertTrue(v_inc.get("verified"))
+
+        cons = client.get_transparency_consistency_proof(8, 15)
+        self.assertEqual(cons.get("first_size"), 8)
+        self.assertEqual(cons.get("second_size"), 15)
+
+        v_cons = client.verify_transparency_consistency_proof(cons)
+        self.assertTrue(v_cons.get("verified"))
+
+        cosign = client.cosign_transparency_sth("witness-enclave-sgx")
+        self.assertEqual(cosign.get("status"), "verified")
+
+        witnesses = client.list_transparency_witnesses()
+        self.assertEqual(len(witnesses), 3)
+        self.assertEqual(witnesses[0], "witness-enclave-sgx")
 
 
 if __name__ == "__main__":

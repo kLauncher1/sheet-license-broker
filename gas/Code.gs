@@ -37,6 +37,8 @@ const SHEET_HSM_AUDIT_LOG = 'HSM_Audit_Log';
 const SHEET_HSM_VAULT_KEYS = 'HSM_Vault_Keys';
 const SHEET_MLKEM_KEY_LEDGER = 'MLKEM_Key_Ledger';
 const SHEET_MLKEM_SESSIONS = 'MLKEM_Sessions';
+const SHEET_TRANSPARENCY_LOG = 'Transparency_Log';
+const SHEET_WITNESS_COSIGNATURES = 'Witness_Cosignatures';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -271,6 +273,18 @@ function handleRequest(e, method) {
       case 'mlkem_get_status':
         return handleMLKEMGetStatus(output, payload);
 
+      case 'transparency_record_entry':
+        return handleTransparencyRecordEntry(output, payload);
+
+      case 'transparency_record_sth':
+        return handleTransparencyRecordSTH(output, payload);
+
+      case 'transparency_list_entries':
+        return handleTransparencyListEntries(output, payload);
+
+      case 'transparency_status':
+        return handleTransparencyStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -313,7 +327,9 @@ function initSheets() {
     { name: SHEET_HSM_AUDIT_LOG, cols: ['timestamp', 'event_type', 'slot_id', 'purpose', 'fingerprint', 'sensor_id', 'details'] },
     { name: SHEET_HSM_VAULT_KEYS, cols: ['key_id', 'slot_id', 'purpose', 'algorithm', 'fingerprint', 'status', 'created_at'] },
     { name: SHEET_MLKEM_KEY_LEDGER, cols: ['key_id', 'algorithm', 'fingerprint', 'status', 'created_at'] },
-    { name: SHEET_MLKEM_SESSIONS, cols: ['session_id', 'agreed_mode', 'algorithm', 'quantum_resistant', 'expires_at', 'created_at'] }
+    { name: SHEET_MLKEM_SESSIONS, cols: ['session_id', 'agreed_mode', 'algorithm', 'quantum_resistant', 'expires_at', 'created_at'] },
+    { name: SHEET_TRANSPARENCY_LOG, cols: ['index', 'action', 'tenant_id', 'leaf_hash_hex', 'timestamp', 'signature', 'tree_size', 'root_hash_hex', 'payload_json'] },
+    { name: SHEET_WITNESS_COSIGNATURES, cols: ['witness_id', 'tree_size', 'root_hash_hex', 'timestamp', 'signature', 'status'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -2091,6 +2107,91 @@ function handleMLKEMGetStatus(output, payload) {
     registered_keys: totalKeys,
     active_sessions: totalSessions,
     quantum_resistant: true,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function handleTransparencyRecordEntry(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_TRANSPARENCY_LOG);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const index = payload.index !== undefined ? payload.index : sheet.getLastRow() - 1;
+  const action = payload.action || 'audit_event';
+  const tenantId = payload.tenant_id || 'default';
+  const leafHashHex = payload.leaf_hash_hex || '';
+  const timestamp = payload.timestamp || new Date().toISOString();
+  const signature = payload.signature || '';
+  const treeSize = payload.tree_size || 0;
+  const rootHashHex = payload.root_hash_hex || '';
+  const payloadJson = payload.payload ? JSON.stringify(payload.payload) : '{}';
+
+  sheet.appendRow([index, action, tenantId, leafHashHex, timestamp, signature, treeSize, rootHashHex, payloadJson]);
+  return jsonResponse(output, { status: 'success', index: index, tree_size: treeSize, root_hash_hex: rootHashHex });
+}
+
+function handleTransparencyRecordSTH(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_WITNESS_COSIGNATURES);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const witnessId = payload.witness_id || 'primary_log';
+  const treeSize = payload.tree_size || 0;
+  const rootHashHex = payload.root_hash_hex || '';
+  const timestamp = payload.timestamp || new Date().toISOString();
+  const signature = payload.signature || '';
+  const status = payload.status || 'verified';
+
+  sheet.appendRow([witnessId, treeSize, rootHashHex, timestamp, signature, status]);
+  return jsonResponse(output, { status: 'success', witness_id: witnessId, tree_size: treeSize });
+}
+
+function handleTransparencyListEntries(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_TRANSPARENCY_LOG);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const data = sheet.getDataRange().getValues();
+  const entries = [];
+  const start = parseInt(payload.start || 0, 10);
+  const count = parseInt(payload.count || 20, 10);
+
+  for (let i = 1; i < data.length; i++) {
+    if (i - 1 >= start && entries.length < count) {
+      entries.push({
+        index: data[i][0],
+        action: data[i][1],
+        tenant_id: data[i][2],
+        leaf_hash_hex: data[i][3],
+        timestamp: data[i][4],
+        signature: data[i][5],
+        tree_size: data[i][6],
+        root_hash_hex: data[i][7],
+        payload: data[i][8]
+      });
+    }
+  }
+  return jsonResponse(output, { status: 'success', total: data.length - 1, start: start, count: entries.length, entries: entries });
+}
+
+function handleTransparencyStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const logSheet = ss.getSheetByName(SHEET_TRANSPARENCY_LOG);
+  const witSheet = ss.getSheetByName(SHEET_WITNESS_COSIGNATURES);
+  let totalEntries = 0;
+  let totalWitnesses = 0;
+  let latestRoot = '';
+  if (logSheet && logSheet.getLastRow() > 1) {
+    totalEntries = logSheet.getLastRow() - 1;
+    const lastRow = logSheet.getRange(logSheet.getLastRow(), 1, 1, logSheet.getLastColumn()).getValues()[0];
+    latestRoot = lastRow[7] || '';
+  }
+  if (witSheet && witSheet.getLastRow() > 1) {
+    totalWitnesses = witSheet.getLastRow() - 1;
+  }
+  return jsonResponse(output, {
+    status: 'success',
+    rfc_standard: 'RFC 6962',
+    total_entries: totalEntries,
+    latest_root_hash: latestRoot,
+    witness_cosignatures_count: totalWitnesses,
     timestamp: new Date().toISOString()
   });
 }

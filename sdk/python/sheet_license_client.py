@@ -1119,6 +1119,58 @@ class SheetLicenseClient:
         endpoint = f"/api/pqc/kem/sessions/verify?session_id={urllib.parse.quote(session_id)}"
         return self._request("GET", endpoint)
 
+    def get_transparency_status(self) -> Dict[str, Any]:
+        """Queries real-time operational status and telemetry for the RFC 6962 transparency log."""
+        return self._request("GET", "/api/transparency/status")
+
+    def append_transparency_entry(
+        self,
+        action: str,
+        tenant_id: str = "default",
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Appends an audit event to the transparency log and returns the updated STH."""
+        body = {
+            "action": action,
+            "tenant_id": tenant_id,
+            "payload": payload or {},
+        }
+        return self._request("POST", "/api/transparency/append", body)
+
+    def get_transparency_sth(self) -> Dict[str, Any]:
+        """Queries the current Signed Tree Head (STH) with multi-party witness co-signatures."""
+        return self._request("GET", "/api/transparency/sth")
+
+    def get_transparency_entries(self, start: int = 0, count: int = 20) -> Dict[str, Any]:
+        """Queries a slice of entries from the transparency log."""
+        return self._request("GET", f"/api/transparency/entries?start={start}&count={count}")
+
+    def get_transparency_inclusion_proof(self, index: int, tree_size: int) -> Dict[str, Any]:
+        """Retrieves an RFC 6962 audit path proving leaf inclusion in a given tree size."""
+        return self._request("GET", f"/api/transparency/inclusion-proof?index={index}&tree_size={tree_size}")
+
+    def verify_transparency_inclusion_proof(self, proof: Dict[str, Any]) -> Dict[str, Any]:
+        """Cryptographically verifies an inclusion proof payload on the broker."""
+        return self._request("POST", "/api/transparency/inclusion-proof/verify", proof)
+
+    def get_transparency_consistency_proof(self, first: int, second: int) -> Dict[str, Any]:
+        """Retrieves an RFC 6962 consistency proof between two tree heads."""
+        return self._request("GET", f"/api/transparency/consistency-proof?first={first}&second={second}")
+
+    def verify_transparency_consistency_proof(self, proof: Dict[str, Any]) -> Dict[str, Any]:
+        """Cryptographically verifies a consistency proof payload on the broker."""
+        return self._request("POST", "/api/transparency/consistency-proof/verify", proof)
+
+    def cosign_transparency_sth(self, witness_id: str) -> Dict[str, Any]:
+        """Requests an independent multi-party witness node to co-sign the active STH."""
+        return self._request("POST", "/api/transparency/witness/cosign", {"witness_id": witness_id})
+
+    def list_transparency_witnesses(self) -> list[str]:
+        """Lists all registered witness node identifiers."""
+        res = self._request("GET", "/api/transparency/witnesses")
+        return res.get("witnesses", [])
+
+
 
 
 if __name__ == "__main__":
