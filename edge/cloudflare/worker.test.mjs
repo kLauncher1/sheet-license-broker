@@ -333,5 +333,19 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.ok(data.supported_platforms.includes('intel_tdx'));
     assert.ok(data.supported_platforms.includes('amd_sev_snp'));
   });
+
+  test('reports RFC 6962 verifiable transparency log capabilities and Merkle hashing at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/transparency/status');
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_transparency_enabled, true);
+    assert.equal(data.rfc_standard, 'RFC 6962');
+    assert.equal(data.merkle_tree_hashing, 'SHA-256');
+    assert.equal(data.domain_separation.leaf_prefix, '0x00');
+    assert.equal(data.domain_separation.node_prefix, '0x01');
+    assert.equal(data.multi_party_witnesses, true);
+    assert.equal(data.split_view_attack_defense, true);
+  });
 });
 

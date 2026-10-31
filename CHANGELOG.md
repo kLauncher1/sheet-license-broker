@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] - 2026-10-31
+
+### Added
+- Real-Time Decentralized Audit Ledger & Verifiable Transparency Logs subsystem (`internal/transparency/types.go`, `internal/transparency/merkle.go`, `internal/transparency/tree.go`, `internal/transparency/witness.go`, `internal/transparency/manager.go`, `internal/transparency/merkle_test.go`, `internal/transparency/tree_test.go`, `internal/transparency/witness_test.go`, `internal/transparency/manager_test.go`) implemented in pure Go standard library with zero external dependencies.
+- RFC 6962 compliant Merkle Tree engine featuring strict domain prefix separation (`0x00` leaf hash prefix and `0x01` interior node prefix) preventing second-preimage collision attacks, bitwise power-of-two subtree partitioning ($k = 2^{\lfloor \log_2(n-1) \rfloor}$), logarithmic audit path inclusion proof generation/verification, and append-only consistency proof verification.
+- Thread-safe append-only ledger (`TransparencyTree`) providing HMAC-SHA256 leaf and tree-head signatures, atomic serial number increments, leaf hash indexing, and periodic Signed Tree Head (STH) publishing.
+- Multi-party witness network (`WitnessPool`) featuring independent consistency proof verification before co-signing, constant-time signature validation, and proactive split-view attack detection (`ErrSplitViewAttackDetected`) that alerts if divergent roots are published for identical tree sizes.
+- Unified manager (`TransparencyManager`) coordinating tree appends, asynchronous background witness co-signing, and proof queries.
+- Proxy integration layer (`internal/proxy/transparency.go`, `internal/proxy/transparency_test.go`) binding transparency log recording, STH retrieval, and proof querying to the unified broker gateway and Google Apps Script audit logs.
+- Dedicated REST routing layer (`routes_transparency.go`, `routes_transparency_test.go`) exposing `GET /api/transparency/status`, `POST /api/transparency/append`, `GET /api/transparency/sth`, `GET /api/transparency/entries`, `GET /api/transparency/inclusion-proof`, `GET /api/transparency/consistency-proof`, `POST /api/transparency/witness/cosign`, and `GET /api/transparency/witnesses`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic sheet initialization and persistent audit tracking for `Transparency_Log` and `Witness_Cosignatures` sheets, with `transparency_record_entry`, `transparency_record_sth`, `transparency_list_entries`, and `transparency_status` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/transparency.go`, `sdk/go/transparency_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting transparency status queries, appending entries, fetching STH, requesting inclusion/consistency proofs, and witness co-signing with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) implementing edge-side transparency telemetry and RFC 6962 capability reporting (`/edge/transparency/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring a dedicated "Verifiable Transparency Logs" tab with RFC 6962 status cards, Signed Tree Head inspectors, Merkle inclusion proof checkers, consistency proof inspectors, append entry forms, and active witness co-signature tables.
+- Version bump to 2.5.0 across core binary, manifests, documentation, and client libraries.
+
 ## [2.4.0] - 2026-10-31
 
 ### Added

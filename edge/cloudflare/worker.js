@@ -65,7 +65,12 @@ export default {
       return handleEdgeEnclaveStatus(request, env);
     }
 
-    // 10. Forward all other routes to origin
+    // 10. Intercept Verifiable Transparency Log status & RFC 6962 telemetry at edge
+    if (url.pathname === '/edge/transparency/status' && request.method === 'GET') {
+      return handleEdgeTransparencyStatus(request, env);
+    }
+
+    // 11. Forward all other routes to origin
     return forwardToOrigin(request, env);
   }
 };
@@ -589,6 +594,27 @@ export async function handleEdgeEnclaveStatus(request, env) {
     attestation_tokens_supported: true,
     isolated_memory_execution: true,
     hardware_isolation: 'CONFIDENTIAL_VM_ENCLAVE',
+    timestamp: new Date().toISOString()
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Broker-Edge': 'cloudflare-worker'
+    }
+  });
+}
+
+export async function handleEdgeTransparencyStatus(request, env) {
+  return new Response(JSON.stringify({
+    edge_transparency_enabled: true,
+    rfc_standard: 'RFC 6962',
+    merkle_tree_hashing: 'SHA-256',
+    domain_separation: {
+      leaf_prefix: '0x00',
+      node_prefix: '0x01'
+    },
+    multi_party_witnesses: true,
+    split_view_attack_defense: true,
     timestamp: new Date().toISOString()
   }), {
     status: 200,

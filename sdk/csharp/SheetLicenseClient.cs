@@ -1202,6 +1202,103 @@ namespace SheetLicenseBroker
         public string VerifyHybridKEMSession(string sessionId) =>
             VerifyHybridKEMSessionAsync(sessionId).GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Queries real-time operational status and telemetry for the RFC 6962 transparency log.
+        /// </summary>
+        public async Task<string> GetTransparencyStatusAsync() =>
+            await SendRequestAsync("GET", "/api/transparency/status", null).ConfigureAwait(false);
+
+        public string GetTransparencyStatus() =>
+            GetTransparencyStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Appends an audit event to the transparency log and returns the updated STH.
+        /// </summary>
+        public async Task<string> AppendTransparencyEntryAsync(string action, string tenantId = "default", string payloadJson = "{}")
+        {
+            string body = string.Format("{{\"action\":\"{0}\",\"tenant_id\":\"{1}\",\"payload\":{2}}}",
+                EscapeJson(action ?? "audit_event"), EscapeJson(tenantId ?? "default"), string.IsNullOrEmpty(payloadJson) ? "{}" : payloadJson);
+            return await SendRequestAsync("POST", "/api/transparency/append", body).ConfigureAwait(false);
+        }
+
+        public string AppendTransparencyEntry(string action, string tenantId = "default", string payloadJson = "{}") =>
+            AppendTransparencyEntryAsync(action, tenantId, payloadJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries the current Signed Tree Head (STH) with multi-party witness co-signatures.
+        /// </summary>
+        public async Task<string> GetTransparencySTHAsync() =>
+            await SendRequestAsync("GET", "/api/transparency/sth", null).ConfigureAwait(false);
+
+        public string GetTransparencySTH() =>
+            GetTransparencySTHAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries a slice of entries from the transparency log.
+        /// </summary>
+        public async Task<string> GetTransparencyEntriesAsync(long start = 0, long count = 20) =>
+            await SendRequestAsync("GET", string.Format("/api/transparency/entries?start={0}&count={1}", start, count), null).ConfigureAwait(false);
+
+        public string GetTransparencyEntries(long start = 0, long count = 20) =>
+            GetTransparencyEntriesAsync(start, count).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Retrieves an RFC 6962 audit path proving leaf inclusion in a given tree size.
+        /// </summary>
+        public async Task<string> GetTransparencyInclusionProofAsync(long index, long treeSize) =>
+            await SendRequestAsync("GET", string.Format("/api/transparency/inclusion-proof?index={0}&tree_size={1}", index, treeSize), null).ConfigureAwait(false);
+
+        public string GetTransparencyInclusionProof(long index, long treeSize) =>
+            GetTransparencyInclusionProofAsync(index, treeSize).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Cryptographically verifies an inclusion proof payload on the broker.
+        /// </summary>
+        public async Task<string> VerifyTransparencyInclusionProofAsync(string proofJson) =>
+            await SendRequestAsync("POST", "/api/transparency/inclusion-proof/verify", proofJson).ConfigureAwait(false);
+
+        public string VerifyTransparencyInclusionProof(string proofJson) =>
+            VerifyTransparencyInclusionProofAsync(proofJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Retrieves an RFC 6962 consistency proof between two tree heads.
+        /// </summary>
+        public async Task<string> GetTransparencyConsistencyProofAsync(long first, long second) =>
+            await SendRequestAsync("GET", string.Format("/api/transparency/consistency-proof?first={0}&second={1}", first, second), null).ConfigureAwait(false);
+
+        public string GetTransparencyConsistencyProof(long first, long second) =>
+            GetTransparencyConsistencyProofAsync(first, second).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Cryptographically verifies a consistency proof payload on the broker.
+        /// </summary>
+        public async Task<string> VerifyTransparencyConsistencyProofAsync(string proofJson) =>
+            await SendRequestAsync("POST", "/api/transparency/consistency-proof/verify", proofJson).ConfigureAwait(false);
+
+        public string VerifyTransparencyConsistencyProof(string proofJson) =>
+            VerifyTransparencyConsistencyProofAsync(proofJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Requests an independent multi-party witness node to co-sign the active STH.
+        /// </summary>
+        public async Task<string> CosignTransparencySTHAsync(string witnessId)
+        {
+            string body = string.Format("{{\"witness_id\":\"{0}\"}}", EscapeJson(witnessId ?? ""));
+            return await SendRequestAsync("POST", "/api/transparency/witness/cosign", body).ConfigureAwait(false);
+        }
+
+        public string CosignTransparencySTH(string witnessId) =>
+            CosignTransparencySTHAsync(witnessId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Lists all registered witness node identifiers.
+        /// </summary>
+        public async Task<string> ListTransparencyWitnessesAsync() =>
+            await SendRequestAsync("GET", "/api/transparency/witnesses", null).ConfigureAwait(false);
+
+        public string ListTransparencyWitnesses() =>
+            ListTransparencyWitnessesAsync().GetAwaiter().GetResult();
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

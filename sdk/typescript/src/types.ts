@@ -1114,6 +1114,62 @@ export interface HybridSessionVerification {
   expires_at?: string;
 }
 
+export interface TransparencyLogEntry {
+  index: number;
+  timestamp: number;
+  action: string;
+  tenant_id: string;
+  payload: any;
+  leaf_hash_hex: string;
+  signature?: string;
+}
+
+export interface TransparencyWitnessSignature {
+  witness_id: string;
+  tree_size: number;
+  root_hash_hex: string;
+  timestamp: number;
+  signature: string;
+  status: 'verified' | 'conflict' | string;
+}
+
+export interface TransparencySTH {
+  tree_size: number;
+  timestamp: number;
+  root_hash_hex: string;
+  log_id: string;
+  tree_head_signature: string;
+  witness_signatures?: TransparencyWitnessSignature[];
+}
+
+export interface TransparencyInclusionProof {
+  leaf_index: number;
+  tree_size: number;
+  leaf_hash_hex: string;
+  root_hash_hex: string;
+  audit_path_hex: string[];
+}
+
+export interface TransparencyConsistencyProof {
+  first_size: number;
+  second_size: number;
+  first_root_hex: string;
+  second_root_hex: string;
+  proof_hex: string[];
+}
+
+export interface TransparencyStatus {
+  log_id: string;
+  tree_size: number;
+  root_hash_hex: string;
+  latest_sth?: TransparencySTH;
+  active_witnesses: number;
+  total_entries: number;
+  operating_mode: string;
+  compliance_rfc: string;
+}
+
+
 
 
 

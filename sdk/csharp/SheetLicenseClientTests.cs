@@ -521,6 +521,56 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"session_id\":\"sess-cs-pqc-01\",\"agreed_mode\":\"hybrid\",\"algorithm\":\"ML-KEM-768\",\"quantum_resistant\":true}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"log_id\":\"slb-transparency-cs-mock\",\"tree_size\":20,\"root_hash_hex\":\"aabbcc112233\",\"active_witnesses\":3,\"total_entries\":20,\"compliance_rfc\":\"RFC 6962\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/append")
+                        {
+                            ctx.Response.StatusCode = 201;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"success\",\"entry\":{\"index\":20,\"action\":\"license_created\",\"leaf_hash_hex\":\"leaf_hex_cs\"},\"sth\":{\"tree_size\":21,\"root_hash_hex\":\"new_root_hex_cs\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/sth")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"tree_size\":20,\"root_hash_hex\":\"aabbcc112233\",\"log_id\":\"slb-transparency-cs-mock\",\"witness_signatures\":[{\"witness_id\":\"witness-enclave-sgx\",\"tree_size\":20,\"status\":\"verified\"}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/entries")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"start\":0,\"count\":2,\"entries\":[{\"index\":0,\"action\":\"license_issued\"},{\"index\":1,\"action\":\"license_revoked\"}]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/inclusion-proof")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"leaf_index\":5,\"tree_size\":20,\"leaf_hash_hex\":\"leaf_hex_cs\",\"root_hash_hex\":\"aabbcc112233\",\"audit_path_hex\":[\"p0\",\"p1\"]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/inclusion-proof/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"verified\":true,\"leaf_index\":5,\"tree_size\":20}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/consistency-proof")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"first_size\":10,\"second_size\":20,\"first_root_hex\":\"root10\",\"second_root_hex\":\"aabbcc112233\",\"proof_hex\":[\"cp0\"]}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/consistency-proof/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"verified\":true,\"first_size\":10,\"second_size\":20}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/witness/cosign")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"witness_id\":\"witness-enclave-sgx\",\"tree_size\":20,\"status\":\"verified\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/transparency/witnesses")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"witnesses\":[\"witness-enclave-sgx\",\"witness-node-iad\",\"witness-edge-fra\"],\"count\":3}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -1177,7 +1227,70 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: SEV-SNP & TDX remote attestation, attestation tokens, and isolated memory decryption");
 
-                Console.WriteLine("=== All 27 C# Client Tests Passed Successfully! ===");
+                // 28. Test Verifiable Merkle Transparency Logs, RFC 6962 Proofs, and Witness Co-Signatures
+                string trStatusRaw = client.GetTransparencyStatusAsync().GetAwaiter().GetResult();
+                if (!trStatusRaw.Contains("slb-transparency-cs-mock") || !trStatusRaw.Contains("RFC 6962"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency status failed: " + trStatusRaw);
+                    return 1;
+                }
+                string trAppendRaw = client.AppendTransparencyEntryAsync("license_created", "tenant-alpha", "{\"seat\":10}").GetAwaiter().GetResult();
+                if (!trAppendRaw.Contains("\"status\":\"success\"") || !trAppendRaw.Contains("leaf_hex_cs"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency append failed: " + trAppendRaw);
+                    return 1;
+                }
+                string trSTHRaw = client.GetTransparencySTHAsync().GetAwaiter().GetResult();
+                if (!trSTHRaw.Contains("aabbcc112233") || !trSTHRaw.Contains("witness-enclave-sgx"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency STH failed: " + trSTHRaw);
+                    return 1;
+                }
+                string trEntriesRaw = client.GetTransparencyEntriesAsync(0, 2).GetAwaiter().GetResult();
+                if (!trEntriesRaw.Contains("\"count\":2") || !trEntriesRaw.Contains("license_issued"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency entries failed: " + trEntriesRaw);
+                    return 1;
+                }
+                string trIncProofRaw = client.GetTransparencyInclusionProofAsync(5, 20).GetAwaiter().GetResult();
+                if (!trIncProofRaw.Contains("leaf_hex_cs") || !trIncProofRaw.Contains("audit_path_hex"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency inclusion proof failed: " + trIncProofRaw);
+                    return 1;
+                }
+                string trIncVerifyRaw = client.VerifyTransparencyInclusionProofAsync(trIncProofRaw).GetAwaiter().GetResult();
+                if (!trIncVerifyRaw.Contains("\"verified\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: Verify transparency inclusion proof failed: " + trIncVerifyRaw);
+                    return 1;
+                }
+                string trConsProofRaw = client.GetTransparencyConsistencyProofAsync(10, 20).GetAwaiter().GetResult();
+                if (!trConsProofRaw.Contains("root10") || !trConsProofRaw.Contains("proof_hex"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency consistency proof failed: " + trConsProofRaw);
+                    return 1;
+                }
+                string trConsVerifyRaw = client.VerifyTransparencyConsistencyProofAsync(trConsProofRaw).GetAwaiter().GetResult();
+                if (!trConsVerifyRaw.Contains("\"verified\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: Verify transparency consistency proof failed: " + trConsVerifyRaw);
+                    return 1;
+                }
+                string trCosignRaw = client.CosignTransparencySTHAsync("witness-enclave-sgx").GetAwaiter().GetResult();
+                if (!trCosignRaw.Contains("witness-enclave-sgx") || !trCosignRaw.Contains("verified"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency cosign failed: " + trCosignRaw);
+                    return 1;
+                }
+                string trWitnessesRaw = client.ListTransparencyWitnessesAsync().GetAwaiter().GetResult();
+                if (!trWitnessesRaw.Contains("witness-enclave-sgx") || !trWitnessesRaw.Contains("\"count\":3"))
+                {
+                    Console.Error.WriteLine("FAIL: Transparency witnesses failed: " + trWitnessesRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: RFC 6962 transparency status, STH, inclusion/consistency proofs, and witness co-signatures");
+
+                Console.WriteLine("=== All 28 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

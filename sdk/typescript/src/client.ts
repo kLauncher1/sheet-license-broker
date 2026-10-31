@@ -100,6 +100,12 @@ import type {
   HybridHandshakeRequest,
   HybridHandshakeResponse,
   HybridSessionVerification,
+  TransparencyLogEntry,
+  TransparencyWitnessSignature,
+  TransparencySTH,
+  TransparencyInclusionProof,
+  TransparencyConsistencyProof,
+  TransparencyStatus,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -1243,6 +1249,117 @@ export class SheetLicenseClient {
    */
   public async verifyHybridKEMSession(sessionId: string): Promise<HybridSessionVerification> {
     return this.request<HybridSessionVerification>('GET', `/api/pqc/kem/sessions/verify?session_id=${encodeURIComponent(sessionId)}`);
+  }
+
+  /**
+   * Queries real-time status and telemetry for the RFC 6962 verifiable transparency log.
+   */
+  public async getTransparencyStatus(): Promise<TransparencyStatus> {
+    return this.request<TransparencyStatus>('GET', '/api/transparency/status');
+  }
+
+  /**
+   * Appends an audit event to the transparency log and issues an updated Signed Tree Head (STH).
+   */
+  public async appendTransparencyEntry(
+    action: string,
+    tenantId: string = 'default',
+    payload: any = {}
+  ): Promise<{ status: string; entry: TransparencyLogEntry; sth: TransparencySTH }> {
+    return this.request<{ status: string; entry: TransparencyLogEntry; sth: TransparencySTH }>(
+      'POST',
+      '/api/transparency/append',
+      { action, tenant_id: tenantId, payload }
+    );
+  }
+
+  /**
+   * Queries the latest Signed Tree Head (STH) with multi-party witness co-signatures.
+   */
+  public async getTransparencySTH(): Promise<TransparencySTH> {
+    return this.request<TransparencySTH>('GET', '/api/transparency/sth');
+  }
+
+  /**
+   * Queries a slice of entries from the transparency log.
+   */
+  public async getTransparencyEntries(
+    start: number = 0,
+    count: number = 20
+  ): Promise<{ start: number; count: number; entries: TransparencyLogEntry[] }> {
+    return this.request<{ start: number; count: number; entries: TransparencyLogEntry[] }>(
+      'GET',
+      `/api/transparency/entries?start=${start}&count=${count}`
+    );
+  }
+
+  /**
+   * Retrieves an RFC 6962 inclusion proof for a leaf index in a tree size.
+   */
+  public async getTransparencyInclusionProof(
+    index: number,
+    treeSize: number
+  ): Promise<TransparencyInclusionProof> {
+    return this.request<TransparencyInclusionProof>(
+      'GET',
+      `/api/transparency/inclusion-proof?index=${index}&tree_size=${treeSize}`
+    );
+  }
+
+  /**
+   * Cryptographically verifies an inclusion proof payload on the broker.
+   */
+  public async verifyTransparencyInclusionProof(
+    proof: TransparencyInclusionProof
+  ): Promise<{ verified: boolean; leaf_index: number; tree_size: number }> {
+    return this.request<{ verified: boolean; leaf_index: number; tree_size: number }>(
+      'POST',
+      '/api/transparency/inclusion-proof/verify',
+      proof
+    );
+  }
+
+  /**
+   * Retrieves an RFC 6962 consistency proof between two tree heads.
+   */
+  public async getTransparencyConsistencyProof(
+    first: number,
+    second: number
+  ): Promise<TransparencyConsistencyProof> {
+    return this.request<TransparencyConsistencyProof>(
+      'GET',
+      `/api/transparency/consistency-proof?first=${first}&second=${second}`
+    );
+  }
+
+  /**
+   * Cryptographically verifies a consistency proof payload on the broker.
+   */
+  public async verifyTransparencyConsistencyProof(
+    proof: TransparencyConsistencyProof
+  ): Promise<{ verified: boolean; first_size: number; second_size: number }> {
+    return this.request<{ verified: boolean; first_size: number; second_size: number }>(
+      'POST',
+      '/api/transparency/consistency-proof/verify',
+      proof
+    );
+  }
+
+  /**
+   * Requests a multi-party witness node to co-sign the active tree head.
+   */
+  public async cosignTransparencySTH(witnessId: string): Promise<TransparencyWitnessSignature> {
+    return this.request<TransparencyWitnessSignature>('POST', '/api/transparency/witness/cosign', {
+      witness_id: witnessId,
+    });
+  }
+
+  /**
+   * Lists all registered witness node identifiers.
+   */
+  public async listTransparencyWitnesses(): Promise<string[]> {
+    const res = await this.request<{ witnesses: string[]; count: number }>('GET', '/api/transparency/witnesses');
+    return res.witnesses || [];
   }
 }
 

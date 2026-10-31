@@ -869,5 +869,36 @@ export class SheetLicenseClient {
     async verifyHybridKEMSession(sessionId) {
         return this.request('GET', `/api/pqc/kem/sessions/verify?session_id=${encodeURIComponent(sessionId)}`);
     }
+    async getTransparencyStatus() {
+        return this.request('GET', '/api/transparency/status');
+    }
+    async appendTransparencyEntry(action, tenantId = 'default', payload = {}) {
+        return this.request('POST', '/api/transparency/append', { action, tenant_id: tenantId, payload });
+    }
+    async getTransparencySTH() {
+        return this.request('GET', '/api/transparency/sth');
+    }
+    async getTransparencyEntries(start = 0, count = 20) {
+        return this.request('GET', `/api/transparency/entries?start=${start}&count=${count}`);
+    }
+    async getTransparencyInclusionProof(index, treeSize) {
+        return this.request('GET', `/api/transparency/inclusion-proof?index=${index}&tree_size=${treeSize}`);
+    }
+    async verifyTransparencyInclusionProof(proof) {
+        return this.request('POST', '/api/transparency/inclusion-proof/verify', proof);
+    }
+    async getTransparencyConsistencyProof(first, second) {
+        return this.request('GET', `/api/transparency/consistency-proof?first=${first}&second=${second}`);
+    }
+    async verifyTransparencyConsistencyProof(proof) {
+        return this.request('POST', '/api/transparency/consistency-proof/verify', proof);
+    }
+    async cosignTransparencySTH(witnessId) {
+        return this.request('POST', '/api/transparency/witness/cosign', { witness_id: witnessId });
+    }
+    async listTransparencyWitnesses() {
+        const res = await this.request('GET', '/api/transparency/witnesses');
+        return res.witnesses || [];
+    }
 }
 //# sourceMappingURL=client.js.map
