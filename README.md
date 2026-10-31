@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v2.3.0-emerald.svg" alt="Version: v2.3.0">
+  <img src="https://img.shields.io/badge/version-v2.4.0-emerald.svg" alt="Version: v2.4.0">
   <img src="https://img.shields.io/badge/mlkem-NIST%20FIPS%20203%20ML--KEM--768%2F1024-34D399.svg" alt="Quantum-Resistant ML-KEM & Lattice Cryptography">
   <img src="https://img.shields.io/badge/hsm-PKCS%2311%20%26%20FIPS%20140--3%20Level%204-38BDF8.svg" alt="Hardware Security Module & FIPS 140-3 Level 4">
   <img src="https://img.shields.io/badge/healing-Auto--Scaling%20Bucket%20%26%20Quota%20Borrowing-8B5CF6.svg" alt="Autonomous Healing & Dynamic Quota Rebalancing">
@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/airgap-Ed25519%20Dongle%20%26%20Anti--Rollback-0284C7.svg" alt="Air-Gapped Vault and Dongle Emulation">
   <img src="https://img.shields.io/badge/marketplace-Stripe%20%26%20Lemon%20%26%20Paddle-F59E0B.svg" alt="Marketplace & Reseller Webhooks">
   <img src="https://img.shields.io/badge/anycast-Global%20POPs%20%26%20Sub--ms%20Cache-0284C7.svg" alt="Geo Anycast & Sub-ms Cache">
-  <img src="https://img.shields.io/badge/enclave-Intel%20SGX%20%26%20AMD%20SEV--SNP-059669.svg" alt="Confidential Enclaves">
+  <img src="https://img.shields.io/badge/enclave-SEV--SNP%20%26%20Intel%20TDX%20Quote%20v4-059669.svg" alt="Confidential Enclaves">
   <img src="https://img.shields.io/badge/anomaly-Z--Score%20%26%20SIEM%20Topology-F59E0B.svg" alt="Behavioral Anomaly & SIEM Graph">
   <img src="https://img.shields.io/badge/pqc-NIST%20FIPS%20204%20ML--DSA-7C3AED.svg" alt="Post-Quantum Cryptography">
   <img src="https://img.shields.io/badge/sso-SAML%202.0%20%26%20OIDC-blueviolet.svg" alt="SAML & OIDC SSO">
@@ -43,6 +43,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Confidential Computing SEV-SNP & Intel TDX Remote Enclave Validation (v2.4.0)**: Hardware-enforced remote attestation verifying Intel TDX Quote v4 structures, ECDSA P-256/P-384 signatures, TCB SVNs, and MRTD/RTMR registers alongside AMD SEV-SNP 1184-byte signed reports. Issues HMAC-SHA256 hardware-bound attestation tokens and provides isolated memory execution sandbox guarantees (zero-allocation `SecureBuffer` memory destruction) for license key decryption without cleartext exposure to host OS, hypervisor, or broker layers.
 - **Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography (v2.3.0)**: Implements NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM / Kyber-768/1024) in pure Go standard library with zero external dependencies. Features ring arithmetic in $R_q = \mathbb{Z}_q[X]/(X^{256} + 1)$, Centered Binomial Distribution (CBD) sampling, deterministic matrix expansion, and Fujisaki-Okamoto transform implicit rejection for chosen-ciphertext security (IND-CCA2). Provides post-quantum hybrid TLS/ECDH (P-256 + ML-KEM) key exchange wrappers with ephemeral forward secrecy, AES-256-GCM authentication tags, strict downgrade prevention, and cross-platform client SDK support across Go, TypeScript, Python, C#, and Cloudflare Edge Workers.
   - **Hardware Security Module (HSM) PKCS#11 Vault Integration (v2.2.0)**: Direct PKCS#11 hardware cryptoki engine binding with slot abstraction, user/SO PIN authentication, session handle lifecycles, and cryptographic zeroization barriers. Delivers HSM-backed master key derivation (`deriveMasterKey`) using HKDF-SHA256 with slot domain separation for audit tokens and backup snapshots, alongside FIPS 140-3 Level 4 tamper-resistant storage monitoring with physical mesh breach, thermal out-of-range, and voltage glitch detection alarms.
 - **Autonomous License Healing & Dynamic Quota Rebalancing (v2.1.0)**: Automatically scales token bucket capacity (up to 3x burst) and refill rates based on live telemetry load factors while gracefully applying backpressure during error bursts. Establishes self-healing client retry tunnels using cryptographically signed reconnect tickets (`HealingTicket`) with bounded delta event replay over network dropouts, and coordinates distributed quota borrowing leases across tenant pools with surplus headroom enforcement (30% lender reserve) and automatic recall upon lender surges.
@@ -1624,6 +1625,63 @@ Content-Type: application/json
 {
   "session_id": "kem-sess-1729301000-01",
   "auth_tag_hex": "9f2a..."
+}
+```
+
+### 🛡️ Confidential Computing SEV-SNP & Intel TDX Remote Enclave Validation (v2.4.0)
+
+`sheet-license-broker` provides end-to-end cryptographic validation for AMD SEV-SNP and Intel TDX Quote v4 remote attestations, issuing hardware-anchored attestation tokens and executing protected license decryption inside isolated memory execution sandboxes (`SecureBuffer`):
+
+#### Verify Intel TDX Quote v4 Remote Attestation
+```http
+POST /api/enclave/tdx/verify
+Content-Type: application/json
+
+{
+  "quote_hex": "0400020081000000...",
+  "expected_mrenclave": "a1b2c3d4...",
+  "min_tcb_svn": 1,
+  "allow_debug": false
+}
+```
+
+#### Issue Hardware-Bound Attestation Token
+```http
+POST /api/enclave/token/issue
+Content-Type: application/json
+
+{
+  "platform": "intel_tdx",
+  "quote_hex": "0400020081000000...",
+  "expected_mrenclave": "a1b2c3d4...",
+  "min_tcb_svn": 1,
+  "allow_debug": false,
+  "ttl_seconds": 3600
+}
+```
+
+#### Verify Attestation Token
+```http
+POST /api/enclave/token/verify
+Content-Type: application/json
+
+{
+  "token_id": "atk-1729301000-01",
+  "signature": "3a8f...",
+  "min_tcb_svn": 1
+}
+```
+
+#### Execute Isolated Memory Sandbox License Decryption
+```http
+POST /api/enclave/isolated/decrypt
+Content-Type: application/json
+
+{
+  "token_id": "atk-1729301000-01",
+  "token_signature": "3a8f...",
+  "encrypted_key_hex": "4f8a...",
+  "key_fingerprint": "fp-lic-01"
 }
 ```
 

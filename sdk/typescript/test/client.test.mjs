@@ -573,6 +573,79 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/enclave/tdx/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            valid: true,
+            attestation: {
+              valid: true,
+              platform: 'intel_tdx',
+              measurement: 'mrtd_ts_hex_digest',
+              rtmr0: 'rtmr0_ts_hex_digest',
+              svn: 2,
+              debug: false,
+              report_data_hex: '00112233',
+              verified_at: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/token/issue' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            token: {
+              token_id: 'tok_ts_test_123',
+              platform: 'intel_tdx',
+              measurement: 'mrtd_ts_hex_digest',
+              rtmr0: 'rtmr0_ts_hex_digest',
+              svn: 2,
+              debug_allowed: false,
+              challenge_nonce: 'nonce_ts_123',
+              enclave_pub_key: '04pubkey',
+              issued_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 1800000).toISOString(),
+              signature: 'sig_ts_hex_123'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/token/verify' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            valid: true,
+            result: {
+              valid: true,
+              platform: 'intel_tdx',
+              svn: 2,
+              measurement: 'mrtd_ts_hex_digest'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/enclave/isolated/decrypt' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            result: {
+              success: true,
+              license_key_masked: 'SLB-****-****-9999',
+              tier: 'enterprise',
+              features: ['hardware_enclave', 'post_quantum'],
+              expires_at: '2028-01-01T00:00:00Z',
+              platform: 'intel_tdx',
+              svn: 2,
+              hardware_isolated: true,
+              memory_zeroized: true,
+              execution_time_us: 42,
+              evaluation_digest: 'digest_sha256_mock',
+              evaluated_at: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
         if (req.url.startsWith('/api/anycast/route') && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -1621,6 +1694,61 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const status = await client.getEnclaveStatus();
     assert.strictEqual(status.telemetry.verified_quotes, 12);
     assert.strictEqual(status.telemetry.active_tunnels, 3);
+  });
+
+  it('verifies TDX quote, issues attestation token, validates token, and executes isolated license decryption', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    // 1. Verify TDX Quote
+    const tdxRes = await client.verifyTDXQuote({
+      quoteHex: 'deadbeef_tdx_quote_hex',
+      nonce: 'nonce_ts_123',
+      policyId: 'default-tdx',
+    });
+    assert.strictEqual(tdxRes.valid, true);
+    assert.strictEqual(tdxRes.platform, 'intel_tdx');
+    assert.strictEqual(tdxRes.measurement, 'mrtd_ts_hex_digest');
+    assert.strictEqual(tdxRes.svn, 2);
+
+    // 2. Issue Attestation Token
+    const token = await client.issueAttestationToken({
+      platform: 'intel_tdx',
+      measurement: tdxRes.measurement || 'mrtd_ts_hex_digest',
+      rtmr0: tdxRes.rtmr0,
+      svn: tdxRes.svn,
+      debug: false,
+      nonce: 'nonce_ts_123',
+      enclavePubKey: '04pubkey',
+      ttlSeconds: 1800,
+    });
+    assert.strictEqual(token.token_id, 'tok_ts_test_123');
+    assert.strictEqual(token.platform, 'intel_tdx');
+    assert.strictEqual(token.signature, 'sig_ts_hex_123');
+
+    // 3. Verify Attestation Token
+    const verifyRes = await client.verifyAttestationToken({
+      tokenId: token.token_id,
+      token,
+      minSVN: 1,
+      allowDebug: false,
+    });
+    assert.strictEqual(verifyRes.valid, true);
+    assert.strictEqual(verifyRes.svn, 2);
+
+    // 4. Execute Isolated License Decryption
+    const decRes = await client.executeIsolatedDecryption({
+      platform: 'intel_tdx',
+      attestation_token: token.token_id,
+      token,
+      encrypted_payload_hex: 'enc_payload_hex',
+      nonce_hex: '0102030405060708090a0b0c',
+      session_key_hex: '32_byte_session_key_hex_12345678',
+    });
+    assert.strictEqual(decRes.success, true);
+    assert.strictEqual(decRes.hardware_isolated, true);
+    assert.strictEqual(decRes.memory_zeroized, true);
+    assert.strictEqual(decRes.tier, 'enterprise');
+    assert.strictEqual(decRes.license_key_masked, 'SLB-****-****-9999');
   });
 
   it('queries anycast route, reports probe, queries status, edge cache stats, and fast verifies license', async () => {

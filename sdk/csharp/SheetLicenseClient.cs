@@ -621,6 +621,46 @@ namespace SheetLicenseBroker
             await SendRequestAsync("GET", "/api/enclave/status", null).ConfigureAwait(false);
 
         /// <summary>
+        /// Submits an Intel TDX Quote v4 for cryptographic and policy verification.
+        /// </summary>
+        public async Task<string> VerifyTDXQuoteAsync(string quoteHex, string nonce, string policyId = null)
+        {
+            string body = string.Format("{{\"quote\":\"{0}\",\"nonce\":\"{1}\",\"policy_id\":\"{2}\"}}",
+                EscapeJson(quoteHex), EscapeJson(nonce), EscapeJson(policyId ?? ""));
+            return await SendRequestAsync("POST", "/api/enclave/tdx/verify", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Requests an immutable signed attestation token binding hardware measurements and SVN.
+        /// </summary>
+        public async Task<string> IssueAttestationTokenAsync(string platform, string measurement, string rtmr0, int svn, bool debug, string nonce, string enclavePubKey = "", int ttlSeconds = 1800)
+        {
+            string body = string.Format("{{\"platform\":\"{0}\",\"measurement\":\"{1}\",\"rtmr0\":\"{2}\",\"svn\":{3},\"debug\":{4},\"nonce\":\"{5}\",\"enclave_pub_key\":\"{6}\",\"ttl_seconds\":{7}}}",
+                EscapeJson(platform ?? "intel_tdx"), EscapeJson(measurement), EscapeJson(rtmr0 ?? ""), svn, debug ? "true" : "false", EscapeJson(nonce), EscapeJson(enclavePubKey ?? ""), ttlSeconds);
+            return await SendRequestAsync("POST", "/api/enclave/token/issue", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Validates an attestation token against minimum SVN and debug posture requirements.
+        /// </summary>
+        public async Task<string> VerifyAttestationTokenAsync(string tokenId, int minSVN = 0, bool allowDebug = false)
+        {
+            string body = string.Format("{{\"token_id\":\"{0}\",\"min_svn\":{1},\"allow_debug\":{2}}}",
+                EscapeJson(tokenId), minSVN, allowDebug ? "true" : "false");
+            return await SendRequestAsync("POST", "/api/enclave/token/verify", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Requests hardware-isolated memory execution and sensitive license evaluation.
+        /// </summary>
+        public async Task<string> ExecuteIsolatedDecryptionAsync(string platform, string tokenId, string encryptedPayloadHex, string nonceHex, string sessionKeyHex)
+        {
+            string body = string.Format("{{\"platform\":\"{0}\",\"token_id\":\"{1}\",\"encrypted_payload_hex\":\"{2}\",\"nonce_hex\":\"{3}\",\"session_key_hex\":\"{4}\"}}",
+                EscapeJson(platform ?? "intel_tdx"), EscapeJson(tokenId), EscapeJson(encryptedPayloadHex), EscapeJson(nonceHex), EscapeJson(sessionKeyHex));
+            return await SendRequestAsync("POST", "/api/enclave/isolated/decrypt", body).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Computes optimal nearest Edge Point of Presence (POP) based on client geo coordinates and latency weighting.
         /// </summary>
         public async Task<string> GetAnycastRouteAsync(double lat, double lon, string clientIp = "", string preferredRegion = "")

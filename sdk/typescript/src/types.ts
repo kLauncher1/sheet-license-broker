@@ -453,15 +453,65 @@ export interface AnomalyTelemetrySummary {
 
 export interface EnclaveAttestationResult {
   valid: boolean;
-  platform: 'intel_sgx' | 'amd_sev_snp';
+  platform: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
   mr_enclave?: string;
   mr_signer?: string;
   measurement?: string;
+  mrtd?: string;
+  rtmr0?: string;
   svn: number;
   debug: boolean;
   report_data_hex: string;
   error_message?: string;
   verified_at: string;
+}
+
+export interface EnclaveAttestationToken {
+  token_id: string;
+  platform: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
+  measurement: string;
+  rtmr0?: string;
+  svn: number;
+  debug_allowed: boolean;
+  challenge_nonce: string;
+  enclave_pub_key?: string;
+  issued_at: string;
+  expires_at: string;
+  signature: string;
+}
+
+export interface EnclaveTokenVerifyResult {
+  valid: boolean;
+  token?: EnclaveAttestationToken;
+  platform?: string;
+  svn?: number;
+  measurement?: string;
+  error_message?: string;
+}
+
+export interface EnclaveIsolatedDecryptionRequest {
+  platform: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
+  attestation_token?: string;
+  token?: EnclaveAttestationToken;
+  encrypted_payload_hex: string;
+  nonce_hex: string;
+  session_key_hex: string;
+}
+
+export interface EnclaveIsolatedDecryptionResult {
+  success: boolean;
+  license_key_masked: string;
+  tier: string;
+  features: string[];
+  expires_at: string;
+  platform: string;
+  svn: number;
+  hardware_isolated: boolean;
+  memory_zeroized: boolean;
+  execution_time_us: number;
+  evaluation_digest: string;
+  evaluated_at: string;
+  error_message?: string;
 }
 
 export interface EnclaveHandshakeResponse {
@@ -497,6 +547,8 @@ export interface EnclaveTelemetry {
   failed_attestations: number;
   quotes_by_platform: Record<string, number>;
   active_policies_count: number;
+  active_tokens_count?: number;
+  isolated_decryptions?: number;
 }
 
 export interface AnycastPOP {

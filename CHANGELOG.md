@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-10-31
+
+### Added
+- Confidential Computing SEV-SNP Remote Enclave Validation subsystem (`internal/enclave/types.go`, `internal/enclave/tdx.go`, `internal/enclave/token.go`, `internal/enclave/sandbox.go`, `internal/enclave/manager.go`, `internal/enclave/tdx_test.go`, `internal/enclave/token_test.go`, `internal/enclave/sandbox_test.go`) implemented in pure Go standard library with zero third-party dependencies.
+- Intel Trust Domain Extensions (TDX) Quote v4 binary parser and cryptographic signature verifier (`internal/enclave/tdx.go`) validating 48-byte quote headers, 584-byte TDReports, SHA-384 measurements (MRTD and RTMR[0..3]), Security Version Numbers (TCB SVN), debug flags, and ECDSA P-256 / P-384 cryptographic signatures against trusted endorsement keys.
+- Cryptographic Attestation Token Manager (`internal/enclave/token.go`) issuing, validating, and revoking hardware-bound attestation tokens (`AttestationToken`) signed with HMAC-SHA256, carrying hardware platform identifiers, measurement digests, security version numbers, and enforced expiration TTLs with constant-time verification.
+- Hardware-isolated memory execution sandbox (`internal/enclave/sandbox.go`) providing protected license key decryption guarantees; cleartext payloads are processed strictly inside zero-allocation `SecureBuffer` memory constructs and wiped immediately (`defer secBuf.Destroy()`) upon license evaluation, producing tamper-evident SHA-256 evaluation digests and masked license keys (`SLB-****`).
+- Proxy integration layer (`internal/proxy/enclave.go`, `internal/proxy/enclave_test.go`) binding Intel TDX quote verification, attestation token lifecycle management, and isolated license key decryption to the unified broker gateway and Google Apps Script audit logs.
+- Dedicated REST routing layer (`routes_enclave.go`, `routes_enclave_test.go`) exposing `POST /api/enclave/tdx/verify`, `POST /api/enclave/token/issue`, `POST /api/enclave/token/verify`, and `POST /api/enclave/isolated/decrypt`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic sheet initialization and persistent audit tracking for the `Enclave_Tokens` sheet, with `enclave_record_token` and `enclave_list_tokens` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/enclave.go`, `sdk/go/enclave_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting Intel TDX attestation, attestation token issuance/verification, and isolated license decryption with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) implementing edge-side confidential computing status telemetry (`/edge/enclave/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring an expanded "Confidential Enclaves" tab with SEV-SNP and Intel TDX attestation cards, active attestation token counters, isolated decryption telemetry, and interactive modal dialogs for quote verification, token issuance, and isolated sandbox decryption.
+- Version bump to 2.4.0 across core binary, manifests, documentation, and client libraries.
+
 ## [2.3.0] - 2026-10-30
 
 ### Added

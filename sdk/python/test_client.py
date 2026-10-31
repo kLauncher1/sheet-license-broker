@@ -738,6 +738,66 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/enclave/tdx/verify":
+            self._send_json(
+                200,
+                {
+                    "valid": True,
+                    "attestation": {
+                        "valid": True,
+                        "platform": "intel_tdx",
+                        "measurement": "mrtd_py_hex",
+                        "rtmr0": "rtmr0_py_hex",
+                        "svn": 2,
+                    },
+                },
+            )
+            return
+
+        if path == "/api/enclave/token/issue":
+            self._send_json(
+                200,
+                {
+                    "token": {
+                        "token_id": "tok_py_123",
+                        "platform": payload.get("platform", "intel_tdx"),
+                        "measurement": payload.get("measurement", ""),
+                        "svn": payload.get("svn", 1),
+                        "signature": "sig_py_123",
+                    }
+                },
+            )
+            return
+
+        if path == "/api/enclave/token/verify":
+            self._send_json(
+                200,
+                {
+                    "valid": True,
+                    "result": {
+                        "valid": True,
+                        "platform": "intel_tdx",
+                        "svn": 2,
+                    },
+                },
+            )
+            return
+
+        if path == "/api/enclave/isolated/decrypt":
+            self._send_json(
+                200,
+                {
+                    "result": {
+                        "success": True,
+                        "license_key_masked": "SLB-****-****-1111",
+                        "tier": "enterprise",
+                        "hardware_isolated": True,
+                        "memory_zeroized": True,
+                    }
+                },
+            )
+            return
+
         if path == "/api/anycast/probe":
             self._send_json(200, {"status": "recorded"})
             return
@@ -1270,6 +1330,31 @@ class TestSheetLicenseClient(unittest.TestCase):
 
         st = client.get_enclave_status()
         self.assertEqual(st.get("telemetry", {}).get("verified_quotes"), 5)
+
+    def test_tdx_and_attestation_token_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+        tdx_res = client.verify_tdx_quote("deadbeef_tdx", "nonce_py")
+        self.assertTrue(tdx_res.get("valid"))
+        self.assertEqual(tdx_res.get("platform"), "intel_tdx")
+        self.assertEqual(tdx_res.get("measurement"), "mrtd_py_hex")
+
+        tok = client.issue_attestation_token(platform="intel_tdx", measurement="mrtd_py_hex", rtmr0="rtmr0_py_hex", svn=2, nonce="nonce_py")
+        self.assertEqual(tok.get("token_id"), "tok_py_123")
+
+        v_tok = client.verify_attestation_token(token_id="tok_py_123", min_svn=1)
+        self.assertTrue(v_tok.get("valid"))
+
+        dec_res = client.execute_isolated_decryption(
+            platform="intel_tdx",
+            token_id="tok_py_123",
+            encrypted_payload_hex="enc_hex",
+            nonce_hex="0102030405060708090a0b0c",
+            session_key_hex="32_bytes_session_key_hex_12345678",
+        )
+        self.assertTrue(dec_res.get("success"))
+        self.assertTrue(dec_res.get("hardware_isolated"))
+        self.assertTrue(dec_res.get("memory_zeroized"))
+        self.assertEqual(dec_res.get("tier"), "enterprise")
 
     def test_anycast_methods(self) -> None:
         client = SheetLicenseClient(base_url=self.base_url)

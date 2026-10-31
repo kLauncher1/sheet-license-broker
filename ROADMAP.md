@@ -203,10 +203,13 @@ outes_mlkem.go) and proxy orchestration (internal/proxy/mlkem.go)
 - [x] Multi-language client SDK bindings across Go, TypeScript, Python, C#, and Cloudflare Edge Worker (sdk/, edge/cloudflare/worker.js)
 - [x] Embedded admin console Quantum ML-KEM & Lattice KEM interactive dashboard tab (web/dist/index.html)
 
-## Phase 24: Confidential Computing SEV-SNP Remote Enclave Validation (v2.4.0)
-- [ ] AMD SEV-SNP and Intel TDX remote attestation report cryptographic verification
-- [ ] Hardware-isolated memory execution guarantees for sensitive license decryption
-- [ ] End-to-end attestation token binding with hardware measurements and security version numbers (SVN)
+## Phase 24: Confidential Computing SEV-SNP Remote Enclave Validation (v2.4.0) - Completed
+- [x] AMD SEV-SNP and Intel TDX remote attestation report cryptographic verification (`internal/enclave/tdx.go`, `internal/enclave/sev.go`)
+- [x] Hardware-isolated memory execution guarantees for sensitive license decryption (`internal/enclave/sandbox.go`)
+- [x] End-to-end attestation token binding with hardware measurements and security version numbers (SVN) (`internal/enclave/token.go`)
+- [x] Dedicated enclave REST endpoints (`/api/enclave/tdx/verify`, `/api/enclave/token/*`, `/api/enclave/isolated/decrypt`), full proxy integration, and Apps Script audit sheets (`gas/Code.gs`)
+- [x] Multi-language client SDK methods across Go, TypeScript, Python, C#, and Cloudflare Edge Worker (`sdk/`, `edge/cloudflare/worker.js`)
+- [x] Embedded admin console Confidential Enclaves interactive dashboard tab (`web/dist/index.html`)
 
 ## Phase 25: Real-Time Decentralized Audit Ledger & Verifiable Transparency Logs (v2.5.0)
 - [ ] Cryptographic Merkle tree transparency log with RFC 6962 inclusion and consistency proofs
@@ -317,4 +320,14 @@ outes_mlkem.go) and proxy orchestration (internal/proxy/mlkem.go)
 - [ ] Privacy-preserving blind entitlement tokens using Groth16 / Plonk zk-SNARK proof circuits
 - [ ] Decentralized anonymous license verification without tenant identity disclosure
 - [ ] Tamper-evident merkle tree membership proofs with constant-time verification gas optimization
+
+## Phase 47: Autonomous Ephemeral Micro-VM Enclave Provisioning & Just-in-Time Entitlements (v4.7.0)
+- [ ] On-demand micro-VM enclave instantiation with AMD SEV-SNP and Intel TDX attestation binding
+- [ ] Ephemeral memory ballooning and automated hardware key injection with sub-second teardown
+- [ ] Dynamic just-in-time entitlement distribution with hardware-isolated attestation token lifecycles
+
+## Phase 48: Decentralized Post-Quantum Zero-Knowledge State Accumulators (v4.8.0)
+- [ ] Lattice-based cryptographic state accumulators with constant-size inclusion and non-inclusion proofs
+- [ ] Asynchronous batch entitlement updates across distributed broker nodes with zero-knowledge verification
+- [ ] Quantum-resistant cryptographic membership proofs resisting Shor's and Grover's attack vectors
 

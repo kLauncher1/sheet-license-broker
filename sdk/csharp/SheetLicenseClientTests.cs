@@ -266,6 +266,26 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"telemetry\":{\"verified_quotes\":5,\"active_tunnels\":2,\"total_evaluations\":12,\"failed_attestations\":0},\"policies\":[]}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/tdx/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"attestation\":{\"valid\":true,\"platform\":\"intel_tdx\",\"measurement\":\"mrtd_cs_hex\",\"rtmr0\":\"rtmr0_cs_hex\",\"svn\":2,\"debug\":false}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/token/issue")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"token\":{\"token_id\":\"tok_cs_123\",\"platform\":\"intel_tdx\",\"measurement\":\"mrtd_cs_hex\",\"svn\":2,\"signature\":\"sig_cs_123\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/token/verify")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"valid\":true,\"result\":{\"valid\":true,\"platform\":\"intel_tdx\",\"svn\":2,\"measurement\":\"mrtd_cs_hex\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/enclave/isolated/decrypt")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"result\":{\"success\":true,\"license_key_masked\":\"SLB-****-****-CS01\",\"tier\":\"enterprise\",\"hardware_isolated\":true,\"memory_zeroized\":true,\"evaluation_digest\":\"sha256_cs_digest\"}}");
+                        }
                         else if (ctx.Request.Url.AbsolutePath.StartsWith("/api/anycast/route"))
                         {
                             ctx.Response.StatusCode = 200;
@@ -1130,7 +1150,34 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: ML-KEM status, keys, generate key, encapsulate/decapsulate, hybrid handshake, and verify session");
 
-                Console.WriteLine("=== All 26 C# Client Tests Passed Successfully! ===");
+                // 27. Test SEV-SNP & Intel TDX Remote Attestation, Attestation Tokens, and Isolated Decryption
+                string tdxVerifyRaw = client.VerifyTDXQuoteAsync("deadbeef_tdx_cs", "nonce_cs_123", "default-tdx").GetAwaiter().GetResult();
+                if (!tdxVerifyRaw.Contains("\"valid\":true") || !tdxVerifyRaw.Contains("intel_tdx") || !tdxVerifyRaw.Contains("mrtd_cs_hex"))
+                {
+                    Console.Error.WriteLine("FAIL: TDX verify quote failed: " + tdxVerifyRaw);
+                    return 1;
+                }
+                string tokIssueRaw = client.IssueAttestationTokenAsync("intel_tdx", "mrtd_cs_hex", "rtmr0_cs_hex", 2, false, "nonce_cs_123", "pub_cs_hex", 1800).GetAwaiter().GetResult();
+                if (!tokIssueRaw.Contains("tok_cs_123") || !tokIssueRaw.Contains("intel_tdx"))
+                {
+                    Console.Error.WriteLine("FAIL: Issue attestation token failed: " + tokIssueRaw);
+                    return 1;
+                }
+                string tokVerifyRaw = client.VerifyAttestationTokenAsync("tok_cs_123", 1, false).GetAwaiter().GetResult();
+                if (!tokVerifyRaw.Contains("\"valid\":true") || !tokVerifyRaw.Contains("intel_tdx"))
+                {
+                    Console.Error.WriteLine("FAIL: Verify attestation token failed: " + tokVerifyRaw);
+                    return 1;
+                }
+                string isoDecRaw = client.ExecuteIsolatedDecryptionAsync("intel_tdx", "tok_cs_123", "enc_payload_cs", "0102030405060708090a0b0c", "key_32_bytes_cs_hex_123456789012").GetAwaiter().GetResult();
+                if (!isoDecRaw.Contains("\"success\":true") || !isoDecRaw.Contains("SLB-****-****-CS01") || !isoDecRaw.Contains("\"hardware_isolated\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: Isolated decryption failed: " + isoDecRaw);
+                    return 1;
+                }
+                Console.WriteLine("PASS: SEV-SNP & TDX remote attestation, attestation tokens, and isolated memory decryption");
+
+                Console.WriteLine("=== All 27 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

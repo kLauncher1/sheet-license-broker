@@ -118,3 +118,57 @@ func (p *Proxy) GetEnclaveTelemetry() enclave.EnclaveTelemetry {
 	}
 	return p.enclaveManager.GetTelemetry()
 }
+
+// VerifyTDXQuote verifies an Intel TDX Quote v4.
+func (p *Proxy) VerifyTDXQuote(rawQuote []byte, nonce string, policyID string) (*enclave.AttestationResult, error) {
+	if p.enclaveManager == nil {
+		return nil, ErrEnclaveManagerNotInitialized
+	}
+	return p.enclaveManager.AttestQuote(enclave.PlatformTDX, rawQuote, nonce, policyID)
+}
+
+// IssueEnclaveAttestationToken issues a cryptographically signed attestation token.
+func (p *Proxy) IssueEnclaveAttestationToken(platform enclave.PlatformType, measurement, rtmr0 string, svn uint32, debug bool, nonce, pubKey string, ttlSec int) (*enclave.AttestationToken, error) {
+	if p.enclaveManager == nil || p.enclaveManager.TokenManager() == nil {
+		return nil, ErrEnclaveManagerNotInitialized
+	}
+	ttl := time.Duration(ttlSec) * time.Second
+	return p.enclaveManager.TokenManager().IssueToken(platform, measurement, rtmr0, svn, debug, nonce, pubKey, ttl)
+}
+
+// VerifyEnclaveAttestationToken verifies an attestation token against security policies.
+func (p *Proxy) VerifyEnclaveAttestationToken(token *enclave.AttestationToken, minSVN uint32, allowDebug bool) (*enclave.TokenVerifyResult, error) {
+	if p.enclaveManager == nil || p.enclaveManager.TokenManager() == nil {
+		return nil, ErrEnclaveManagerNotInitialized
+	}
+	return p.enclaveManager.TokenManager().VerifyToken(token, minSVN, allowDebug)
+}
+
+// ExecuteIsolatedLicenseDecryption decrypts an encrypted license payload inside zero-wipe memory and verifies entitlements.
+func (p *Proxy) ExecuteIsolatedLicenseDecryption(ctx context.Context, req *enclave.IsolatedDecryptionRequest, sessionKey []byte, token *enclave.AttestationToken) (*enclave.IsolatedDecryptionResult, error) {
+	if p.enclaveManager == nil || p.enclaveManager.Sandbox() == nil {
+		return nil, ErrEnclaveManagerNotInitialized
+	}
+
+	evaluator := func(cleartextKey string) (tier string, features []string, expiresAt string, valid bool, err error) {
+		vRes, vErr := p.VerifyLicense(ctx, cleartextKey, "")
+		if vErr != nil || vRes == nil || !vRes.Valid {
+			return "", nil, "", false, nil
+		}
+		var grantedFeatures []string
+		if p.featureManager != nil {
+			fallback := feature.NormalizeTier(vRes.Tier)
+			_, grantedFeatures = p.featureManager.GetEffectiveFeatures(cleartextKey, fallback)
+		}
+		return vRes.Tier, grantedFeatures, vRes.ExpiresAt, true, nil
+	}
+
+	return p.enclaveManager.Sandbox().ExecuteIsolatedDecryption(
+		ctx,
+		token,
+		req.EncryptedPayloadHex,
+		req.NonceHex,
+		sessionKey,
+		evaluator,
+	)
+}
