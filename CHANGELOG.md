@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2026-11-01
+
+### Added
+- Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation subsystem (`internal/posture/types.go`, `internal/posture/analyzer.go`, `internal/posture/quarantine.go`, `internal/posture/manager.go`, `internal/posture/posture_test.go`) implemented in pure Go standard library with zero third-party dependencies.
+- Multi-vector device posture analyzer (`internal/posture/analyzer.go`) evaluating OS patch currency (25%), hardware and boot integrity (UEFI Secure Boot, TPM 2.0, disk volume encryption; 25%), endpoint anti-malware status (30%), and runtime execution integrity (anti-debugging and root/jailbreak detection; 20%), generating composite confidence scores (0–100) and mapping devices into `healthy` (>=80), `warning` (60–79), and `quarantine` (<60 or integrity trip) tiers.
+- Thread-safe device quarantine registry (`internal/posture/quarantine.go`) managing endpoint isolation, graceful degradation permissions, and step-up challenge lifecycles. Critical integrity trips strictly deny degraded mode, while sub-threshold scores permit read-only grace periods to avoid ungraceful application crashes.
+- Constant-time step-up challenge verification using cryptographic nonce proofs (`subtle.ConstantTimeCompare`) and sliding-window expiration (5-minute TTL) to defend against replay and timing attacks.
+- Ring-buffered evaluation history and atomic metrics tracking in `PostureManager` (`internal/posture/manager.go`), supporting active compliance callbacks and telemetry streams.
+- Proxy integration layer (`internal/proxy/posture.go`, `internal/proxy/posture_test.go`) binding posture evaluations, quarantine tracking, step-up challenges, Google Apps Script persistence, and real-time SSE stream events.
+- Dedicated REST routing layer (`routes_posture.go`, `routes_posture_test.go`) exposing `GET /api/posture/status`, `POST /api/posture/evaluate`, `GET /api/posture/quarantine`, `POST /api/posture/quarantine/release`, `POST /api/posture/step-up/challenge`, `POST /api/posture/step-up/verify`, and `GET /api/posture/device`.
+- Google Apps Script backend update (`gas/Code.gs`) adding automatic sheet initialization and persistent tracking for `Device_Posture_Evaluations` and `Device_Quarantine` sheets, with `posture_record_evaluation`, `posture_record_quarantine`, `posture_release_quarantine`, and `posture_get_status` action handlers.
+- Multi-language client SDK extensions across Go (`sdk/go/posture.go`, `sdk/go/posture_test.go`), TypeScript / Node.js (`sdk/typescript`), Python (`sdk/python`), and C# (`sdk/csharp`) supporting posture evaluation submission, quarantine checks, and step-up challenge verification with 100% test coverage.
+- Cloudflare Edge Worker gateway enhancements (`edge/cloudflare/worker.js`, `edge/cloudflare/worker.test.mjs`) implementing edge-side posture telemetry and quarantine verification reporting (`/edge/posture/status`).
+- Embedded administration console update (`web/dist/index.html`) featuring a dedicated "Device Health & Posture" tab (`#panel-posture`) with live status badges, metric cards, active quarantine tables, release actions, step-up challenge triggers, and evaluation audit history tables.
+- Version bump to 2.6.0 across core binary, manifests, documentation, and client libraries.
+
 ## [2.5.0] - 2026-10-31
 
 ### Added

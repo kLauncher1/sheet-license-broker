@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v2.5.0-emerald.svg" alt="Version: v2.5.0">
+  <img src="https://img.shields.io/badge/version-v2.6.0-emerald.svg" alt="Version: v2.6.0">
+  <img src="https://img.shields.io/badge/zero--trust-Device%20Health%20%26%20Continuous%20Posture-10B981.svg" alt="Adaptive Zero-Trust Device Health & Continuous Posture Attestation">
   <img src="https://img.shields.io/badge/transparency-RFC%206962%20Merkle%20Tree-059669.svg" alt="RFC 6962 Verifiable Transparency Logs">
   <img src="https://img.shields.io/badge/mlkem-NIST%20FIPS%20203%20ML--KEM--768%2F1024-34D399.svg" alt="Quantum-Resistant ML-KEM & Lattice Cryptography">
   <img src="https://img.shields.io/badge/hsm-PKCS%2311%20%26%20FIPS%20140--3%20Level%204-38BDF8.svg" alt="Hardware Security Module & FIPS 140-3 Level 4">
@@ -44,6 +45,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation (v2.6.0)**: Multi-vector endpoint posture analyzer evaluating OS patch currency, UEFI Secure Boot, TPM 2.0 presence, full-disk volume encryption, endpoint anti-malware status, and runtime integrity (anti-debugging and root/jailbreak detection). Delivers composite weighted confidence scores (0–100) and maps devices into `healthy` (>=80), `warning` (60–79), and `quarantine` (<60 or integrity trip) tiers. Features an isolated quarantine registry with graceful degradation allowances, cryptographic step-up challenge nonces verified with constant-time proofs, full client SDK integration (Go, TypeScript, Python, C#), Cloudflare Edge Worker gateway telemetry, and real-time Admin Console monitoring.
 - **Real-Time Decentralized Audit Ledger & Verifiable Transparency Logs (v2.5.0)**: RFC 6962 compliant Merkle Tree transparency log with strict cryptographic domain prefix separation (0x00 leaf / 0x01 interior node) preventing second-preimage attacks. Delivers logarithmic O(log n) inclusion proofs and append-only consistency proofs without re-evaluating historical records. Incorporates an autonomous multi-party witness network detecting split-view attacks in real-time, publishing Signed Tree Heads (STH) with multi-witness co-signatures, full client SDK verification (Go, TypeScript, Python, C#), Cloudflare Edge Worker gateway telemetry, and interactive Admin Console verification tools.
 - **Confidential Computing SEV-SNP & Intel TDX Remote Enclave Validation (v2.4.0)**: Hardware-enforced remote attestation verifying Intel TDX Quote v4 structures, ECDSA P-256/P-384 signatures, TCB SVNs, and MRTD/RTMR registers alongside AMD SEV-SNP 1184-byte signed reports. Issues HMAC-SHA256 hardware-bound attestation tokens and provides isolated memory execution sandbox guarantees (zero-allocation `SecureBuffer` memory destruction) for license key decryption without cleartext exposure to host OS, hypervisor, or broker layers.
 - **Quantum-Resistant ML-KEM Key Exchange & Lattice Cryptography (v2.3.0)**: Implements NIST FIPS 203 Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM / Kyber-768/1024) in pure Go standard library with zero external dependencies. Features ring arithmetic in $R_q = \mathbb{Z}_q[X]/(X^{256} + 1)$, Centered Binomial Distribution (CBD) sampling, deterministic matrix expansion, and Fujisaki-Okamoto transform implicit rejection for chosen-ciphertext security (IND-CCA2). Provides post-quantum hybrid TLS/ECDH (P-256 + ML-KEM) key exchange wrappers with ephemeral forward secrecy, AES-256-GCM authentication tags, strict downgrade prevention, and cross-platform client SDK support across Go, TypeScript, Python, C#, and Cloudflare Edge Workers.
@@ -1689,6 +1691,118 @@ Content-Type: application/json
 
 ---
 
+### 🛡️ Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation (v2.6.0)
+
+`sheet-license-broker` provides continuous zero-trust device posture scoring across multiple endpoint security vectors, automated quarantine isolation with graceful degradation allowances, and cryptographic step-up challenge attestation:
+
+#### Query Posture Engine Status & Telemetry
+```http
+GET /api/posture/status
+```
+
+**Response:**
+```json
+{
+  "total_evaluations": 142,
+  "quarantined_devices": 1,
+  "healthy_devices": 128,
+  "warning_devices": 13,
+  "active_challenges": 2,
+  "engine_version": "2.6.0",
+  "status": "operational"
+}
+```
+
+#### Submit Device Posture Evaluation
+```http
+POST /api/posture/evaluate
+Content-Type: application/json
+
+{
+  "device_id": "DEV-WORKSTATION-01",
+  "tenant_id": "default",
+  "os": {
+    "platform": "windows",
+    "version": "10.0.22631",
+    "patch_age_days": 14,
+    "firewall_active": true
+  },
+  "hardware": {
+    "secure_boot": true,
+    "tpm_present": true,
+    "tpm_version": "2.0",
+    "disk_encrypted": true
+  },
+  "endpoint": {
+    "antivirus_active": true,
+    "realtime_protection": true,
+    "signatures_current": true
+  },
+  "integrity": {
+    "debugger_attached": false,
+    "code_tampered": false,
+    "root_or_jailbreak": false
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "device_id": "DEV-WORKSTATION-01",
+  "tenant_id": "default",
+  "composite_score": 98.5,
+  "tier": "healthy",
+  "evaluated_at": "2026-11-01T10:00:00Z"
+}
+```
+
+#### List Quarantined Devices
+```http
+GET /api/posture/quarantine?tenant_id=default
+```
+
+#### Manually Release Device Quarantine
+```http
+POST /api/posture/quarantine/release
+Content-Type: application/json
+
+{
+  "device_id": "DEV-WORKSTATION-01",
+  "tenant_id": "default"
+}
+```
+
+#### Request Posture Step-Up Challenge Nonce
+```http
+POST /api/posture/step-up/challenge
+Content-Type: application/json
+
+{
+  "device_id": "DEV-WORKSTATION-01",
+  "tenant_id": "default",
+  "actions": ["hardware_token", "re_attestation"]
+}
+```
+
+#### Verify Posture Step-Up Challenge Proof
+```http
+POST /api/posture/step-up/verify
+Content-Type: application/json
+
+{
+  "challenge_id": "ch-1729302000-01",
+  "nonce": "proof-nonce-string"
+}
+```
+
+#### Lookup Device Health & Quarantine Status
+```http
+GET /api/posture/device?tenant_id=default&device_id=DEV-WORKSTATION-01
+```
+
+---
+
 ## ⚡ Cloudflare Edge Gateway
 
 For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
@@ -1701,6 +1815,7 @@ wrangler deploy
 - **Sub-10ms POP Verification**: Checks valid licenses directly from Cloudflare Workers KV cache.
 - **Hardware Web Crypto**: Edge HMAC-SHA256 signature and replay prevention before hitting origin.
 - **Automated Origin Fallback**: Uncached queries, key binds, and revocations transparently proxy to the origin server.
+- **Zero-Trust Posture Telemetry**: Inspect edge device health and quarantine capabilities via `GET /edge/posture/status`.
 
 ---
 

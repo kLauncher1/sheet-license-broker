@@ -1170,6 +1170,52 @@ class SheetLicenseClient:
         res = self._request("GET", "/api/transparency/witnesses")
         return res.get("witnesses", [])
 
+    def get_posture_status(self) -> Dict[str, Any]:
+        """Queries real-time status and operational health of the posture evaluation engine."""
+        return self._request("GET", "/api/posture/status")
+
+    def evaluate_device_posture(self, report: Dict[str, Any]) -> Dict[str, Any]:
+        """Submits client device posture telemetry and evaluates vector confidence scores."""
+        return self._request("POST", "/api/posture/evaluate", report)
+
+    def get_quarantined_devices(self, tenant_id: str = "") -> list[Dict[str, Any]]:
+        """Queries currently quarantined devices, optionally filtered by tenant."""
+        endpoint = f"/api/posture/quarantine?tenant_id={tenant_id}" if tenant_id else "/api/posture/quarantine"
+        res = self._request("GET", endpoint)
+        return res.get("quarantined", [])
+
+    def release_device_quarantine(self, device_id: str, tenant_id: str = "default") -> bool:
+        """Manually releases an endpoint from quarantine isolation."""
+        res = self._request("POST", "/api/posture/quarantine/release", {
+            "device_id": device_id,
+            "tenant_id": tenant_id,
+        })
+        return res.get("status") == "released"
+
+    def issue_device_step_up_challenge(
+        self, device_id: str, tenant_id: str = "default", actions: Optional[list[str]] = None
+    ) -> Dict[str, Any]:
+        """Issues a time-bound step-up authentication challenge for remediation."""
+        body = {
+            "device_id": device_id,
+            "tenant_id": tenant_id,
+            "actions": actions or ["mfa_pin"],
+        }
+        return self._request("POST", "/api/posture/step-up/challenge", body)
+
+    def verify_device_step_up_challenge(self, challenge_id: str, nonce: str) -> bool:
+        """Submits challenge proof for step-up verification."""
+        res = self._request("POST", "/api/posture/step-up/verify", {
+            "challenge_id": challenge_id,
+            "nonce": nonce,
+        })
+        return res.get("status") == "verified"
+
+    def get_device_posture(self, device_id: str, tenant_id: str = "default") -> Dict[str, Any]:
+        """Queries latest posture scores and quarantine state for an endpoint."""
+        return self._request("GET", f"/api/posture/device?tenant_id={tenant_id}&device_id={device_id}")
+
+
 
 
 

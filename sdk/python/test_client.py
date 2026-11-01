@@ -597,6 +597,60 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/posture/status":
+            self._send_json(
+                200,
+                {
+                    "active_policies": 1,
+                    "total_evaluations": 18,
+                    "healthy_count": 15,
+                    "warning_count": 2,
+                    "quarantine_count": 1,
+                    "degraded_count": 1,
+                    "version": "2.6.0",
+                },
+            )
+            return
+
+        if path.startswith("/api/posture/quarantine"):
+            self._send_json(
+                200,
+                {
+                    "tenant_id": "default",
+                    "quarantined": [
+                        {
+                            "device_id": "dev-py-quar-1",
+                            "tenant_id": "default",
+                            "hwid": "HWID-PY-99",
+                            "reason": "debugger attached",
+                            "composite_score": 25.0,
+                            "tier": "quarantine",
+                            "violations": ["debugger attached"],
+                            "quarantined_at": "2026-11-01T12:00:00Z",
+                            "degraded_mode_allowed": False,
+                            "remediation_steps": ["detach debugger"],
+                        }
+                    ],
+                    "count": 1,
+                },
+            )
+            return
+
+        if path.startswith("/api/posture/device"):
+            self._send_json(
+                200,
+                {
+                    "scores": {
+                        "device_id": "dev-py-node-1",
+                        "tenant_id": "default",
+                        "composite_score": 94.0,
+                        "tier": "healthy",
+                    },
+                    "quarantined": False,
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -1271,6 +1325,54 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/posture/evaluate":
+            is_compromised = payload.get("integrity", {}).get("debugger_attached", False)
+            self._send_json(
+                200,
+                {
+                    "device_id": payload.get("device_id", "dev-py-01"),
+                    "tenant_id": payload.get("tenant_id", "default"),
+                    "os_score": 95.0,
+                    "hardware_score": 100.0,
+                    "endpoint_score": 40.0 if is_compromised else 90.0,
+                    "integrity_score": 0.0 if is_compromised else 100.0,
+                    "composite_score": 25.0 if is_compromised else 94.0,
+                    "tier": "quarantine" if is_compromised else "healthy",
+                    "violations": ["debugger attached"] if is_compromised else [],
+                    "remediations": ["detach debugger"] if is_compromised else [],
+                    "degraded_mode_allowed": not is_compromised,
+                    "evaluated_at": "2026-11-01T12:00:00Z",
+                },
+            )
+            return
+
+        if path == "/api/posture/quarantine/release":
+            self._send_json(200, {"status": "released", "device_id": payload.get("device_id", "")})
+            return
+
+        if path == "/api/posture/step-up/challenge":
+            self._send_json(
+                200,
+                {
+                    "challenge_id": "chall-py-mock-123",
+                    "device_id": payload.get("device_id", "dev-py-01"),
+                    "tenant_id": payload.get("tenant_id", "default"),
+                    "nonce": "py-nonce-secret-123",
+                    "required_actions": payload.get("actions", ["mfa_pin"]),
+                    "issued_at": "2026-11-01T12:00:00Z",
+                    "expires_at": "2026-11-01T12:05:00Z",
+                    "completed": False,
+                },
+            )
+            return
+
+        if path == "/api/posture/step-up/verify":
+            if payload.get("nonce") == "py-nonce-secret-123":
+                self._send_json(200, {"status": "verified", "challenge_id": payload.get("challenge_id", "")})
+            else:
+                self._send_json(401, {"error": "invalid nonce"})
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -1708,6 +1810,50 @@ class TestSheetLicenseClient(unittest.TestCase):
         witnesses = client.list_transparency_witnesses()
         self.assertEqual(len(witnesses), 3)
         self.assertEqual(witnesses[0], "witness-enclave-sgx")
+
+    def test_posture_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_posture_status()
+        self.assertEqual(st.get("version"), "2.6.0")
+        self.assertEqual(st.get("total_evaluations"), 18)
+        self.assertEqual(st.get("healthy_count"), 15)
+
+        clean = client.evaluate_device_posture({
+            "device_id": "dev-py-clean-01",
+            "tenant_id": "default",
+            "integrity": {"debugger_attached": False},
+        })
+        self.assertEqual(clean.get("tier"), "healthy")
+        self.assertEqual(clean.get("composite_score"), 94.0)
+
+        bad = client.evaluate_device_posture({
+            "device_id": "dev-py-bad-01",
+            "tenant_id": "default",
+            "integrity": {"debugger_attached": True},
+        })
+        self.assertEqual(bad.get("tier"), "quarantine")
+        self.assertEqual(bad.get("composite_score"), 25.0)
+        self.assertFalse(bad.get("degraded_mode_allowed"))
+
+        quarantined = client.get_quarantined_devices("default")
+        self.assertEqual(len(quarantined), 1)
+        self.assertEqual(quarantined[0].get("device_id"), "dev-py-quar-1")
+
+        released = client.release_device_quarantine("dev-py-quar-1", "default")
+        self.assertTrue(released)
+
+        chall = client.issue_device_step_up_challenge("dev-py-step-01", "default", ["biometric"])
+        self.assertEqual(chall.get("challenge_id"), "chall-py-mock-123")
+        self.assertEqual(chall.get("nonce"), "py-nonce-secret-123")
+
+        verified = client.verify_device_step_up_challenge(chall.get("challenge_id"), chall.get("nonce"))
+        self.assertTrue(verified)
+
+        dev_posture = client.get_device_posture("dev-py-node-1", "default")
+        self.assertEqual(dev_posture.get("scores", {}).get("tier"), "healthy")
+        self.assertFalse(dev_posture.get("quarantined"))
+
 
 
 if __name__ == "__main__":

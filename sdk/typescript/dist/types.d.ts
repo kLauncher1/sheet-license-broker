@@ -963,4 +963,134 @@ export interface HybridSessionVerification {
     created_at?: string;
     expires_at?: string;
 }
+export interface TransparencyLogEntry {
+    index: number;
+    timestamp: number;
+    action: string;
+    tenant_id: string;
+    payload: any;
+    leaf_hash_hex: string;
+    signature?: string;
+}
+export interface TransparencyWitnessSignature {
+    witness_id: string;
+    tree_size: number;
+    root_hash_hex: string;
+    timestamp: number;
+    signature: string;
+    status: 'verified' | 'conflict' | string;
+}
+export interface TransparencySTH {
+    tree_size: number;
+    timestamp: number;
+    root_hash_hex: string;
+    log_id: string;
+    tree_head_signature: string;
+    witness_signatures?: TransparencyWitnessSignature[];
+}
+export interface TransparencyInclusionProof {
+    leaf_index: number;
+    tree_size: number;
+    leaf_hash_hex: string;
+    root_hash_hex: string;
+    audit_path_hex: string[];
+}
+export interface TransparencyConsistencyProof {
+    first_size: number;
+    second_size: number;
+    first_root_hex: string;
+    second_root_hex: string;
+    proof_hex: string[];
+}
+export interface TransparencyStatus {
+    log_id: string;
+    tree_size: number;
+    root_hash_hex: string;
+    latest_sth?: TransparencySTH;
+    active_witnesses: number;
+    total_entries: number;
+    operating_mode: string;
+    compliance_rfc: string;
+}
+export type PostureTier = 'healthy' | 'warning' | 'quarantine';
+export interface DevicePostureReport {
+    device_id: string;
+    tenant_id?: string;
+    hwid?: string;
+    os?: {
+        os_name?: string;
+        os_version?: string;
+        kernel_version?: string;
+        patch_level_days?: number;
+        min_patch_level_days?: number;
+    };
+    hardware?: {
+        secure_boot_enabled?: boolean;
+        tpm_present?: boolean;
+        tpm_version?: string;
+        disk_encryption_active?: boolean;
+    };
+    endpoint?: {
+        antivirus_active?: boolean;
+        definitions_age_days?: number;
+        realtime_protection?: boolean;
+        firewall_enabled?: boolean;
+    };
+    integrity?: {
+        debugger_attached?: boolean;
+        rooted_or_jailbroken?: boolean;
+        virtualization_detected?: boolean;
+        code_integrity_verified?: boolean;
+    };
+    timestamp?: number;
+    client_nonce?: string;
+    client_signature?: string;
+}
+export interface PostureVectorScores {
+    device_id: string;
+    tenant_id: string;
+    os_score: number;
+    hardware_score: number;
+    endpoint_score: number;
+    integrity_score: number;
+    composite_score: number;
+    tier: PostureTier;
+    violations: string[];
+    remediations: string[];
+    degraded_mode_allowed: boolean;
+    evaluated_at: string;
+}
+export interface QuarantinedDevice {
+    device_id: string;
+    tenant_id: string;
+    hwid: string;
+    reason: string;
+    composite_score: number;
+    tier: PostureTier;
+    violations: string[];
+    quarantined_at: string;
+    degraded_mode_allowed: boolean;
+    remediation_steps: string[];
+}
+export interface StepUpChallenge {
+    challenge_id: string;
+    device_id: string;
+    tenant_id: string;
+    nonce: string;
+    required_actions: string[];
+    issued_at: string;
+    expires_at: string;
+    completed: boolean;
+}
+export interface PostureStatus {
+    active_policies: number;
+    total_evaluations: number;
+    healthy_count: number;
+    warning_count: number;
+    quarantine_count: number;
+    degraded_count: number;
+    recent_evaluations: PostureVectorScores[];
+    quarantined_devices: QuarantinedDevice[];
+    version: string;
+}
 //# sourceMappingURL=types.d.ts.map

@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.6.x   | :white_check_mark: |
 | 2.5.x   | :white_check_mark: |
 | 2.4.x   | :white_check_mark: |
 | 2.3.x   | :white_check_mark: |
@@ -197,8 +198,14 @@ If you discover a security vulnerability in this project, please report it priva
 - **Security Contact**: Open a private advisory on GitHub or email the maintainer.
 - **Response SLA**: Security issues will be reviewed and acknowledged within 48 hours.
 - **Fix Policy**: Patches will be developed and released in a patch release prior to public disclosure.
-8. **RFC 6962 Verifiable Merkle Tree Transparency Logs**:
+31. **RFC 6962 Verifiable Merkle Tree Transparency Logs Security**:
    - Audit trail entries and license mutation events are recorded in an append-only Merkle tree ledger following RFC 6962 standards.
    - Cryptographic domain separation enforces `0x00` leaf prefixing and `0x01` interior node prefixing, eliminating second-preimage attack vulnerabilities.
    - Clients and external auditors can cryptographically verify log membership via logarithmic inclusion proofs ($O(\log n)$ audit paths) and ensure append-only immutability via consistency proofs.
    - Independent multi-party witnesses evaluate consistency proofs before co-signing Signed Tree Heads (STH); any detected fork or root divergence triggers an immediate split-view attack alarm (`ErrSplitViewAttackDetected`).
+
+32. **Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation Security**:
+    - **Multi-Vector Endpoint Risk Analysis**: Continually computes composite health confidence scores (0–100) evaluating OS patch currency (25%), boot & hardware integrity (UEFI Secure Boot, TPM 2.0, BitLocker/FileVault; 25%), endpoint anti-malware status (30%), and runtime tamper integrity (anti-debugging and root/jailbreak detection; 20%).
+    - **Tiered Zero-Trust Policy Enforcement**: Devices scoring >=80 are classified as Healthy, 60–79 as Warning (requiring step-up challenge attestation), and <60 as Quarantined. Any detection of active debugger attachment or root/jailbreak privilege escalation immediately forces immediate Quarantine regardless of composite score.
+    - **Graceful Degradation Security Invariant**: Devices quarantined solely due to low scores (e.g. outdated patches) are granted degraded read-only mode permissions to prevent catastrophic client crashes in production. Conversely, devices tripping critical runtime tamper sensors are strictly denied degraded mode (`DegradedModeAllowed = false`), severing all broker communication.
+    - **Constant-Time Step-Up Challenge Verification**: Quarantined or warning devices can be challenged with temporary proof nonces. Verification is evaluated using constant-time comparison (`crypto/subtle.ConstantTimeCompare`) within a strict 5-minute sliding TTL, defeating replay and timing side-channel attacks.

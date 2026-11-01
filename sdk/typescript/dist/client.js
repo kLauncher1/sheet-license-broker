@@ -900,5 +900,30 @@ export class SheetLicenseClient {
         const res = await this.request('GET', '/api/transparency/witnesses');
         return res.witnesses || [];
     }
+    async getPostureStatus() {
+        return this.request('GET', '/api/posture/status');
+    }
+    async evaluateDevicePosture(report) {
+        return this.request('POST', '/api/posture/evaluate', report);
+    }
+    async getQuarantinedDevices(tenantId) {
+        const path = tenantId ? `/api/posture/quarantine?tenant_id=${encodeURIComponent(tenantId)}` : '/api/posture/quarantine';
+        const res = await this.request('GET', path);
+        return res.quarantined || [];
+    }
+    async releaseDeviceQuarantine(deviceId, tenantId = 'default') {
+        const res = await this.request('POST', '/api/posture/quarantine/release', { device_id: deviceId, tenant_id: tenantId });
+        return res.status === 'released';
+    }
+    async issueDeviceStepUpChallenge(deviceId, tenantId = 'default', actions = ['mfa_pin']) {
+        return this.request('POST', '/api/posture/step-up/challenge', { device_id: deviceId, tenant_id: tenantId, actions });
+    }
+    async verifyDeviceStepUpChallenge(challengeId, nonce) {
+        const res = await this.request('POST', '/api/posture/step-up/verify', { challenge_id: challengeId, nonce });
+        return res.status === 'verified';
+    }
+    async getDevicePosture(deviceId, tenantId = 'default') {
+        return this.request('GET', `/api/posture/device?tenant_id=${encodeURIComponent(tenantId)}&device_id=${encodeURIComponent(deviceId)}`);
+    }
 }
 //# sourceMappingURL=client.js.map

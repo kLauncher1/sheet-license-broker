@@ -1299,6 +1299,86 @@ namespace SheetLicenseBroker
         public string ListTransparencyWitnesses() =>
             ListTransparencyWitnessesAsync().GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Queries real-time operational status and telemetry for the adaptive posture engine.
+        /// </summary>
+        public async Task<string> GetPostureStatusAsync() =>
+            await SendRequestAsync("GET", "/api/posture/status", null).ConfigureAwait(false);
+
+        public string GetPostureStatus() =>
+            GetPostureStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Submits client device posture telemetry and evaluates vector confidence scores.
+        /// </summary>
+        public async Task<string> EvaluateDevicePostureAsync(string reportJson) =>
+            await SendRequestAsync("POST", "/api/posture/evaluate", reportJson).ConfigureAwait(false);
+
+        public string EvaluateDevicePosture(string reportJson) =>
+            EvaluateDevicePostureAsync(reportJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries currently quarantined endpoints, optionally filtered by tenant.
+        /// </summary>
+        public async Task<string> GetQuarantinedDevicesAsync(string tenantId = "")
+        {
+            string path = string.IsNullOrEmpty(tenantId) ? "/api/posture/quarantine" : string.Format("/api/posture/quarantine?tenant_id={0}", Uri.EscapeDataString(tenantId));
+            return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
+        }
+
+        public string GetQuarantinedDevices(string tenantId = "") =>
+            GetQuarantinedDevicesAsync(tenantId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Manually releases an endpoint from quarantine isolation.
+        /// </summary>
+        public async Task<string> ReleaseDeviceQuarantineAsync(string deviceId, string tenantId = "default")
+        {
+            string body = string.Format("{{\"device_id\":\"{0}\",\"tenant_id\":\"{1}\"}}", EscapeJson(deviceId ?? ""), EscapeJson(tenantId ?? "default"));
+            return await SendRequestAsync("POST", "/api/posture/quarantine/release", body).ConfigureAwait(false);
+        }
+
+        public string ReleaseDeviceQuarantine(string deviceId, string tenantId = "default") =>
+            ReleaseDeviceQuarantineAsync(deviceId, tenantId).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Issues a time-bound step-up authentication challenge for remediation.
+        /// </summary>
+        public async Task<string> IssueDeviceStepUpChallengeAsync(string deviceId, string tenantId = "default", string actionsJson = "[\"mfa_pin\"]")
+        {
+            string body = string.Format("{{\"device_id\":\"{0}\",\"tenant_id\":\"{1}\",\"actions\":{2}}}",
+                EscapeJson(deviceId ?? ""), EscapeJson(tenantId ?? "default"), string.IsNullOrEmpty(actionsJson) ? "[\"mfa_pin\"]" : actionsJson);
+            return await SendRequestAsync("POST", "/api/posture/step-up/challenge", body).ConfigureAwait(false);
+        }
+
+        public string IssueDeviceStepUpChallenge(string deviceId, string tenantId = "default", string actionsJson = "[\"mfa_pin\"]") =>
+            IssueDeviceStepUpChallengeAsync(deviceId, tenantId, actionsJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Submits challenge proof for step-up verification.
+        /// </summary>
+        public async Task<string> VerifyDeviceStepUpChallengeAsync(string challengeId, string nonce)
+        {
+            string body = string.Format("{{\"challenge_id\":\"{0}\",\"nonce\":\"{1}\"}}", EscapeJson(challengeId ?? ""), EscapeJson(nonce ?? ""));
+            return await SendRequestAsync("POST", "/api/posture/step-up/verify", body).ConfigureAwait(false);
+        }
+
+        public string VerifyDeviceStepUpChallenge(string challengeId, string nonce) =>
+            VerifyDeviceStepUpChallengeAsync(challengeId, nonce).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries latest posture scores and quarantine state for an endpoint.
+        /// </summary>
+        public async Task<string> GetDevicePostureAsync(string deviceId, string tenantId = "default")
+        {
+            string path = string.Format("/api/posture/device?tenant_id={0}&device_id={1}", Uri.EscapeDataString(tenantId ?? "default"), Uri.EscapeDataString(deviceId ?? ""));
+            return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
+        }
+
+        public string GetDevicePosture(string deviceId, string tenantId = "default") =>
+            GetDevicePostureAsync(deviceId, tenantId).GetAwaiter().GetResult();
+
+
         private static string EscapeJson(string str)
         {
             if (string.IsNullOrEmpty(str)) return "";

@@ -1169,6 +1169,94 @@ export interface TransparencyStatus {
   compliance_rfc: string;
 }
 
+export type PostureTier = 'healthy' | 'warning' | 'quarantine';
+
+export interface DevicePostureReport {
+  device_id: string;
+  tenant_id?: string;
+  hwid?: string;
+  os?: {
+    os_name?: string;
+    os_version?: string;
+    kernel_version?: string;
+    patch_level_days?: number;
+    min_patch_level_days?: number;
+  };
+  hardware?: {
+    secure_boot_enabled?: boolean;
+    tpm_present?: boolean;
+    tpm_version?: string;
+    disk_encryption_active?: boolean;
+  };
+  endpoint?: {
+    antivirus_active?: boolean;
+    definitions_age_days?: number;
+    realtime_protection?: boolean;
+    firewall_enabled?: boolean;
+  };
+  integrity?: {
+    debugger_attached?: boolean;
+    rooted_or_jailbroken?: boolean;
+    virtualization_detected?: boolean;
+    code_integrity_verified?: boolean;
+  };
+  timestamp?: number;
+  client_nonce?: string;
+  client_signature?: string;
+}
+
+export interface PostureVectorScores {
+  device_id: string;
+  tenant_id: string;
+  os_score: number;
+  hardware_score: number;
+  endpoint_score: number;
+  integrity_score: number;
+  composite_score: number;
+  tier: PostureTier;
+  violations: string[];
+  remediations: string[];
+  degraded_mode_allowed: boolean;
+  evaluated_at: string;
+}
+
+export interface QuarantinedDevice {
+  device_id: string;
+  tenant_id: string;
+  hwid: string;
+  reason: string;
+  composite_score: number;
+  tier: PostureTier;
+  violations: string[];
+  quarantined_at: string;
+  degraded_mode_allowed: boolean;
+  remediation_steps: string[];
+}
+
+export interface StepUpChallenge {
+  challenge_id: string;
+  device_id: string;
+  tenant_id: string;
+  nonce: string;
+  required_actions: string[];
+  issued_at: string;
+  expires_at: string;
+  completed: boolean;
+}
+
+export interface PostureStatus {
+  active_policies: number;
+  total_evaluations: number;
+  healthy_count: number;
+  warning_count: number;
+  quarantine_count: number;
+  degraded_count: number;
+  recent_evaluations: PostureVectorScores[];
+  quarantined_devices: QuarantinedDevice[];
+  version: string;
+}
+
+
 
 
 
