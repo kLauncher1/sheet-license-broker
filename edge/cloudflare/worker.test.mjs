@@ -347,5 +347,20 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.equal(data.multi_party_witnesses, true);
     assert.equal(data.split_view_attack_defense, true);
   });
+
+  test('reports zero-trust device posture scoring and quarantine capabilities at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/posture/status');
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_posture_enabled, true);
+    assert.equal(data.version, '2.6.0');
+    assert.equal(data.zero_trust_scoring, true);
+    assert.equal(data.progressive_step_up, true);
+    assert.equal(data.quarantine_enforcement, true);
+    assert.equal(data.graceful_degradation, true);
+    assert.ok(data.vectors.includes('os_patch'));
+    assert.ok(data.vectors.includes('runtime_integrity'));
+  });
 });
 

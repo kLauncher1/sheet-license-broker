@@ -39,6 +39,8 @@ const SHEET_MLKEM_KEY_LEDGER = 'MLKEM_Key_Ledger';
 const SHEET_MLKEM_SESSIONS = 'MLKEM_Sessions';
 const SHEET_TRANSPARENCY_LOG = 'Transparency_Log';
 const SHEET_WITNESS_COSIGNATURES = 'Witness_Cosignatures';
+const SHEET_DEVICE_HEALTH_POSTURE = 'Device_Health_Posture';
+const SHEET_DEVICE_QUARANTINE = 'Device_Quarantine';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -285,6 +287,18 @@ function handleRequest(e, method) {
       case 'transparency_status':
         return handleTransparencyStatus(output, payload);
 
+      case 'posture_record_evaluation':
+        return handlePostureRecordEvaluation(output, payload);
+
+      case 'posture_record_quarantine':
+        return handlePostureRecordQuarantine(output, payload);
+
+      case 'posture_release_quarantine':
+        return handlePostureReleaseQuarantine(output, payload);
+
+      case 'posture_get_status':
+        return handlePostureGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -329,7 +343,9 @@ function initSheets() {
     { name: SHEET_MLKEM_KEY_LEDGER, cols: ['key_id', 'algorithm', 'fingerprint', 'status', 'created_at'] },
     { name: SHEET_MLKEM_SESSIONS, cols: ['session_id', 'agreed_mode', 'algorithm', 'quantum_resistant', 'expires_at', 'created_at'] },
     { name: SHEET_TRANSPARENCY_LOG, cols: ['index', 'action', 'tenant_id', 'leaf_hash_hex', 'timestamp', 'signature', 'tree_size', 'root_hash_hex', 'payload_json'] },
-    { name: SHEET_WITNESS_COSIGNATURES, cols: ['witness_id', 'tree_size', 'root_hash_hex', 'timestamp', 'signature', 'status'] }
+    { name: SHEET_WITNESS_COSIGNATURES, cols: ['witness_id', 'tree_size', 'root_hash_hex', 'timestamp', 'signature', 'status'] },
+    { name: SHEET_DEVICE_HEALTH_POSTURE, cols: ['device_id', 'tenant_id', 'tier', 'composite_score', 'os_score', 'hardware_score', 'endpoint_score', 'integrity_score', 'violations', 'degraded_allowed', 'evaluated_at'] },
+    { name: SHEET_DEVICE_QUARANTINE, cols: ['device_id', 'tenant_id', 'hwid', 'reason', 'composite_score', 'degraded_allowed', 'status', 'quarantined_at', 'released_at'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -2195,6 +2211,90 @@ function handleTransparencyStatus(output, payload) {
     timestamp: new Date().toISOString()
   });
 }
+
+function handlePostureRecordEvaluation(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_DEVICE_HEALTH_POSTURE);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const deviceId = payload.device_id || '';
+  const tenantId = payload.tenant_id || 'default';
+  const tier = payload.tier || 'healthy';
+  const compositeScore = payload.composite_score !== undefined ? payload.composite_score : 100;
+  const osScore = payload.os_score !== undefined ? payload.os_score : 100;
+  const hwScore = payload.hardware_score !== undefined ? payload.hardware_score : 100;
+  const epScore = payload.endpoint_score !== undefined ? payload.endpoint_score : 100;
+  const intScore = payload.integrity_score !== undefined ? payload.integrity_score : 100;
+  const violations = Array.isArray(payload.violations) ? payload.violations.join('; ') : '';
+  const degradedAllowed = payload.degraded_allowed ? 'TRUE' : 'FALSE';
+  const evaluatedAt = payload.evaluated_at || new Date().toISOString();
+
+  sheet.appendRow([deviceId, tenantId, tier, compositeScore, osScore, hwScore, epScore, intScore, violations, degradedAllowed, evaluatedAt]);
+  return jsonResponse(output, { status: 'success', device_id: deviceId, tier: tier, composite_score: compositeScore });
+}
+
+function handlePostureRecordQuarantine(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_DEVICE_QUARANTINE);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const deviceId = payload.device_id || '';
+  const tenantId = payload.tenant_id || 'default';
+  const hwid = payload.hwid || '';
+  const reason = payload.reason || 'Compromised posture';
+  const compositeScore = payload.composite_score !== undefined ? payload.composite_score : 0;
+  const degradedAllowed = payload.degraded_allowed ? 'TRUE' : 'FALSE';
+  const status = 'ACTIVE';
+  const quarantinedAt = payload.quarantined_at || new Date().toISOString();
+  const releasedAt = '';
+
+  sheet.appendRow([deviceId, tenantId, hwid, reason, compositeScore, degradedAllowed, status, quarantinedAt, releasedAt]);
+  return jsonResponse(output, { status: 'success', device_id: deviceId, quarantined: true });
+}
+
+function handlePostureReleaseQuarantine(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_DEVICE_QUARANTINE);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const deviceId = payload.device_id || '';
+  const tenantId = payload.tenant_id || 'default';
+  const data = sheet.getDataRange().getValues();
+  let found = false;
+  const releasedAt = payload.released_at || new Date().toISOString();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === deviceId && (tenantId === '' || data[i][1] === tenantId) && data[i][6] === 'ACTIVE') {
+      sheet.getRange(i + 1, 7).setValue('RELEASED');
+      sheet.getRange(i + 1, 9).setValue(releasedAt);
+      found = true;
+    }
+  }
+  return jsonResponse(output, { status: found ? 'success' : 'not_found', device_id: deviceId, released: found });
+}
+
+function handlePostureGetStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const postureSheet = ss.getSheetByName(SHEET_DEVICE_HEALTH_POSTURE);
+  const quarSheet = ss.getSheetByName(SHEET_DEVICE_QUARANTINE);
+  let totalEvaluations = 0;
+  let activeQuarantined = 0;
+
+  if (postureSheet && postureSheet.getLastRow() > 1) {
+    totalEvaluations = postureSheet.getLastRow() - 1;
+  }
+  if (quarSheet && quarSheet.getLastRow() > 1) {
+    const data = quarSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][6] === 'ACTIVE') activeQuarantined++;
+    }
+  }
+  return jsonResponse(output, {
+    status: 'success',
+    version: '2.6.0',
+    total_evaluations: totalEvaluations,
+    active_quarantined: activeQuarantined,
+    timestamp: new Date().toISOString()
+  });
+}
+
 
 
 

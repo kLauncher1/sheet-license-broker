@@ -571,6 +571,57 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"witnesses\":[\"witness-enclave-sgx\",\"witness-node-iad\",\"witness-edge-fra\"],\"count\":3}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"active_policies\":1,\"total_evaluations\":30,\"healthy_count\":25,\"warning_count\":3,\"quarantine_count\":2,\"version\":\"2.6.0\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/evaluate")
+                        {
+                            bool isCompromised = reqBody.Contains("\"debugger_attached\":true");
+                            ctx.Response.StatusCode = 200;
+                            if (isCompromised)
+                            {
+                                respBytes = Encoding.UTF8.GetBytes("{\"device_id\":\"dev-cs-01\",\"tenant_id\":\"default\",\"composite_score\":25.0,\"tier\":\"quarantine\",\"violations\":[\"debugger attached\"],\"degraded_mode_allowed\":false}");
+                            }
+                            else
+                            {
+                                respBytes = Encoding.UTF8.GetBytes("{\"device_id\":\"dev-cs-01\",\"tenant_id\":\"default\",\"composite_score\":95.0,\"tier\":\"healthy\",\"violations\":[],\"degraded_mode_allowed\":true}");
+                            }
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/quarantine")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"tenant_id\":\"default\",\"quarantined\":[{\"device_id\":\"dev-cs-quar-1\",\"tenant_id\":\"default\",\"hwid\":\"HWID-CS-99\",\"reason\":\"debugger attached\",\"composite_score\":25.0,\"tier\":\"quarantine\",\"degraded_mode_allowed\":false}],\"count\":1}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/quarantine/release")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"status\":\"released\",\"device_id\":\"dev-cs-quar-1\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/step-up/challenge")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"challenge_id\":\"chall-cs-mock-01\",\"device_id\":\"dev-cs-step-1\",\"tenant_id\":\"default\",\"nonce\":\"cs-nonce-secret-999\",\"completed\":false}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/step-up/verify")
+                        {
+                            if (reqBody.Contains("cs-nonce-secret-999"))
+                            {
+                                ctx.Response.StatusCode = 200;
+                                respBytes = Encoding.UTF8.GetBytes("{\"status\":\"verified\",\"challenge_id\":\"chall-cs-mock-01\"}");
+                            }
+                            else
+                            {
+                                ctx.Response.StatusCode = 401;
+                                respBytes = Encoding.UTF8.GetBytes("{\"error\":\"invalid nonce\"}");
+                            }
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/posture/device")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"scores\":{\"device_id\":\"dev-cs-node-1\",\"composite_score\":92.0,\"tier\":\"healthy\"},\"quarantined\":false}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -1290,7 +1341,65 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: RFC 6962 transparency status, STH, inclusion/consistency proofs, and witness co-signatures");
 
-                Console.WriteLine("=== All 28 C# Client Tests Passed Successfully! ===");
+                // Test Case 29: Zero-Trust Device Health Posture & Quarantine Attestation
+                string postureStatus = client.GetPostureStatusAsync().GetAwaiter().GetResult();
+                if (!postureStatus.Contains("\"version\":\"2.6.0\"") || !postureStatus.Contains("\"total_evaluations\":30"))
+                {
+                    Console.Error.WriteLine("FAIL: Posture status failed: " + postureStatus);
+                    return 1;
+                }
+
+                string cleanEval = client.EvaluateDevicePostureAsync("{\"device_id\":\"dev-cs-01\",\"integrity\":{\"debugger_attached\":false}}").GetAwaiter().GetResult();
+                if (!cleanEval.Contains("\"tier\":\"healthy\"") || !cleanEval.Contains("\"composite_score\":95"))
+                {
+                    Console.Error.WriteLine("FAIL: Clean posture evaluate failed: " + cleanEval);
+                    return 1;
+                }
+
+                string badEval = client.EvaluateDevicePostureAsync("{\"device_id\":\"dev-cs-01\",\"integrity\":{\"debugger_attached\":true}}").GetAwaiter().GetResult();
+                if (!badEval.Contains("\"tier\":\"quarantine\"") || !badEval.Contains("\"composite_score\":25"))
+                {
+                    Console.Error.WriteLine("FAIL: Compromised posture evaluate failed: " + badEval);
+                    return 1;
+                }
+
+                string quarList = client.GetQuarantinedDevicesAsync("default").GetAwaiter().GetResult();
+                if (!quarList.Contains("dev-cs-quar-1"))
+                {
+                    Console.Error.WriteLine("FAIL: Quarantined devices failed: " + quarList);
+                    return 1;
+                }
+
+                string relRes = client.ReleaseDeviceQuarantineAsync("dev-cs-quar-1", "default").GetAwaiter().GetResult();
+                if (!relRes.Contains("\"status\":\"released\""))
+                {
+                    Console.Error.WriteLine("FAIL: Release quarantine failed: " + relRes);
+                    return 1;
+                }
+
+                string stepChall = client.IssueDeviceStepUpChallengeAsync("dev-cs-step-1", "default").GetAwaiter().GetResult();
+                if (!stepChall.Contains("chall-cs-mock-01") || !stepChall.Contains("cs-nonce-secret-999"))
+                {
+                    Console.Error.WriteLine("FAIL: Step-up challenge issue failed: " + stepChall);
+                    return 1;
+                }
+
+                string stepVerify = client.VerifyDeviceStepUpChallengeAsync("chall-cs-mock-01", "cs-nonce-secret-999").GetAwaiter().GetResult();
+                if (!stepVerify.Contains("\"status\":\"verified\""))
+                {
+                    Console.Error.WriteLine("FAIL: Step-up challenge verify failed: " + stepVerify);
+                    return 1;
+                }
+
+                string devQuery = client.GetDevicePostureAsync("dev-cs-node-1", "default").GetAwaiter().GetResult();
+                if (!devQuery.Contains("\"tier\":\"healthy\""))
+                {
+                    Console.Error.WriteLine("FAIL: Get device posture failed: " + devQuery);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Zero-Trust device health posture scoring, quarantine, and step-up attestation");
+
+                Console.WriteLine("=== All 29 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

@@ -106,6 +106,12 @@ import type {
   TransparencyInclusionProof,
   TransparencyConsistencyProof,
   TransparencyStatus,
+  PostureTier,
+  DevicePostureReport,
+  PostureVectorScores,
+  QuarantinedDevice,
+  StepUpChallenge,
+  PostureStatus,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -1361,5 +1367,72 @@ export class SheetLicenseClient {
     const res = await this.request<{ witnesses: string[]; count: number }>('GET', '/api/transparency/witnesses');
     return res.witnesses || [];
   }
+
+  /**
+   * Queries real-time status and telemetry for the adaptive zero-trust device posture engine.
+   */
+  public async getPostureStatus(): Promise<PostureStatus> {
+    return this.request<PostureStatus>('GET', '/api/posture/status');
+  }
+
+  /**
+   * Submits client device posture telemetry and evaluates vector confidence scores.
+   */
+  public async evaluateDevicePosture(report: DevicePostureReport): Promise<PostureVectorScores> {
+    return this.request<PostureVectorScores>('POST', '/api/posture/evaluate', report);
+  }
+
+  /**
+   * Queries currently quarantined devices, optionally filtered by tenant.
+   */
+  public async getQuarantinedDevices(tenantId?: string): Promise<QuarantinedDevice[]> {
+    const path = tenantId ? `/api/posture/quarantine?tenant_id=${encodeURIComponent(tenantId)}` : '/api/posture/quarantine';
+    const res = await this.request<{ tenant_id: string; quarantined: QuarantinedDevice[]; count: number }>('GET', path);
+    return res.quarantined || [];
+  }
+
+  /**
+   * Manually releases an endpoint from quarantine isolation.
+   */
+  public async releaseDeviceQuarantine(deviceId: string, tenantId: string = 'default'): Promise<boolean> {
+    const res = await this.request<{ status: string; device_id: string }>('POST', '/api/posture/quarantine/release', {
+      device_id: deviceId,
+      tenant_id: tenantId,
+    });
+    return res.status === 'released';
+  }
+
+  /**
+   * Issues a time-bound step-up authentication challenge for remediation.
+   */
+  public async issueDeviceStepUpChallenge(deviceId: string, tenantId: string = 'default', actions: string[] = ['mfa_pin']): Promise<StepUpChallenge> {
+    return this.request<StepUpChallenge>('POST', '/api/posture/step-up/challenge', {
+      device_id: deviceId,
+      tenant_id: tenantId,
+      actions,
+    });
+  }
+
+  /**
+   * Submits challenge proof for step-up verification.
+   */
+  public async verifyDeviceStepUpChallenge(challengeId: string, nonce: string): Promise<boolean> {
+    const res = await this.request<{ status: string; challenge_id: string }>('POST', '/api/posture/step-up/verify', {
+      challenge_id: challengeId,
+      nonce,
+    });
+    return res.status === 'verified';
+  }
+
+  /**
+   * Queries latest posture scores and quarantine state for an endpoint.
+   */
+  public async getDevicePosture(deviceId: string, tenantId: string = 'default'): Promise<{ scores: PostureVectorScores; quarantined: boolean; quarantine?: QuarantinedDevice }> {
+    return this.request<{ scores: PostureVectorScores; quarantined: boolean; quarantine?: QuarantinedDevice }>(
+      'GET',
+      `/api/posture/device?tenant_id=${encodeURIComponent(tenantId)}&device_id=${encodeURIComponent(deviceId)}`
+    );
+  }
 }
+
 

@@ -1526,6 +1526,113 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/posture/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            active_policies: 1,
+            total_evaluations: 25,
+            healthy_count: 20,
+            warning_count: 3,
+            quarantine_count: 2,
+            degraded_count: 1,
+            version: '2.6.0'
+          }));
+          return;
+        }
+
+        if (req.url === '/api/posture/evaluate' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          const isCompromised = body.integrity && body.integrity.debugger_attached;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            device_id: body.device_id || 'dev-001',
+            tenant_id: body.tenant_id || 'default',
+            os_score: 95,
+            hardware_score: 100,
+            endpoint_score: isCompromised ? 40 : 90,
+            integrity_score: isCompromised ? 0 : 100,
+            composite_score: isCompromised ? 25 : 95,
+            tier: isCompromised ? 'quarantine' : 'healthy',
+            violations: isCompromised ? ['debugger attached'] : [],
+            remediations: isCompromised ? ['detach debugger'] : [],
+            degraded_mode_allowed: !isCompromised,
+            evaluated_at: new Date().toISOString()
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/posture/quarantine') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            tenant_id: 'default',
+            quarantined: [
+              {
+                device_id: 'dev-quarantined-99',
+                tenant_id: 'default',
+                hwid: 'HWID-99',
+                reason: 'debugger attached',
+                composite_score: 25,
+                tier: 'quarantine',
+                violations: ['debugger attached'],
+                quarantined_at: new Date().toISOString(),
+                degraded_mode_allowed: false,
+                remediation_steps: ['detach debugger']
+              }
+            ],
+            count: 1
+          }));
+          return;
+        }
+
+        if (req.url === '/api/posture/quarantine/release' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'released', device_id: body.device_id || 'dev-001' }));
+          return;
+        }
+
+        if (req.url === '/api/posture/step-up/challenge' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            challenge_id: 'chall-ts-mock-01',
+            device_id: body.device_id || 'dev-001',
+            tenant_id: body.tenant_id || 'default',
+            nonce: 'stepup-nonce-abc-123',
+            required_actions: body.actions || ['mfa_pin'],
+            issued_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 300000).toISOString(),
+            completed: false
+          }));
+          return;
+        }
+
+        if (req.url === '/api/posture/step-up/verify' && req.method === 'POST') {
+          const body = JSON.parse(bodyStr || '{}');
+          if (body.nonce === 'stepup-nonce-abc-123') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'verified', challenge_id: body.challenge_id }));
+          } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'invalid nonce' }));
+          }
+          return;
+        }
+
+        if (req.url.startsWith('/api/posture/device') && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            scores: {
+              device_id: 'dev-ts-test-01',
+              tenant_id: 'default',
+              composite_score: 96,
+              tier: 'healthy'
+            },
+            quarantined: false
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -2214,6 +2321,49 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const witnesses = await client.listTransparencyWitnesses();
     assert.strictEqual(witnesses.length, 3);
     assert.strictEqual(witnesses[0], 'witness-enclave-sgx');
+  });
+
+  it('evaluates device posture, manages quarantine, and performs step-up challenge verification', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+    const status = await client.getPostureStatus();
+    assert.strictEqual(status.version, '2.6.0');
+    assert.strictEqual(status.total_evaluations, 25);
+    assert.strictEqual(status.healthy_count, 20);
+
+    const cleanEval = await client.evaluateDevicePosture({
+      device_id: 'dev-clean-node',
+      tenant_id: 'default',
+      integrity: { debugger_attached: false }
+    });
+    assert.strictEqual(cleanEval.tier, 'healthy');
+    assert.strictEqual(cleanEval.composite_score, 95);
+
+    const badEval = await client.evaluateDevicePosture({
+      device_id: 'dev-bad-node',
+      tenant_id: 'default',
+      integrity: { debugger_attached: true }
+    });
+    assert.strictEqual(badEval.tier, 'quarantine');
+    assert.strictEqual(badEval.composite_score, 25);
+    assert.strictEqual(badEval.degraded_mode_allowed, false);
+
+    const quarantined = await client.getQuarantinedDevices('default');
+    assert.strictEqual(quarantined.length, 1);
+    assert.strictEqual(quarantined[0].device_id, 'dev-quarantined-99');
+
+    const released = await client.releaseDeviceQuarantine('dev-quarantined-99', 'default');
+    assert.strictEqual(released, true);
+
+    const challenge = await client.issueDeviceStepUpChallenge('dev-step-node', 'default', ['hardware_token']);
+    assert.strictEqual(challenge.challenge_id, 'chall-ts-mock-01');
+    assert.strictEqual(challenge.nonce, 'stepup-nonce-abc-123');
+
+    const verified = await client.verifyDeviceStepUpChallenge(challenge.challenge_id, challenge.nonce);
+    assert.strictEqual(verified, true);
+
+    const devState = await client.getDevicePosture('dev-ts-test-01', 'default');
+    assert.strictEqual(devState.scores.tier, 'healthy');
+    assert.strictEqual(devState.quarantined, false);
   });
 });
 

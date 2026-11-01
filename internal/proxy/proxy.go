@@ -21,6 +21,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/hsm"
 	"github.com/kLauncher1/sheet-license-broker/internal/license"
 	"github.com/kLauncher1/sheet-license-broker/internal/mlkem"
+	"github.com/kLauncher1/sheet-license-broker/internal/posture"
 	"github.com/kLauncher1/sheet-license-broker/internal/pqc"
 	"github.com/kLauncher1/sheet-license-broker/internal/queue"
 	"github.com/kLauncher1/sheet-license-broker/internal/ratelimit"
@@ -75,6 +76,7 @@ type Proxy struct {
 	hsmManager         *hsm.HSMManager
 	mlkemManager       *mlkem.Manager
 	transparencyManager *transparency.Manager
+	postureManager      *posture.PostureManager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -125,6 +127,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initHSM(cfg)
 	p.initMLKEM(cfg)
 	p.initTransparency(cfg)
+	p.initPosture(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

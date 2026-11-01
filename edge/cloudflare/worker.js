@@ -70,7 +70,12 @@ export default {
       return handleEdgeTransparencyStatus(request, env);
     }
 
-    // 11. Forward all other routes to origin
+    // 11. Intercept Adaptive Zero-Trust Posture & Device Health telemetry at edge
+    if (url.pathname === '/edge/posture/status' && request.method === 'GET') {
+      return handleEdgePostureStatus(request, env);
+    }
+
+    // 12. Forward all other routes to origin
     return forwardToOrigin(request, env);
   }
 };
@@ -624,5 +629,25 @@ export async function handleEdgeTransparencyStatus(request, env) {
     }
   });
 }
+
+export async function handleEdgePostureStatus(request, env) {
+  return new Response(JSON.stringify({
+    edge_posture_enabled: true,
+    version: '2.6.0',
+    zero_trust_scoring: true,
+    vectors: ['os_patch', 'hardware_secureboot_tpm', 'endpoint_av_firewall', 'runtime_integrity'],
+    progressive_step_up: true,
+    quarantine_enforcement: true,
+    graceful_degradation: true,
+    timestamp: new Date().toISOString()
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Broker-Edge': 'cloudflare-worker'
+    }
+  });
+}
+
 
 

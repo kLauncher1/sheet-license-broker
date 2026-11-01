@@ -215,6 +215,8 @@
       <span>•</span>
       <span id="transparency-badge" style="color: #38bdf8;">Transparency: RFC 6962 Active</span>
       <span>•</span>
+      <span id="posture-badge" style="color: #10b981;">Device Health: Adaptive Zero-Trust Active</span>
+      <span>•</span>
       <span id="marketplace-badge" style="color: #f59e0b;">Marketplaces: Active</span>
       <span>•</span>
       <span id="pqc-badge" style="color: #c084fc;">PQC: ML-DSA-65 Active</span>
@@ -278,6 +280,7 @@
       <button class="tab-btn" id="tab-btn-hsm" onclick="switchTab('hsm')">Hardware HSM &amp; PKCS#11 Vault</button>
       <button class="tab-btn" id="tab-btn-mlkem" onclick="switchTab('mlkem')">Quantum ML-KEM &amp; Lattice KEM</button>
       <button class="tab-btn" id="tab-btn-transparency" onclick="switchTab('transparency')">Verifiable Transparency Logs</button>
+      <button class="tab-btn" id="tab-btn-posture" onclick="switchTab('posture')">Device Health &amp; Posture Attestation</button>
     </div>
 
     <!-- Tab 1: Licenses -->
@@ -1605,6 +1608,85 @@
 
       <div id="transparency-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
     </div>
+
+    <!-- Tab: Device Health & Posture Attestation -->
+    <div id="panel-posture" style="display: none;">
+      <div class="grid-stats" style="margin-bottom: 20px;">
+        <div class="card">
+          <div class="card-title">Active Health Engine</div>
+          <div class="card-value" id="val-posture-version" style="color: #10b981;">v2.6.0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Total Evaluations</div>
+          <div class="card-value" id="val-posture-total" style="color: #38bdf8;">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Healthy Devices</div>
+          <div class="card-value" id="val-posture-healthy" style="color: #10b981;">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Quarantined Endpoints</div>
+          <div class="card-value" id="val-posture-quarantine" style="color: #ef4444;">0</div>
+        </div>
+      </div>
+
+      <div class="action-bar" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+        <button class="btn-action" onclick="promptEvaluateDevicePosture()">🛡️ Evaluate Device Posture</button>
+        <button class="btn-action btn-secondary" onclick="promptIssuePostureStepUp()">🔑 Step-Up Challenge</button>
+        <button class="btn-action btn-secondary" onclick="promptVerifyPostureStepUp()">✅ Verify Step-Up Proof</button>
+        <button class="btn-action btn-secondary" onclick="promptReleasePostureQuarantine()">🔓 Release Quarantine</button>
+        <button class="btn-action btn-secondary" onclick="promptQueryDeviceHealth()">🔍 Query Device Posture</button>
+        <button class="btn-action btn-secondary" onclick="refreshPostureTab()">🔄 Refresh Posture</button>
+      </div>
+
+      <div class="table-container" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: var(--text-main);">
+          Active Quarantined Endpoints &amp; Isolation State
+        </div>
+        <table class="table-styled" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Device ID</th>
+              <th>Tenant</th>
+              <th>Score</th>
+              <th>Tier</th>
+              <th>Reason</th>
+              <th>Degraded Mode</th>
+              <th>Quarantined At</th>
+            </tr>
+          </thead>
+          <tbody id="posture-quarantined-body">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading quarantined endpoints...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-container" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: var(--text-main);">
+          Recent Multi-Vector Posture Evaluations
+        </div>
+        <table class="table-styled" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Device ID</th>
+              <th>Tenant</th>
+              <th>OS Score</th>
+              <th>Hardware</th>
+              <th>Endpoint AV</th>
+              <th>Integrity</th>
+              <th>Composite</th>
+              <th>Tier</th>
+              <th>Evaluated At</th>
+            </tr>
+          </thead>
+          <tbody id="posture-recent-body">
+            <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 16px;">Loading recent evaluations...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="posture-output" class="output-pre" style="display: none; margin-top: 16px;"></div>
+    </div>
   </main>
 
   <script>
@@ -1612,7 +1694,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm', 'mlkem', 'transparency'];
+      const tabs = ['lic', 'tenants', 'bl', 'security', 'backup', 'ha', 'features', 'attestation', 'cluster', 'stream', 'zkp', 'sso', 'pqc', 'anomaly', 'enclave', 'anycast', 'marketplace', 'airgap', 'zerotrust', 'healing', 'hsm', 'mlkem', 'transparency', 'posture'];
       tabs.forEach(t => {
         const btn = document.getElementById('tab-btn-' + t);
         if (btn) btn.classList.toggle('active', t === tab);
@@ -1641,6 +1723,7 @@
       document.getElementById('panel-hsm').style.display = tab === 'hsm' ? 'block' : 'none';
       document.getElementById('panel-mlkem').style.display = tab === 'mlkem' ? 'block' : 'none';
       document.getElementById('panel-transparency').style.display = tab === 'transparency' ? 'block' : 'none';
+      document.getElementById('panel-posture').style.display = tab === 'posture' ? 'block' : 'none';
 
       document.getElementById('actions-lic').style.display = tab === 'lic' ? 'flex' : 'none';
       document.getElementById('actions-tenants').style.display = tab === 'tenants' ? 'flex' : 'none';
@@ -1667,6 +1750,7 @@
       if (tab === 'hsm') refreshHSMTab();
       if (tab === 'mlkem') refreshMLKEMTab();
       if (tab === 'transparency') refreshTransparencyTab();
+      if (tab === 'posture') refreshPostureTab();
     }
 
     async function refresh() {
@@ -1745,6 +1829,13 @@
           const kb = document.getElementById('mlkem-badge');
           if (kb) {
             kb.textContent = `ML-KEM: FIPS 203 (${kem.default_algorithm || 'ML-KEM-768'})`;
+          }
+        }
+
+        if (health && health.posture) {
+          const pb = document.getElementById('posture-badge');
+          if (pb) {
+            pb.textContent = `Device Health: Zero-Trust Active (${health.posture.quarantine_count || 0} Quarantined)`;
           }
         }
 
@@ -4706,6 +4797,212 @@
         refreshTransparencyTab();
       } catch (err) {
         out.textContent = 'Failed to co-sign STH: ' + err.message;
+      }
+    }
+
+    async function refreshPostureTab() {
+      try {
+        const [status, quarData] = await Promise.all([
+          fetch('/api/posture/status').then(r => r.json()),
+          fetch('/api/posture/quarantine').then(r => r.json())
+        ]);
+
+        if (status) {
+          document.getElementById('val-posture-version').textContent = 'v' + (status.version || '2.6.0');
+          document.getElementById('val-posture-total').textContent = status.total_evaluations || 0;
+          document.getElementById('val-posture-healthy').textContent = status.healthy_count || 0;
+          document.getElementById('val-posture-quarantine').textContent = status.quarantine_count || 0;
+
+          const recentBody = document.getElementById('posture-recent-body');
+          if (Array.isArray(status.recent_evaluations) && status.recent_evaluations.length > 0) {
+            recentBody.innerHTML = status.recent_evaluations.map(e => `
+              <tr>
+                <td style="font-family: monospace; font-weight: 600; color: #f8fafc;">${e.device_id}</td>
+                <td>${e.tenant_id}</td>
+                <td>${e.os_score}</td>
+                <td>${e.hardware_score}</td>
+                <td>${e.endpoint_score}</td>
+                <td>${e.integrity_score}</td>
+                <td style="font-weight: 700; color: ${e.composite_score >= 80 ? '#10b981' : (e.composite_score >= 60 ? '#f59e0b' : '#ef4444')};">${e.composite_score}</td>
+                <td><span class="badge badge-${e.tier === 'healthy' ? 'success' : (e.tier === 'warning' ? 'warning' : 'danger')}">${e.tier.toUpperCase()}</span></td>
+                <td style="color: var(--text-muted); font-size: 12px;">${e.evaluated_at}</td>
+              </tr>
+            `).join('');
+          } else {
+            recentBody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 16px;">No posture evaluations recorded yet.</td></tr>';
+          }
+        }
+
+        const quarBody = document.getElementById('posture-quarantined-body');
+        const quarantined = quarData && quarData.quarantined ? quarData.quarantined : [];
+        if (quarantined.length > 0) {
+          quarBody.innerHTML = quarantined.map(q => `
+            <tr>
+              <td style="font-family: monospace; font-weight: 600; color: #f87171;">${q.device_id}</td>
+              <td>${q.tenant_id}</td>
+              <td style="font-weight: 700; color: #ef4444;">${q.composite_score}</td>
+              <td><span class="badge badge-danger">QUARANTINE</span></td>
+              <td style="color: #fca5a5; font-size: 13px;">${q.reason}</td>
+              <td>${q.degraded_mode_allowed ? '<span style="color:#10b981;">Allowed (Read-Only)</span>' : '<span style="color:#ef4444;">Blocked</span>'}</td>
+              <td style="color: var(--text-muted); font-size: 12px;">${q.quarantined_at}</td>
+            </tr>
+          `).join('');
+        } else {
+          quarBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Zero quarantined endpoints active. All devices meet compliance invariants.</td></tr>';
+        }
+      } catch (err) {
+        console.error('Failed to refresh posture tab:', err);
+      }
+    }
+
+    async function promptEvaluateDevicePosture() {
+      const deviceId = prompt('Target Device Identifier (e.g. dev-workstation-01):', 'dev-workstation-01');
+      if (!deviceId) return;
+      const tenantId = prompt('Tenant Identifier:', 'default') || 'default';
+      const debuggerAttached = confirm('Is a debugger attached to client process? (OK = Yes, Cancel = No)');
+
+      const out = document.getElementById('posture-output');
+      out.style.display = 'block';
+      out.textContent = `Evaluating posture report for [${deviceId}]...`;
+
+      try {
+        const payload = {
+          device_id: deviceId.trim(),
+          tenant_id: tenantId.trim(),
+          hwid: 'HWID-' + deviceId.toUpperCase(),
+          os: {
+            os_name: 'Windows',
+            os_version: '11.0.26100',
+            patch_level_days: 10,
+            min_patch_level_days: 30
+          },
+          hardware: {
+            secure_boot_enabled: true,
+            tpm_present: true,
+            tpm_version: '2.0',
+            disk_encryption_active: true
+          },
+          endpoint: {
+            antivirus_active: true,
+            definitions_age_days: 2,
+            realtime_protection: true,
+            firewall_enabled: true
+          },
+          integrity: {
+            debugger_attached: debuggerAttached,
+            rooted_or_jailbroken: false,
+            virtualization_detected: false,
+            code_integrity_verified: true
+          },
+          timestamp: Math.floor(Date.now() / 1000)
+        };
+
+        const res = await fetch('/api/posture/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+
+        out.textContent = 'Device Posture Evaluation Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshPostureTab();
+      } catch (err) {
+        out.textContent = 'Failed to evaluate posture: ' + err.message;
+      }
+    }
+
+    async function promptIssuePostureStepUp() {
+      const deviceId = prompt('Target Device ID for Step-Up Authentication:', 'dev-workstation-01');
+      if (!deviceId) return;
+      const tenantId = prompt('Tenant Identifier:', 'default') || 'default';
+
+      const out = document.getElementById('posture-output');
+      out.style.display = 'block';
+      out.textContent = `Issuing step-up challenge for [${deviceId}]...`;
+
+      try {
+        const res = await fetch('/api/posture/step-up/challenge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: deviceId.trim(),
+            tenant_id: tenantId.trim(),
+            actions: ['mfa_pin', 'hardware_attestation']
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Step-Up Challenge Issued:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'Failed to issue step-up challenge: ' + err.message;
+      }
+    }
+
+    async function promptVerifyPostureStepUp() {
+      const challengeId = prompt('Enter Step-Up Challenge ID:');
+      if (!challengeId) return;
+      const nonce = prompt('Enter Challenge Nonce Proof:');
+      if (!nonce) return;
+
+      const out = document.getElementById('posture-output');
+      out.style.display = 'block';
+      out.textContent = `Verifying step-up proof for [${challengeId}]...`;
+
+      try {
+        const res = await fetch('/api/posture/step-up/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challenge_id: challengeId.trim(),
+            nonce: nonce.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Step-Up Verification Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshPostureTab();
+      } catch (err) {
+        out.textContent = 'Failed to verify step-up proof: ' + err.message;
+      }
+    }
+
+    async function promptReleasePostureQuarantine() {
+      const deviceId = prompt('Enter Device ID to release from quarantine:');
+      if (!deviceId) return;
+      const tenantId = prompt('Tenant Identifier:', 'default') || 'default';
+
+      const out = document.getElementById('posture-output');
+      out.style.display = 'block';
+      out.textContent = `Releasing [${deviceId}] from quarantine...`;
+
+      try {
+        const res = await fetch('/api/posture/quarantine/release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: deviceId.trim(),
+            tenant_id: tenantId.trim()
+          })
+        }).then(r => r.json());
+
+        out.textContent = 'Quarantine Release Result:\n\n' + JSON.stringify(res, null, 2);
+        refreshPostureTab();
+      } catch (err) {
+        out.textContent = 'Failed to release quarantine: ' + err.message;
+      }
+    }
+
+    async function promptQueryDeviceHealth() {
+      const deviceId = prompt('Enter Device ID to query:');
+      if (!deviceId) return;
+      const tenantId = prompt('Tenant Identifier:', 'default') || 'default';
+
+      const out = document.getElementById('posture-output');
+      out.style.display = 'block';
+      out.textContent = `Querying posture records for [${deviceId}]...`;
+
+      try {
+        const res = await fetch(`/api/posture/device?tenant_id=${encodeURIComponent(tenantId)}&device_id=${encodeURIComponent(deviceId)}`).then(r => r.json());
+        out.textContent = 'Device Posture & Quarantine Record:\n\n' + JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = 'Failed to query device posture: ' + err.message;
       }
     }
 
