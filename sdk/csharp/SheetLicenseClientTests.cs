@@ -622,6 +622,54 @@ namespace SheetLicenseBrokerTests
                             ctx.Response.StatusCode = 200;
                             respBytes = Encoding.UTF8.GetBytes("{\"scores\":{\"device_id\":\"dev-cs-node-1\",\"composite_score\":92.0,\"tier\":\"healthy\"},\"quarantined\":false}");
                         }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/status")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"active_provider_count\":3,\"total_providers\":3,\"active_active_enabled\":true,\"primary_provider_id\":\"cf-iad-01\",\"average_latency_ms\":15.2,\"uptime_ratio\":0.9999}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/providers")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"providers\":[{\"id\":\"cf-iad-01\",\"name\":\"Cloudflare IAD\",\"status\":\"healthy\"},{\"id\":\"aws-fra-02\",\"name\":\"CloudFront FRA\",\"status\":\"healthy\"}],\"count\":2}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/route")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"provider\":{\"id\":\"cf-iad-01\",\"name\":\"Cloudflare IAD\",\"status\":\"healthy\"},\"token\":{\"token_id\":\"mctok-cs-01\",\"provider_id\":\"cf-iad-01\",\"client_region\":\"us-east\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/probe")
+                        {
+                            bool isOk = reqBody.Contains("\"success\":true");
+                            ctx.Response.StatusCode = 200;
+                            if (isOk)
+                            {
+                                respBytes = Encoding.UTF8.GetBytes("{\"success\":true,\"failover_event\":null}");
+                            }
+                            else
+                            {
+                                respBytes = Encoding.UTF8.GetBytes("{\"success\":true,\"failover_event\":{\"event_id\":\"failover-cs-01\",\"previous_provider\":\"cf-iad-01\",\"new_provider\":\"aws-fra-02\",\"reason\":\"High latency probe\"}}");
+                            }
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/sync/delta")
+                        {
+                            ctx.Response.StatusCode = 201;
+                            respBytes = Encoding.UTF8.GetBytes("{\"success\":true,\"delta\":{\"delta_id\":\"delta-cs-01\",\"origin_provider\":\"cf-iad-01\",\"sequence_number\":100,\"action\":\"license_bound\"}}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/sync/pending")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"provider_id\":\"aws-fra-02\",\"pending\":[{\"delta_id\":\"delta-cs-01\",\"origin_provider\":\"cf-iad-01\",\"sequence_number\":100}],\"count\":1}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/sync/acknowledge")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"success\":true,\"message\":\"acknowledged\"}");
+                        }
+                        else if (ctx.Request.Url.AbsolutePath == "/api/multicloud/failover/simulate")
+                        {
+                            ctx.Response.StatusCode = 200;
+                            respBytes = Encoding.UTF8.GetBytes("{\"success\":true,\"failover_event\":{\"event_id\":\"sim-cs-01\",\"previous_provider\":\"cf-iad-01\",\"new_provider\":\"aws-fra-02\",\"reason\":\"DR drill\"}}");
+                        }
                         else
                         {
                             ctx.Response.StatusCode = 404;
@@ -1399,7 +1447,72 @@ namespace SheetLicenseBrokerTests
                 }
                 Console.WriteLine("PASS: Zero-Trust device health posture scoring, quarantine, and step-up attestation");
 
-                Console.WriteLine("=== All 29 C# Client Tests Passed Successfully! ===");
+                // 30. Test Multi-Cloud Edge Failover & Geo-DNS Routing
+                string mcStatus = client.GetMultiCloudStatus();
+                if (!mcStatus.Contains("\"active_provider_count\":3") || !mcStatus.Contains("\"primary_provider_id\":\"cf-iad-01\""))
+                {
+                    Console.Error.WriteLine("FAIL: MultiCloud status check failed: " + mcStatus);
+                    return 1;
+                }
+
+                string mcProviders = client.ListMultiCloudProviders();
+                if (!mcProviders.Contains("cf-iad-01") || !mcProviders.Contains("aws-fra-02"))
+                {
+                    Console.Error.WriteLine("FAIL: ListMultiCloudProviders failed: " + mcProviders);
+                    return 1;
+                }
+
+                string mcRoute = client.RouteMultiCloud("us-east", "198.51.100.3");
+                if (!mcRoute.Contains("mctok-cs-01") || !mcRoute.Contains("cf-iad-01"))
+                {
+                    Console.Error.WriteLine("FAIL: RouteMultiCloud failed: " + mcRoute);
+                    return 1;
+                }
+
+                string probeOk = client.SubmitMultiCloudProbe("cf-iad-01", true, 12.5, 200, "us-east");
+                if (!probeOk.Contains("\"failover_event\":null"))
+                {
+                    Console.Error.WriteLine("FAIL: SubmitMultiCloudProbe OK failed: " + probeOk);
+                    return 1;
+                }
+
+                string probeFail = client.SubmitMultiCloudProbe("cf-iad-01", false, 4500.0, 504, "us-east");
+                if (!probeFail.Contains("failover-cs-01") || !probeFail.Contains("aws-fra-02"))
+                {
+                    Console.Error.WriteLine("FAIL: SubmitMultiCloudProbe Fail failed: " + probeFail);
+                    return 1;
+                }
+
+                string deltaRes = client.SubmitMultiCloudDelta("cf-iad-01", "license_bound", "{\"key\":\"CS-KEY-01\"}");
+                if (!deltaRes.Contains("delta-cs-01") || !deltaRes.Contains("\"sequence_number\":100"))
+                {
+                    Console.Error.WriteLine("FAIL: SubmitMultiCloudDelta failed: " + deltaRes);
+                    return 1;
+                }
+
+                string pendingSync = client.GetMultiCloudPendingSync("aws-fra-02", 10);
+                if (!pendingSync.Contains("delta-cs-01"))
+                {
+                    Console.Error.WriteLine("FAIL: GetMultiCloudPendingSync failed: " + pendingSync);
+                    return 1;
+                }
+
+                string ackRes = client.AcknowledgeMultiCloudSync("aws-fra-02", "delta-cs-01");
+                if (!ackRes.Contains("\"success\":true"))
+                {
+                    Console.Error.WriteLine("FAIL: AcknowledgeMultiCloudSync failed: " + ackRes);
+                    return 1;
+                }
+
+                string simRes = client.SimulateMultiCloudFailover("cf-iad-01", "Simulated failover drill");
+                if (!simRes.Contains("sim-cs-01") || !simRes.Contains("aws-fra-02"))
+                {
+                    Console.Error.WriteLine("FAIL: SimulateMultiCloudFailover failed: " + simRes);
+                    return 1;
+                }
+                Console.WriteLine("PASS: Autonomous multi-cloud edge failover & geo-dns health routing");
+
+                Console.WriteLine("=== All 30 C# Client Tests Passed Successfully! ===");
                 return 0;
             }
             finally

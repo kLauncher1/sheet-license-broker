@@ -1378,6 +1378,102 @@ namespace SheetLicenseBroker
         public string GetDevicePosture(string deviceId, string tenantId = "default") =>
             GetDevicePostureAsync(deviceId, tenantId).GetAwaiter().GetResult();
 
+        /// <summary>
+        /// Queries overall multi-cloud edge failover status and provider telemetry.
+        /// </summary>
+        public async Task<string> GetMultiCloudStatusAsync() =>
+            await SendRequestAsync("GET", "/api/multicloud/status", null).ConfigureAwait(false);
+
+        public string GetMultiCloudStatus() =>
+            GetMultiCloudStatusAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Returns all registered cloud edge providers.
+        /// </summary>
+        public async Task<string> ListMultiCloudProvidersAsync() =>
+            await SendRequestAsync("GET", "/api/multicloud/providers", null).ConfigureAwait(false);
+
+        public string ListMultiCloudProviders() =>
+            ListMultiCloudProvidersAsync().GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Evaluates client geo parameters and returns optimal provider and signed routing token.
+        /// </summary>
+        public async Task<string> RouteMultiCloudAsync(string clientRegion = "", string clientIp = "")
+        {
+            string body = string.Format("{{\"client_region\":\"{0}\",\"client_ip\":\"{1}\"}}",
+                EscapeJson(clientRegion ?? ""), EscapeJson(clientIp ?? ""));
+            return await SendRequestAsync("POST", "/api/multicloud/route", body).ConfigureAwait(false);
+        }
+
+        public string RouteMultiCloud(string clientRegion = "", string clientIp = "") =>
+            RouteMultiCloudAsync(clientRegion, clientIp).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Records a synthetic or real-time health probe result.
+        /// </summary>
+        public async Task<string> SubmitMultiCloudProbeAsync(string providerId, bool success, double latencyMs = 0.0, int statusCode = 200, string originRegion = "")
+        {
+            string body = string.Format("{{\"provider_id\":\"{0}\",\"success\":{1},\"latency_ms\":{2},\"status_code\":{3},\"origin_region\":\"{4}\"}}",
+                EscapeJson(providerId ?? ""), success ? "true" : "false", latencyMs.ToString(System.Globalization.CultureInfo.InvariantCulture), statusCode, EscapeJson(originRegion ?? ""));
+            return await SendRequestAsync("POST", "/api/multicloud/probe", body).ConfigureAwait(false);
+        }
+
+        public string SubmitMultiCloudProbe(string providerId, bool success, double latencyMs = 0.0, int statusCode = 200, string originRegion = "") =>
+            SubmitMultiCloudProbeAsync(providerId, success, latencyMs, statusCode, originRegion).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Commits an atomic state mutation for cross-cloud zero-packet-loss synchronization.
+        /// </summary>
+        public async Task<string> SubmitMultiCloudDeltaAsync(string originProvider, string action, string payloadJson = "{}")
+        {
+            string body = string.Format("{{\"origin_provider\":\"{0}\",\"action\":\"{1}\",\"payload\":{2}}}",
+                EscapeJson(originProvider ?? ""), EscapeJson(action ?? ""), string.IsNullOrEmpty(payloadJson) ? "{}" : payloadJson);
+            return await SendRequestAsync("POST", "/api/multicloud/sync/delta", body).ConfigureAwait(false);
+        }
+
+        public string SubmitMultiCloudDelta(string originProvider, string action, string payloadJson = "{}") =>
+            SubmitMultiCloudDeltaAsync(originProvider, action, payloadJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Queries uncommitted deltas for a partitioned or recovering cloud provider.
+        /// </summary>
+        public async Task<string> GetMultiCloudPendingSyncAsync(string providerId, int limit = 50)
+        {
+            string path = string.Format("/api/multicloud/sync/pending?provider_id={0}&limit={1}",
+                Uri.EscapeDataString(providerId ?? ""), limit);
+            return await SendRequestAsync("GET", path, null).ConfigureAwait(false);
+        }
+
+        public string GetMultiCloudPendingSync(string providerId, int limit = 50) =>
+            GetMultiCloudPendingSyncAsync(providerId, limit).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Acknowledges delta commitment by a cloud provider with optional voucher.
+        /// </summary>
+        public async Task<string> AcknowledgeMultiCloudSyncAsync(string providerId, string deltaId, string voucherJson = "null")
+        {
+            string body = string.Format("{{\"provider_id\":\"{0}\",\"delta_id\":\"{1}\",\"voucher\":{2}}}",
+                EscapeJson(providerId ?? ""), EscapeJson(deltaId ?? ""), string.IsNullOrEmpty(voucherJson) ? "null" : voucherJson);
+            return await SendRequestAsync("POST", "/api/multicloud/sync/acknowledge", body).ConfigureAwait(false);
+        }
+
+        public string AcknowledgeMultiCloudSync(string providerId, string deltaId, string voucherJson = "null") =>
+            AcknowledgeMultiCloudSyncAsync(providerId, deltaId, voucherJson).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Triggers an administrative failover drill.
+        /// </summary>
+        public async Task<string> SimulateMultiCloudFailoverAsync(string providerId, string reason = "Manual SDK test drill")
+        {
+            string body = string.Format("{{\"provider_id\":\"{0}\",\"reason\":\"{1}\"}}",
+                EscapeJson(providerId ?? ""), EscapeJson(reason ?? "Manual SDK test drill"));
+            return await SendRequestAsync("POST", "/api/multicloud/failover/simulate", body).ConfigureAwait(false);
+        }
+
+        public string SimulateMultiCloudFailover(string providerId, string reason = "Manual SDK test drill") =>
+            SimulateMultiCloudFailoverAsync(providerId, reason).GetAwaiter().GetResult();
+
 
         private static string EscapeJson(string str)
         {

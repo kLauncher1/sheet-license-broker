@@ -1,4 +1,4 @@
-import type { AttestationChallengeResponse, AttestationVerifyResponse, BrokerClientOptions, ClusterPeer, ClusterStatusResponse, DocumentResponse, EncryptedAuditBundle, HealthResponse, LicenseRecord, LicenseValidationResponse, StreamClientInfo, StreamKillResponse, StreamTelemetryResponse, TelemetryReport, TelemetryResponse, UsageRecord, UsageRecordResponse, UserAuthResponse, PedersenCommitmentPoint, ZKPParamsResponse, ZKPIssueResponse, ZKPProof, ZKPStatusResponse, ZKPVerifyResponse, SSOStatusSummary, SessionTokenIntrospectResult, SCIMListUsersResult, PQCHybridSignature, PQCVerificationResult, PQCStatusSummary, AnomalyObservation, AnomalyRiskScore, AnomalyIncidentGraph, AnomalyTelemetrySummary, EnclaveAttestationResult, EnclaveHandshakeResponse, EnclaveEncryptedMessage, EnclaveTelemetry, AnycastRoutingDecision, EdgeCacheTelemetry, AnycastStatusResponse, MarketplaceTransaction, MarketplaceStatus, MarketplaceSimulateRequest, MarketplaceSimulateResponse, MarketplaceTransactionFilter, AirgapDongleToken, AirgapIssueRequest, AirgapIssueResponse, AirgapVerifyRequest, AirgapVerifyResponse, AirgapActivationRequest, AirgapActivationResponse, AirgapRollbackState, AirgapUnlockRequest, AirgapStatus, ZeroTrustPeerIdentity, ZeroTrustEnrollRequest, ZeroTrustEnrollResponse, ZeroTrustHSMSlotInfo, ZeroTrustStatus, ZeroTrustVerifyResponse, MLKEMStatus, MLKEMPublicKey, MLKEMEncapsulationResult, HybridHandshakeRequest, HybridHandshakeResponse, HybridSessionVerification } from './types.js';
+import type { AttestationChallengeResponse, AttestationVerifyResponse, BrokerClientOptions, ClusterPeer, ClusterStatusResponse, DocumentResponse, EncryptedAuditBundle, HealthResponse, LicenseRecord, LicenseValidationResponse, StreamClientInfo, StreamKillResponse, StreamTelemetryResponse, TelemetryReport, TelemetryResponse, UsageRecord, UsageRecordResponse, UserAuthResponse, PedersenCommitmentPoint, ZKPParamsResponse, ZKPIssueResponse, ZKPProof, ZKPStatusResponse, ZKPVerifyResponse, SSOStatusSummary, SessionTokenIntrospectResult, SCIMListUsersResult, PQCHybridSignature, PQCVerificationResult, PQCStatusSummary, AnomalyObservation, AnomalyRiskScore, AnomalyIncidentGraph, AnomalyTelemetrySummary, EnclaveAttestationResult, EnclaveAttestationToken, EnclaveTokenVerifyResult, EnclaveIsolatedDecryptionRequest, EnclaveIsolatedDecryptionResult, EnclaveHandshakeResponse, EnclaveEncryptedMessage, EnclaveTelemetry, AnycastRoutingDecision, EdgeCacheTelemetry, AnycastStatusResponse, MarketplaceTransaction, MarketplaceStatus, MarketplaceSimulateRequest, MarketplaceSimulateResponse, MarketplaceTransactionFilter, AirgapDongleToken, AirgapIssueRequest, AirgapIssueResponse, AirgapVerifyResponse, AirgapActivationRequest, AirgapActivationResponse, AirgapRollbackState, AirgapUnlockRequest, AirgapStatus, ZeroTrustPeerIdentity, ZeroTrustEnrollRequest, ZeroTrustEnrollResponse, ZeroTrustHSMSlotInfo, ZeroTrustStatus, ZeroTrustVerifyResponse, HealingStatus, HealingConsumeResponse, HealingTicket, HealingResumeResponse, HealingBorrowResponse, HealingRebalanceResponse, HSMSlotInfo, HSMVaultStatus, HSMKeyDerivationRequest, HSMKeyDerivationResponse, HSMEnvelopeEncryptRequest, HSMEnvelopeEncryptResponse, HSMEnvelopeDecryptRequest, HSMEnvelopeDecryptResponse, HSMSelfTestResult, HSMFIPS140AuditReport, MLKEMStatus, MLKEMPublicKey, MLKEMEncapsulationResult, HybridHandshakeRequest, HybridHandshakeResponse, HybridSessionVerification, TransparencyLogEntry, TransparencyWitnessSignature, TransparencySTH, TransparencyInclusionProof, TransparencyConsistencyProof, TransparencyStatus, DevicePostureReport, PostureVectorScores, QuarantinedDevice, StepUpChallenge, PostureStatus, CloudProvider, MultiCloudRoutingToken, HealthProbeResult, SyncDelta, SyncVoucher, FailoverEvent, MultiCloudStatus } from './types.js';
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
 export declare class SheetLicenseClient {
     private readonly baseUrl;
@@ -225,6 +225,40 @@ export declare class SheetLicenseClient {
         policies: any[];
     }>;
     /**
+     * Submits an Intel TDX Quote v4 for cryptographic and policy verification.
+     */
+    verifyTDXQuote(params: {
+        quoteHex: string;
+        nonce: string;
+        policyId?: string;
+    }): Promise<EnclaveAttestationResult>;
+    /**
+     * Requests an immutable signed attestation token binding hardware measurements and SVN.
+     */
+    issueAttestationToken(params: {
+        platform?: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
+        measurement: string;
+        rtmr0?: string;
+        svn: number;
+        debug?: boolean;
+        nonce: string;
+        enclavePubKey?: string;
+        ttlSeconds?: number;
+    }): Promise<EnclaveAttestationToken>;
+    /**
+     * Validates an attestation token against minimum SVN and debug posture requirements.
+     */
+    verifyAttestationToken(params: {
+        tokenId?: string;
+        token?: EnclaveAttestationToken;
+        minSVN?: number;
+        allowDebug?: boolean;
+    }): Promise<EnclaveTokenVerifyResult>;
+    /**
+     * Requests hardware-isolated memory execution and sensitive license evaluation.
+     */
+    executeIsolatedDecryption(params: EnclaveIsolatedDecryptionRequest): Promise<EnclaveIsolatedDecryptionResult>;
+    /**
      * Queries the nearest edge Anycast Point of Presence based on coordinates, country, or region.
      */
     getAnycastRoute(options?: {
@@ -311,44 +345,295 @@ export declare class SheetLicenseClient {
     /**
      * Revokes a peer node certificate and marks its status as REVOKED in the internal CRL.
      */
-    revokeZeroTrustPeer(nodeId: string, reason?: string): Promise<{ status: string; node_id: string; revoked: boolean; reason: string }>;
+    revokeZeroTrustPeer(nodeId: string, reason?: string): Promise<{
+        status: string;
+        node_id: string;
+        revoked: boolean;
+        reason: string;
+    }>;
     /**
      * Rotates the internal Root CA while maintaining dual-trust continuity.
      */
-    rotateZeroTrustCA(validityDays?: number): Promise<{ status: string; message: string; root_fingerprint: string; ca_expires_at: string }>;
+    rotateZeroTrustCA(validityDays?: number): Promise<{
+        status: string;
+        message: string;
+        root_fingerprint: string;
+        ca_expires_at: string;
+    }>;
     /**
      * Queries hardware-backed key slot capabilities and operation counters.
      */
-    getZeroTrustHSMStatus(): Promise<{ hsm_enabled: boolean; slots_count: number; slots: ZeroTrustHSMSlotInfo[] }>;
+    getZeroTrustHSMStatus(): Promise<{
+        hsm_enabled: boolean;
+        slots_count: number;
+        slots: ZeroTrustHSMSlotInfo[];
+    }>;
     /**
      * Cryptographically verifies whether a given peer identity is actively authorized.
      */
     verifyZeroTrustPeer(peer: Partial<ZeroTrustPeerIdentity>): Promise<ZeroTrustVerifyResponse>;
+    /**
+     * Queries autonomous healing status including bucket telemetry, active tunnels, and quota pools.
+     */
     getHealingStatus(): Promise<HealingStatus>;
+    /**
+     * Consumes capacity tokens from the real-time auto-scaling token bucket rate limiter.
+     */
     consumeHealingBucket(tokens?: number): Promise<HealingConsumeResponse>;
-    issueHealingTicket(params: { sessionId?: string; clientId: string; hwid: string; tenantId?: string; lastAckSeq?: number; ttlSeconds?: number; }): Promise<HealingTicket>;
+    /**
+     * Issues a cryptographically signed healing ticket allowing a client to resume an interrupted session.
+     */
+    issueHealingTicket(params: {
+        sessionId?: string;
+        clientId: string;
+        hwid: string;
+        tenantId?: string;
+        lastAckSeq?: number;
+        ttlSeconds?: number;
+    }): Promise<HealingTicket>;
+    /**
+     * Resumes an interrupted client connection tunnel and retrieves missed state synchronization events.
+     */
     resumeHealingTunnel(ticket: HealingTicket): Promise<HealingResumeResponse>;
-    borrowHealingQuota(params: { borrowerTenant: string; lenderTenant: string; amount: number; durationMinutes?: number; }): Promise<HealingBorrowResponse>;
-    returnHealingQuota(leaseId: string): Promise<{ status: string; lease_id: string; }>;
-    recallHealingQuota(leaseId: string, reason?: string): Promise<{ status: string; lease_id: string; }>;
+    /**
+     * Requests a dynamic quota borrowing lease between tenant pools.
+     */
+    borrowHealingQuota(params: {
+        borrowerTenant: string;
+        lenderTenant: string;
+        amount: number;
+        durationMinutes?: number;
+    }): Promise<HealingBorrowResponse>;
+    /**
+     * Voluntarily returns a borrowed quota allocation before or upon expiration.
+     */
+    returnHealingQuota(leaseId: string): Promise<{
+        status: string;
+        lease_id: string;
+    }>;
+    /**
+     * Preemptively recalls borrowed quota when lender tenant load surges.
+     */
+    recallHealingQuota(leaseId: string, reason?: string): Promise<{
+        status: string;
+        lease_id: string;
+    }>;
+    /**
+     * Triggers an automated distributed quota rebalancing evaluation.
+     */
     rebalanceHealingQuotas(): Promise<HealingRebalanceResponse>;
+    /**
+     * Queries real-time telemetry, FIPS 140-3 certification level, and operational status of the HSM vault.
+     */
     getHsmStatus(): Promise<HSMVaultStatus>;
-    listHsmSlots(): Promise<{ slots: HSMSlotInfo[]; }>;
-    hsmLogin(slotId: number, pin: string, userType?: 'USER' | 'SO'): Promise<{ authenticated: boolean; slot_id: number; user_type: string; }>;
-    hsmLogout(slotId?: number): Promise<{ logged_out: boolean; slot_id: number; }>;
+    /**
+     * Lists all provisioned PKCS#11 hardware slots and token descriptors.
+     */
+    listHsmSlots(): Promise<{
+        slots: HSMSlotInfo[];
+    }>;
+    /**
+     * Authenticates an ephemeral session against a hardware slot token using constant-time PIN evaluation.
+     */
+    hsmLogin(slotId: number, pin: string, userType?: 'USER' | 'SO'): Promise<{
+        authenticated: boolean;
+        slot_id: number;
+        user_type: string;
+    }>;
+    /**
+     * Revokes an active authenticated session on the specified slot.
+     */
+    hsmLogout(slotId?: number): Promise<{
+        logged_out: boolean;
+        slot_id: number;
+    }>;
+    /**
+     * Derives a dedicated envelope or storage encryption key inside the hardware cryptoki boundary using HKDF-SHA256.
+     */
     deriveHsmKey(params: HSMKeyDerivationRequest): Promise<HSMKeyDerivationResponse>;
+    /**
+     * Performs authenticated AES-256-GCM envelope encryption under an HSM-derived key.
+     */
     encryptHsmEnvelope(params: HSMEnvelopeEncryptRequest): Promise<HSMEnvelopeEncryptResponse>;
+    /**
+     * Performs authenticated AES-256-GCM envelope decryption and verification under an HSM-derived key.
+     */
     decryptHsmEnvelope(params: HSMEnvelopeDecryptRequest): Promise<HSMEnvelopeDecryptResponse>;
-    runHsmSelfTest(): Promise<{ self_tests: HSMSelfTestResult[]; count: number; }>;
+    /**
+     * Triggers on-demand FIPS 140-3 Known Answer Tests (KAT) for all approved cryptographic primitives.
+     */
+    runHsmSelfTest(): Promise<{
+        self_tests: HSMSelfTestResult[];
+        count: number;
+    }>;
+    /**
+     * Retrieves the formal FIPS 140-3 Level 4 compliance audit report and certification evidence.
+     */
     getHsmFipsReport(): Promise<HSMFIPS140AuditReport>;
-    simulateHsmTamper(sensorId?: string): Promise<{ tamper_latched: boolean; sensor_id: string; zeroized: boolean; }>;
-    zeroizeHsm(): Promise<{ zeroized: boolean; }>;
+    /**
+     * Simulates an environmental or physical tamper sensor trip, latching hardware zeroization.
+     */
+    simulateHsmTamper(sensorId?: string): Promise<{
+        tamper_latched: boolean;
+        sensor_id: string;
+        zeroized: boolean;
+    }>;
+    /**
+     * Performs immediate administrative zeroization across all hardware slots and key registers.
+     */
+    zeroizeHsm(): Promise<{
+        zeroized: boolean;
+    }>;
+    /**
+     * Queries real-time operational status and telemetry for ML-KEM.
+     */
     getMLKEMStatus(): Promise<MLKEMStatus>;
+    /**
+     * Lists all registered public encapsulation keys.
+     */
     listMLKEMKeys(): Promise<MLKEMPublicKey[]>;
+    /**
+     * Generates and registers a new lattice keypair (ML-KEM-768 or ML-KEM-1024).
+     */
     generateMLKEMKey(algorithm?: string): Promise<MLKEMPublicKey>;
+    /**
+     * Encapsulates a shared secret against the specified (or default) public key.
+     */
     encapsulateMLKEM(keyId?: string): Promise<MLKEMEncapsulationResult>;
+    /**
+     * Decapsulates a ciphertext using the server-side private key.
+     */
     decapsulateMLKEM(keyId: string, ciphertextHex: string): Promise<string>;
+    /**
+     * Executes a post-quantum hybrid key exchange handshake (ECDH P-256 + ML-KEM).
+     */
     hybridKEMHandshake(req: HybridHandshakeRequest): Promise<HybridHandshakeResponse>;
+    /**
+     * Verifies an active ephemeral hybrid session.
+     */
     verifyHybridKEMSession(sessionId: string): Promise<HybridSessionVerification>;
+    /**
+     * Queries real-time status and telemetry for the RFC 6962 verifiable transparency log.
+     */
+    getTransparencyStatus(): Promise<TransparencyStatus>;
+    /**
+     * Appends an audit event to the transparency log and issues an updated Signed Tree Head (STH).
+     */
+    appendTransparencyEntry(action: string, tenantId?: string, payload?: any): Promise<{
+        status: string;
+        entry: TransparencyLogEntry;
+        sth: TransparencySTH;
+    }>;
+    /**
+     * Queries the latest Signed Tree Head (STH) with multi-party witness co-signatures.
+     */
+    getTransparencySTH(): Promise<TransparencySTH>;
+    /**
+     * Queries a slice of entries from the transparency log.
+     */
+    getTransparencyEntries(start?: number, count?: number): Promise<{
+        start: number;
+        count: number;
+        entries: TransparencyLogEntry[];
+    }>;
+    /**
+     * Retrieves an RFC 6962 inclusion proof for a leaf index in a tree size.
+     */
+    getTransparencyInclusionProof(index: number, treeSize: number): Promise<TransparencyInclusionProof>;
+    /**
+     * Cryptographically verifies an inclusion proof payload on the broker.
+     */
+    verifyTransparencyInclusionProof(proof: TransparencyInclusionProof): Promise<{
+        verified: boolean;
+        leaf_index: number;
+        tree_size: number;
+    }>;
+    /**
+     * Retrieves an RFC 6962 consistency proof between two tree heads.
+     */
+    getTransparencyConsistencyProof(first: number, second: number): Promise<TransparencyConsistencyProof>;
+    /**
+     * Cryptographically verifies a consistency proof payload on the broker.
+     */
+    verifyTransparencyConsistencyProof(proof: TransparencyConsistencyProof): Promise<{
+        verified: boolean;
+        first_size: number;
+        second_size: number;
+    }>;
+    /**
+     * Requests a multi-party witness node to co-sign the active tree head.
+     */
+    cosignTransparencySTH(witnessId: string): Promise<TransparencyWitnessSignature>;
+    /**
+     * Lists all registered witness node identifiers.
+     */
+    listTransparencyWitnesses(): Promise<string[]>;
+    /**
+     * Queries real-time status and telemetry for the adaptive zero-trust device posture engine.
+     */
+    getPostureStatus(): Promise<PostureStatus>;
+    /**
+     * Submits client device posture telemetry and evaluates vector confidence scores.
+     */
+    evaluateDevicePosture(report: DevicePostureReport): Promise<PostureVectorScores>;
+    /**
+     * Queries currently quarantined devices, optionally filtered by tenant.
+     */
+    getQuarantinedDevices(tenantId?: string): Promise<QuarantinedDevice[]>;
+    /**
+     * Manually releases an endpoint from quarantine isolation.
+     */
+    releaseDeviceQuarantine(deviceId: string, tenantId?: string): Promise<boolean>;
+    /**
+     * Issues a time-bound step-up authentication challenge for remediation.
+     */
+    issueDeviceStepUpChallenge(deviceId: string, tenantId?: string, actions?: string[]): Promise<StepUpChallenge>;
+    /**
+     * Submits challenge proof for step-up verification.
+     */
+    verifyDeviceStepUpChallenge(challengeId: string, nonce: string): Promise<boolean>;
+    /**
+     * Queries latest posture scores and quarantine state for an endpoint.
+     */
+    getDevicePosture(deviceId: string, tenantId?: string): Promise<{
+        scores: PostureVectorScores;
+        quarantined: boolean;
+        quarantine?: QuarantinedDevice;
+    }>;
+    /**
+     * Queries real-time telemetry and operational stats for multi-cloud active-active routing.
+     */
+    getMultiCloudStatus(): Promise<MultiCloudStatus>;
+    /**
+     * Returns all registered cloud edge providers.
+     */
+    listMultiCloudProviders(): Promise<CloudProvider[]>;
+    /**
+     * Evaluates client geo parameters and returns optimal provider and signed routing token.
+     */
+    routeMultiCloud(clientRegion?: string, clientIp?: string): Promise<{
+        provider: CloudProvider;
+        token: MultiCloudRoutingToken;
+    }>;
+    /**
+     * Records a synthetic or real-time health probe result.
+     */
+    submitMultiCloudProbe(probe: HealthProbeResult): Promise<FailoverEvent | null>;
+    /**
+     * Commits an atomic state mutation for cross-cloud zero-packet-loss synchronization.
+     */
+    submitMultiCloudDelta(originProvider: string, action: string, payload: any): Promise<SyncDelta>;
+    /**
+     * Queries uncommitted deltas for a partitioned or recovering cloud provider.
+     */
+    getMultiCloudPendingSync(providerId: string, limit?: number): Promise<SyncDelta[]>;
+    /**
+     * Acknowledges delta commitment by a cloud provider with optional voucher.
+     */
+    acknowledgeMultiCloudSync(providerId: string, deltaId: string, voucher?: SyncVoucher): Promise<boolean>;
+    /**
+     * Triggers an administrative failover drill.
+     */
+    simulateMultiCloudFailover(providerId: string, reason?: string): Promise<FailoverEvent>;
 }
 //# sourceMappingURL=client.d.ts.map

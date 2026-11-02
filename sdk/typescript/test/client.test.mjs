@@ -1633,6 +1633,150 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
           return;
         }
 
+        if (req.url === '/api/multicloud/status' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            active_provider_count: 3,
+            total_providers: 3,
+            active_active_enabled: true,
+            primary_provider_id: 'cf-iad-01',
+            providers: [
+              { id: 'cf-iad-01', name: 'Cloudflare Edge IAD', type: 'cloudflare', endpoint_url: 'https://edge-cf.example.com', weight: 100, status: 'healthy', circuit_state: 'closed', latency_ema_ms: 12.5, success_rate: 1.0 },
+              { id: 'aws-fra-02', name: 'CloudFront EU Central', type: 'cloudfront', endpoint_url: 'https://edge-aws.example.com', weight: 80, status: 'healthy', circuit_state: 'closed', latency_ema_ms: 18.2, success_rate: 0.99 },
+              { id: 'fastly-nrt-03', name: 'Fastly APAC Tokyo', type: 'fastly', endpoint_url: 'https://edge-fastly.example.com', weight: 60, status: 'healthy', circuit_state: 'closed', latency_ema_ms: 22.0, success_rate: 0.995 }
+            ],
+            recent_failovers: [],
+            total_deltas_synced: 142,
+            pending_deltas: 0,
+            average_latency_ms: 17.5,
+            uptime_ratio: 0.9999
+          }));
+          return;
+        }
+
+        if (req.url === '/api/multicloud/providers' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            providers: [
+              { id: 'cf-iad-01', name: 'Cloudflare Edge IAD', type: 'cloudflare', endpoint_url: 'https://edge-cf.example.com', weight: 100, status: 'healthy', circuit_state: 'closed', latency_ema_ms: 12.5, success_rate: 1.0 },
+              { id: 'aws-fra-02', name: 'CloudFront EU Central', type: 'cloudfront', endpoint_url: 'https://edge-aws.example.com', weight: 80, status: 'healthy', circuit_state: 'closed', latency_ema_ms: 18.2, success_rate: 0.99 }
+            ],
+            count: 2
+          }));
+          return;
+        }
+
+        if (req.url === '/api/multicloud/route' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            provider: {
+              id: 'cf-iad-01',
+              name: 'Cloudflare Edge IAD',
+              type: 'cloudflare',
+              endpoint_url: 'https://edge-cf.example.com',
+              weight: 100,
+              status: 'healthy',
+              circuit_state: 'closed',
+              latency_ema_ms: 12.5,
+              success_rate: 1.0
+            },
+            token: {
+              token_id: 'mctok-mock-01',
+              provider_id: 'cf-iad-01',
+              endpoint_url: 'https://edge-cf.example.com',
+              client_ip: payload.client_ip || '127.0.0.1',
+              client_region: payload.client_region || 'us-east',
+              issued_at: Math.floor(Date.now() / 1000),
+              expires_at: Math.floor(Date.now() / 1000) + 300,
+              signature: 'sig-token-mock-hex'
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/multicloud/probe' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            failover_event: payload.success ? null : {
+              event_id: 'failover-evt-mock-01',
+              previous_provider: payload.provider_id,
+              new_provider: 'aws-fra-02',
+              reason: 'Probe failure triggered sub-second failover',
+              trigger_latency_ms: payload.latency_ms || 999.0,
+              trigger_error_rate: 1.0,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
+        if (req.url === '/api/multicloud/sync/delta' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            delta: {
+              delta_id: 'delta-mock-01',
+              origin_provider: payload.origin_provider,
+              sequence_number: 42,
+              action: payload.action,
+              payload: payload.payload,
+              timestamp: Math.floor(Date.now() / 1000),
+              checksum: 'sha256-mock-checksum'
+            }
+          }));
+          return;
+        }
+
+        if (req.url.startsWith('/api/multicloud/sync/pending') && req.method === 'GET') {
+          const u = new URL(req.url, 'http://localhost');
+          const providerId = u.searchParams.get('provider_id') || 'aws-fra-02';
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            provider_id: providerId,
+            pending: [
+              {
+                delta_id: 'delta-mock-01',
+                origin_provider: 'cf-iad-01',
+                sequence_number: 42,
+                action: 'license_bound',
+                payload: { key: 'LIC-01', hwid: 'HWID-01' },
+                timestamp: Math.floor(Date.now() / 1000),
+                checksum: 'sha256-mock-checksum'
+              }
+            ],
+            count: 1
+          }));
+          return;
+        }
+
+        if (req.url === '/api/multicloud/sync/acknowledge' && req.method === 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'sync delta acknowledged' }));
+          return;
+        }
+
+        if (req.url === '/api/multicloud/failover/simulate' && req.method === 'POST') {
+          const payload = JSON.parse(bodyStr || '{}');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            failover_event: {
+              event_id: 'sim-drill-01',
+              previous_provider: payload.provider_id || 'cf-iad-01',
+              new_provider: 'aws-fra-02',
+              reason: payload.reason || 'Manual drill',
+              trigger_latency_ms: 0,
+              trigger_error_rate: 0,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'not_found' }));
       });
@@ -2364,6 +2508,67 @@ describe('Sheet License Broker TypeScript Client Tests', () => {
     const devState = await client.getDevicePosture('dev-ts-test-01', 'default');
     assert.strictEqual(devState.scores.tier, 'healthy');
     assert.strictEqual(devState.quarantined, false);
+  });
+
+  it('evaluates multi-cloud edge failover, geo-dns routing, probes, and zero-loss state sync', async () => {
+    const client = new SheetLicenseClient({ baseUrl });
+
+    const status = await client.getMultiCloudStatus();
+    assert.strictEqual(status.active_provider_count, 3);
+    assert.strictEqual(status.active_active_enabled, true);
+    assert.strictEqual(status.primary_provider_id, 'cf-iad-01');
+
+    const providers = await client.listMultiCloudProviders();
+    assert.strictEqual(providers.length, 2);
+    assert.strictEqual(providers[0].id, 'cf-iad-01');
+
+    const route = await client.routeMultiCloud('us-east', '198.51.100.1');
+    assert.strictEqual(route.provider.id, 'cf-iad-01');
+    assert.strictEqual(route.token.token_id, 'mctok-mock-01');
+    assert.strictEqual(route.token.client_region, 'us-east');
+
+    // Synthetic probe success (no failover event)
+    const probeOk = await client.submitMultiCloudProbe({
+      provider_id: 'cf-iad-01',
+      success: true,
+      latency_ms: 12.0,
+      status_code: 200,
+      origin_region: 'us-east'
+    });
+    assert.strictEqual(probeOk, null);
+
+    // Synthetic probe failure (triggers failover event)
+    const probeFail = await client.submitMultiCloudProbe({
+      provider_id: 'cf-iad-01',
+      success: false,
+      latency_ms: 2500.0,
+      status_code: 504,
+      error_message: 'Gateway timeout',
+      origin_region: 'us-east'
+    });
+    assert.ok(probeFail !== null);
+    assert.strictEqual(probeFail.previous_provider, 'cf-iad-01');
+    assert.strictEqual(probeFail.new_provider, 'aws-fra-02');
+
+    // Zero-loss delta submission
+    const delta = await client.submitMultiCloudDelta('cf-iad-01', 'license_bound', { key: 'LIC-01', hwid: 'HWID-01' });
+    assert.strictEqual(delta.delta_id, 'delta-mock-01');
+    assert.strictEqual(delta.sequence_number, 42);
+
+    // Query pending sync
+    const pending = await client.getMultiCloudPendingSync('aws-fra-02', 10);
+    assert.strictEqual(pending.length, 1);
+    assert.strictEqual(pending[0].delta_id, 'delta-mock-01');
+
+    // Acknowledge sync
+    const ack = await client.acknowledgeMultiCloudSync('aws-fra-02', 'delta-mock-01');
+    assert.strictEqual(ack, true);
+
+    // Simulate failover drill
+    const sim = await client.simulateMultiCloudFailover('cf-iad-01', 'Scheduled disaster recovery drill');
+    assert.strictEqual(sim.event_id, 'sim-drill-01');
+    assert.strictEqual(sim.previous_provider, 'cf-iad-01');
+    assert.strictEqual(sim.new_provider, 'aws-fra-02');
   });
 });
 

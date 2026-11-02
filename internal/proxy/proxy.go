@@ -33,6 +33,7 @@ import (
 	"github.com/kLauncher1/sheet-license-broker/internal/webhook"
 	"github.com/kLauncher1/sheet-license-broker/internal/airgap"
 	"github.com/kLauncher1/sheet-license-broker/internal/anycast"
+	"github.com/kLauncher1/sheet-license-broker/internal/failover"
 	"github.com/kLauncher1/sheet-license-broker/internal/marketplace"
 	"github.com/kLauncher1/sheet-license-broker/internal/zerotrust"
 	"github.com/kLauncher1/sheet-license-broker/internal/zkp"
@@ -77,6 +78,7 @@ type Proxy struct {
 	mlkemManager       *mlkem.Manager
 	transparencyManager *transparency.Manager
 	postureManager      *posture.PostureManager
+	failoverManager     *failover.MultiCloudManager
 	offlineMode        bool
 	cacheTTL           time.Duration
 	startTime          time.Time
@@ -128,6 +130,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	p.initMLKEM(cfg)
 	p.initTransparency(cfg)
 	p.initPosture(cfg)
+	p.initFailover(cfg)
 
 	trimmedURL := strings.TrimSpace(cfg.WebAppURL)
 	if trimmedURL != "" && !cfg.OfflineMode {

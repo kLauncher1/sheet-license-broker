@@ -420,15 +420,61 @@ export interface AnomalyTelemetrySummary {
 }
 export interface EnclaveAttestationResult {
     valid: boolean;
-    platform: 'intel_sgx' | 'amd_sev_snp';
+    platform: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
     mr_enclave?: string;
     mr_signer?: string;
     measurement?: string;
+    mrtd?: string;
+    rtmr0?: string;
     svn: number;
     debug: boolean;
     report_data_hex: string;
     error_message?: string;
     verified_at: string;
+}
+export interface EnclaveAttestationToken {
+    token_id: string;
+    platform: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
+    measurement: string;
+    rtmr0?: string;
+    svn: number;
+    debug_allowed: boolean;
+    challenge_nonce: string;
+    enclave_pub_key?: string;
+    issued_at: string;
+    expires_at: string;
+    signature: string;
+}
+export interface EnclaveTokenVerifyResult {
+    valid: boolean;
+    token?: EnclaveAttestationToken;
+    platform?: string;
+    svn?: number;
+    measurement?: string;
+    error_message?: string;
+}
+export interface EnclaveIsolatedDecryptionRequest {
+    platform: 'intel_sgx' | 'amd_sev_snp' | 'intel_tdx';
+    attestation_token?: string;
+    token?: EnclaveAttestationToken;
+    encrypted_payload_hex: string;
+    nonce_hex: string;
+    session_key_hex: string;
+}
+export interface EnclaveIsolatedDecryptionResult {
+    success: boolean;
+    license_key_masked: string;
+    tier: string;
+    features: string[];
+    expires_at: string;
+    platform: string;
+    svn: number;
+    hardware_isolated: boolean;
+    memory_zeroized: boolean;
+    execution_time_us: number;
+    evaluation_digest: string;
+    evaluated_at: string;
+    error_message?: string;
 }
 export interface EnclaveHandshakeResponse {
     established: boolean;
@@ -460,6 +506,8 @@ export interface EnclaveTelemetry {
     failed_attestations: number;
     quotes_by_platform: Record<string, number>;
     active_policies_count: number;
+    active_tokens_count?: number;
+    isolated_decryptions?: number;
 }
 export interface AnycastPOP {
     id: string;
@@ -705,6 +753,9 @@ export interface ZeroTrustVerifyResponse {
     reason: string;
     node_id: string;
 }
+export type HealingScaleMode = 'normal' | 'burst' | 'throttle';
+export type HealingTunnelState = 'connected' | 'disconnected' | 'resumed' | 'closed';
+export type HealingLeaseStatus = 'active' | 'returned' | 'expired' | 'recalled';
 export interface TokenBucketStats {
     current_tokens: number;
     capacity: number;
@@ -712,7 +763,7 @@ export interface TokenBucketStats {
     refill_rate: number;
     load_score: number;
     scale_multiplier: number;
-    mode: string;
+    mode: HealingScaleMode;
     last_refill: string;
 }
 export interface HealingTicket {
@@ -730,7 +781,7 @@ export interface HealingSession {
     client_id: string;
     hwid: string;
     tenant_id: string;
-    state: string;
+    state: HealingTunnelState;
     connected_at: string;
     last_heartbeat: string;
     disconnected_at?: string;
@@ -761,7 +812,7 @@ export interface QuotaLease {
     amount: number;
     borrowed_at: string;
     expires_at: string;
-    status: string;
+    status: HealingLeaseStatus;
     recall_reason?: string;
 }
 export interface QuotaRebalanceEvent {
@@ -771,7 +822,7 @@ export interface QuotaRebalanceEvent {
     lender_tenant: string;
     amount: number;
     reason: string;
-    status: string;
+    status: HealingLeaseStatus;
 }
 export interface HealingStatus {
     bucket: TokenBucketStats;
@@ -1092,5 +1143,85 @@ export interface PostureStatus {
     recent_evaluations: PostureVectorScores[];
     quarantined_devices: QuarantinedDevice[];
     version: string;
+}
+export type CloudProviderType = 'cloudflare' | 'cloudfront' | 'fastly' | 'custom';
+export type ProviderStatus = 'healthy' | 'degraded' | 'offline' | 'maintenance';
+export type CircuitState = 'closed' | 'half-open' | 'open';
+export interface CloudProvider {
+    id: string;
+    name: string;
+    type: CloudProviderType;
+    endpoint_url: string;
+    weight: number;
+    status: ProviderStatus;
+    circuit_state: CircuitState;
+    consecutive_failures?: number;
+    consecutive_successes?: number;
+    latency_ema_ms: number;
+    jitter_ms?: number;
+    success_rate: number;
+    total_requests?: number;
+    failed_requests?: number;
+    last_probe_time?: string;
+    last_state_change?: string;
+}
+export interface MultiCloudRoutingToken {
+    token_id: string;
+    provider_id: string;
+    endpoint_url: string;
+    client_ip: string;
+    client_region: string;
+    issued_at: number;
+    expires_at: number;
+    signature: string;
+}
+export interface HealthProbeResult {
+    provider_id: string;
+    timestamp?: string;
+    success: boolean;
+    latency_ms: number;
+    status_code: number;
+    error_message?: string;
+    origin_region?: string;
+}
+export interface SyncDelta {
+    delta_id: string;
+    origin_provider: string;
+    sequence_number: number;
+    vector_clock?: Record<string, number>;
+    action: string;
+    payload: any;
+    timestamp: number;
+    checksum: string;
+}
+export interface SyncVoucher {
+    voucher_id: string;
+    delta_id: string;
+    sequence_number: number;
+    source_provider: string;
+    target_provider: string;
+    signature: string;
+    replicated_at: number;
+}
+export interface FailoverEvent {
+    event_id: string;
+    previous_provider: string;
+    new_provider: string;
+    reason: string;
+    trigger_latency_ms: number;
+    trigger_error_rate: number;
+    timestamp: string;
+}
+export interface MultiCloudStatus {
+    active_provider_count: number;
+    total_providers: number;
+    active_active_enabled: boolean;
+    primary_provider_id: string;
+    providers: CloudProvider[];
+    recent_failovers: FailoverEvent[];
+    total_deltas_synced: number;
+    pending_deltas: number;
+    average_latency_ms: number;
+    uptime_ratio: number;
 }
 //# sourceMappingURL=types.d.ts.map

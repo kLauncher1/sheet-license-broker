@@ -651,6 +651,59 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/multicloud/status":
+            self._send_json(
+                200,
+                {
+                    "active_provider_count": 3,
+                    "total_providers": 3,
+                    "active_active_enabled": True,
+                    "primary_provider_id": "cf-iad-01",
+                    "providers": [
+                        {"id": "cf-iad-01", "name": "Cloudflare IAD", "status": "healthy"},
+                        {"id": "aws-fra-02", "name": "CloudFront FRA", "status": "healthy"},
+                    ],
+                    "recent_failovers": [],
+                    "total_deltas_synced": 45,
+                    "pending_deltas": 0,
+                    "average_latency_ms": 14.5,
+                    "uptime_ratio": 0.9999,
+                },
+            )
+            return
+
+        if path == "/api/multicloud/providers":
+            self._send_json(
+                200,
+                {
+                    "providers": [
+                        {"id": "cf-iad-01", "name": "Cloudflare IAD", "status": "healthy"},
+                        {"id": "aws-fra-02", "name": "CloudFront FRA", "status": "healthy"},
+                    ],
+                    "count": 2,
+                },
+            )
+            return
+
+        if path.startswith("/api/multicloud/sync/pending"):
+            self._send_json(
+                200,
+                {
+                    "provider_id": "aws-fra-02",
+                    "pending": [
+                        {
+                            "delta_id": "delta-py-01",
+                            "origin_provider": "cf-iad-01",
+                            "sequence_number": 10,
+                            "action": "license_bound",
+                            "payload": {"key": "PY-KEY-01"},
+                        }
+                    ],
+                    "count": 1,
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
@@ -1373,6 +1426,78 @@ class MockBrokerHandler(BaseHTTPRequestHandler):
                 self._send_json(401, {"error": "invalid nonce"})
             return
 
+        if path == "/api/multicloud/route":
+            self._send_json(
+                200,
+                {
+                    "provider": {
+                        "id": "cf-iad-01",
+                        "name": "Cloudflare IAD",
+                        "type": "cloudflare",
+                        "endpoint_url": "https://edge-cf.example.com",
+                        "status": "healthy",
+                    },
+                    "token": {
+                        "token_id": "mctok-py-01",
+                        "provider_id": "cf-iad-01",
+                        "client_region": payload.get("client_region", "us-east"),
+                        "signature": "sig-py-hex",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/multicloud/probe":
+            is_ok = payload.get("success", False)
+            self._send_json(
+                200,
+                {
+                    "success": True,
+                    "failover_event": None if is_ok else {
+                        "event_id": "failover-evt-py-01",
+                        "previous_provider": payload.get("provider_id", ""),
+                        "new_provider": "aws-fra-02",
+                        "reason": "Probe failure",
+                    },
+                },
+            )
+            return
+
+        if path == "/api/multicloud/sync/delta":
+            self._send_json(
+                201,
+                {
+                    "success": True,
+                    "delta": {
+                        "delta_id": "delta-py-01",
+                        "origin_provider": payload.get("origin_provider", ""),
+                        "sequence_number": 10,
+                        "action": payload.get("action", ""),
+                        "payload": payload.get("payload", {}),
+                    },
+                },
+            )
+            return
+
+        if path == "/api/multicloud/sync/acknowledge":
+            self._send_json(200, {"success": True, "message": "acknowledged"})
+            return
+
+        if path == "/api/multicloud/failover/simulate":
+            self._send_json(
+                200,
+                {
+                    "success": True,
+                    "failover_event": {
+                        "event_id": "sim-py-01",
+                        "previous_provider": payload.get("provider_id", ""),
+                        "new_provider": "aws-fra-02",
+                        "reason": payload.get("reason", "Manual drill"),
+                    },
+                },
+            )
+            return
+
         self._send_json(404, {"error": "not_found"})
 
     def _send_json(self, code: int, data: Any) -> None:
@@ -1853,6 +1978,55 @@ class TestSheetLicenseClient(unittest.TestCase):
         dev_posture = client.get_device_posture("dev-py-node-1", "default")
         self.assertEqual(dev_posture.get("scores", {}).get("tier"), "healthy")
         self.assertFalse(dev_posture.get("quarantined"))
+
+    def test_multicloud_methods(self) -> None:
+        client = SheetLicenseClient(base_url=self.base_url)
+
+        st = client.get_multicloud_status()
+        self.assertEqual(st.get("active_provider_count"), 3)
+        self.assertTrue(st.get("active_active_enabled"))
+        self.assertEqual(st.get("primary_provider_id"), "cf-iad-01")
+
+        providers = client.list_multicloud_providers()
+        self.assertEqual(len(providers), 2)
+        self.assertEqual(providers[0].get("id"), "cf-iad-01")
+
+        route = client.route_multicloud(client_region="us-east", client_ip="198.51.100.2")
+        self.assertEqual(route.get("provider", {}).get("id"), "cf-iad-01")
+        self.assertEqual(route.get("token", {}).get("token_id"), "mctok-py-01")
+
+        probe_ok = client.submit_multicloud_probe({
+            "provider_id": "cf-iad-01",
+            "success": True,
+            "latency_ms": 14.2,
+            "status_code": 200,
+        })
+        self.assertIsNone(probe_ok)
+
+        probe_fail = client.submit_multicloud_probe({
+            "provider_id": "cf-iad-01",
+            "success": False,
+            "latency_ms": 3200.0,
+            "status_code": 504,
+        })
+        self.assertIsNotNone(probe_fail)
+        self.assertEqual(probe_fail.get("previous_provider"), "cf-iad-01")
+        self.assertEqual(probe_fail.get("new_provider"), "aws-fra-02")
+
+        delta = client.submit_multicloud_delta("cf-iad-01", "license_bound", {"key": "PY-KEY-01"})
+        self.assertEqual(delta.get("delta_id"), "delta-py-01")
+        self.assertEqual(delta.get("sequence_number"), 10)
+
+        pending = client.get_multicloud_pending_sync("aws-fra-02", 5)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0].get("delta_id"), "delta-py-01")
+
+        ack = client.acknowledge_multicloud_sync("aws-fra-02", "delta-py-01")
+        self.assertTrue(ack)
+
+        sim = client.simulate_multicloud_failover("cf-iad-01", "Simulated DR test")
+        self.assertEqual(sim.get("event_id"), "sim-py-01")
+        self.assertEqual(sim.get("new_provider"), "aws-fra-02")
 
 
 

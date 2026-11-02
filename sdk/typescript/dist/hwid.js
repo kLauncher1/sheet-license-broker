@@ -72,7 +72,7 @@ export function getMachineHwid() {
         }
         const net = os.networkInterfaces();
         for (const iface of Object.values(net)) {
-            if (iface) {
+            if (iface && Array.isArray(iface)) {
                 for (const addr of iface) {
                     if (!addr.internal && addr.mac && addr.mac !== '00:00:00:00:00:00') {
                         rawParts.push(addr.mac);

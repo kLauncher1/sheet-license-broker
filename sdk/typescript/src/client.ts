@@ -112,6 +112,13 @@ import type {
   QuarantinedDevice,
   StepUpChallenge,
   PostureStatus,
+  CloudProvider,
+  MultiCloudRoutingToken,
+  HealthProbeResult,
+  SyncDelta,
+  SyncVoucher,
+  FailoverEvent,
+  MultiCloudStatus,
 } from './types.js';
 
 export { BrokerError, AuthenticationError, LicenseValidationError, RateLimitError } from './errors.js';
@@ -1432,6 +1439,83 @@ export class SheetLicenseClient {
       'GET',
       `/api/posture/device?tenant_id=${encodeURIComponent(tenantId)}&device_id=${encodeURIComponent(deviceId)}`
     );
+  }
+
+  /**
+   * Queries real-time telemetry and operational stats for multi-cloud active-active routing.
+   */
+  public async getMultiCloudStatus(): Promise<MultiCloudStatus> {
+    return this.request<MultiCloudStatus>('GET', '/api/multicloud/status');
+  }
+
+  /**
+   * Returns all registered cloud edge providers.
+   */
+  public async listMultiCloudProviders(): Promise<CloudProvider[]> {
+    const res = await this.request<{ providers: CloudProvider[]; count: number }>('GET', '/api/multicloud/providers');
+    return res.providers || [];
+  }
+
+  /**
+   * Evaluates client geo parameters and returns optimal provider and signed routing token.
+   */
+  public async routeMultiCloud(clientRegion?: string, clientIp?: string): Promise<{ provider: CloudProvider; token: MultiCloudRoutingToken }> {
+    return this.request<{ provider: CloudProvider; token: MultiCloudRoutingToken }>('POST', '/api/multicloud/route', {
+      client_region: clientRegion || '',
+      client_ip: clientIp || '',
+    });
+  }
+
+  /**
+   * Records a synthetic or real-time health probe result.
+   */
+  public async submitMultiCloudProbe(probe: HealthProbeResult): Promise<FailoverEvent | null> {
+    const res = await this.request<{ success: boolean; failover_event: FailoverEvent | null }>('POST', '/api/multicloud/probe', probe);
+    return res.failover_event || null;
+  }
+
+  /**
+   * Commits an atomic state mutation for cross-cloud zero-packet-loss synchronization.
+   */
+  public async submitMultiCloudDelta(originProvider: string, action: string, payload: any): Promise<SyncDelta> {
+    const res = await this.request<{ success: boolean; delta: SyncDelta }>('POST', '/api/multicloud/sync/delta', {
+      origin_provider: originProvider,
+      action,
+      payload,
+    });
+    return res.delta;
+  }
+
+  /**
+   * Queries uncommitted deltas for a partitioned or recovering cloud provider.
+   */
+  public async getMultiCloudPendingSync(providerId: string, limit?: number): Promise<SyncDelta[]> {
+    const path = limit ? `/api/multicloud/sync/pending?provider_id=${encodeURIComponent(providerId)}&limit=${limit}` : `/api/multicloud/sync/pending?provider_id=${encodeURIComponent(providerId)}`;
+    const res = await this.request<{ provider_id: string; pending: SyncDelta[]; count: number }>('GET', path);
+    return res.pending || [];
+  }
+
+  /**
+   * Acknowledges delta commitment by a cloud provider with optional voucher.
+   */
+  public async acknowledgeMultiCloudSync(providerId: string, deltaId: string, voucher?: SyncVoucher): Promise<boolean> {
+    const res = await this.request<{ success: boolean; message: string }>('POST', '/api/multicloud/sync/acknowledge', {
+      provider_id: providerId,
+      delta_id: deltaId,
+      voucher,
+    });
+    return res.success === true;
+  }
+
+  /**
+   * Triggers an administrative failover drill.
+   */
+  public async simulateMultiCloudFailover(providerId: string, reason?: string): Promise<FailoverEvent> {
+    const res = await this.request<{ success: boolean; failover_event: FailoverEvent }>('POST', '/api/multicloud/failover/simulate', {
+      provider_id: providerId,
+      reason: reason || 'Manual SDK test drill',
+    });
+    return res.failover_event;
   }
 }
 
