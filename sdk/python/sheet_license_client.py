@@ -1215,6 +1215,59 @@ class SheetLicenseClient:
         """Queries latest posture scores and quarantine state for an endpoint."""
         return self._request("GET", f"/api/posture/device?tenant_id={tenant_id}&device_id={device_id}")
 
+    def get_multicloud_status(self) -> Dict[str, Any]:
+        """Queries overall multi-cloud edge failover status and provider telemetry."""
+        return self._request("GET", "/api/multicloud/status")
+
+    def list_multicloud_providers(self) -> list[Dict[str, Any]]:
+        """Returns all registered multi-cloud edge providers."""
+        res = self._request("GET", "/api/multicloud/providers")
+        return res.get("providers", [])
+
+    def route_multicloud(self, client_region: str = "", client_ip: str = "") -> Dict[str, Any]:
+        """Evaluates client geo parameters and returns optimal provider and signed routing token."""
+        return self._request("POST", "/api/multicloud/route", {
+            "client_region": client_region,
+            "client_ip": client_ip,
+        })
+
+    def submit_multicloud_probe(self, probe: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Records a synthetic or real-time health probe result and returns failover event if triggered."""
+        res = self._request("POST", "/api/multicloud/probe", probe)
+        return res.get("failover_event")
+
+    def submit_multicloud_delta(self, origin_provider: str, action: str, payload: Any) -> Dict[str, Any]:
+        """Commits an atomic state mutation for cross-cloud zero-packet-loss synchronization."""
+        res = self._request("POST", "/api/multicloud/sync/delta", {
+            "origin_provider": origin_provider,
+            "action": action,
+            "payload": payload,
+        })
+        return res.get("delta", {})
+
+    def get_multicloud_pending_sync(self, provider_id: str, limit: int = 50) -> list[Dict[str, Any]]:
+        """Queries uncommitted deltas for a partitioned or recovering cloud provider."""
+        endpoint = f"/api/multicloud/sync/pending?provider_id={provider_id}&limit={limit}"
+        res = self._request("GET", endpoint)
+        return res.get("pending", [])
+
+    def acknowledge_multicloud_sync(self, provider_id: str, delta_id: str, voucher: Optional[Dict[str, Any]] = None) -> bool:
+        """Acknowledges delta commitment by a cloud provider."""
+        res = self._request("POST", "/api/multicloud/sync/acknowledge", {
+            "provider_id": provider_id,
+            "delta_id": delta_id,
+            "voucher": voucher,
+        })
+        return res.get("success") is True
+
+    def simulate_multicloud_failover(self, provider_id: str, reason: str = "Manual SDK test drill") -> Dict[str, Any]:
+        """Triggers an administrative failover drill."""
+        res = self._request("POST", "/api/multicloud/failover/simulate", {
+            "provider_id": provider_id,
+            "reason": reason,
+        })
+        return res.get("failover_event", {})
+
 
 
 

@@ -1256,6 +1256,95 @@ export interface PostureStatus {
   version: string;
 }
 
+export type CloudProviderType = 'cloudflare' | 'cloudfront' | 'fastly' | 'custom';
+export type ProviderStatus = 'healthy' | 'degraded' | 'offline' | 'maintenance';
+export type CircuitState = 'closed' | 'half-open' | 'open';
+
+export interface CloudProvider {
+  id: string;
+  name: string;
+  type: CloudProviderType;
+  endpoint_url: string;
+  weight: number;
+  status: ProviderStatus;
+  circuit_state: CircuitState;
+  consecutive_failures?: number;
+  consecutive_successes?: number;
+  latency_ema_ms: number;
+  jitter_ms?: number;
+  success_rate: number;
+  total_requests?: number;
+  failed_requests?: number;
+  last_probe_time?: string;
+  last_state_change?: string;
+}
+
+export interface MultiCloudRoutingToken {
+  token_id: string;
+  provider_id: string;
+  endpoint_url: string;
+  client_ip: string;
+  client_region: string;
+  issued_at: number;
+  expires_at: number;
+  signature: string;
+}
+
+export interface HealthProbeResult {
+  provider_id: string;
+  timestamp?: string;
+  success: boolean;
+  latency_ms: number;
+  status_code: number;
+  error_message?: string;
+  origin_region?: string;
+}
+
+export interface SyncDelta {
+  delta_id: string;
+  origin_provider: string;
+  sequence_number: number;
+  vector_clock?: Record<string, number>;
+  action: string;
+  payload: any;
+  timestamp: number;
+  checksum: string;
+}
+
+export interface SyncVoucher {
+  voucher_id: string;
+  delta_id: string;
+  sequence_number: number;
+  source_provider: string;
+  target_provider: string;
+  signature: string;
+  replicated_at: number;
+}
+
+export interface FailoverEvent {
+  event_id: string;
+  previous_provider: string;
+  new_provider: string;
+  reason: string;
+  trigger_latency_ms: number;
+  trigger_error_rate: number;
+  timestamp: string;
+}
+
+export interface MultiCloudStatus {
+  active_provider_count: number;
+  total_providers: number;
+  active_active_enabled: boolean;
+  primary_provider_id: string;
+  providers: CloudProvider[];
+  recent_failovers: FailoverEvent[];
+  total_deltas_synced: number;
+  pending_deltas: number;
+  average_latency_ms: number;
+  uptime_ratio: number;
+}
+
+
 
 
 

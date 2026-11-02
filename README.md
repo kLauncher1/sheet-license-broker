@@ -6,7 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/version-v2.6.0-emerald.svg" alt="Version: v2.6.0">
+  <img src="https://img.shields.io/badge/version-v2.7.0-emerald.svg" alt="Version: v2.7.0">
+  <img src="https://img.shields.io/badge/failover-Multi--Cloud%20Active--Active%20%26%20Geo--DNS-0284C7.svg" alt="Autonomous Multi-Cloud Edge Failover & Geo-DNS Health Routing">
   <img src="https://img.shields.io/badge/zero--trust-Device%20Health%20%26%20Continuous%20Posture-10B981.svg" alt="Adaptive Zero-Trust Device Health & Continuous Posture Attestation">
   <img src="https://img.shields.io/badge/transparency-RFC%206962%20Merkle%20Tree-059669.svg" alt="RFC 6962 Verifiable Transparency Logs">
   <img src="https://img.shields.io/badge/mlkem-NIST%20FIPS%20203%20ML--KEM--768%2F1024-34D399.svg" alt="Quantum-Resistant ML-KEM & Lattice Cryptography">
@@ -45,6 +46,7 @@ Instead of paying for expensive cloud database instances or managing Docker cont
 
 ### Why Google Sheets as a Backend?
 - **Zero Cost ($0/mo)**: Leverages Google Drive and Apps Script free quotas (up to 20,000 requests/day).
+- **Autonomous Multi-Cloud Edge Failover & Geo-DNS Health Routing (v2.7.0)**: Active-active traffic steering across Cloudflare, AWS CloudFront, and Fastly edge networks. Computes dynamic weight-adjusted scores combining exponential moving average (EMA) latencies with circuit breaker health states and issues cryptographically signed HMAC-SHA256 routing tokens (`MultiCloudRoutingToken`). Incorporates sub-second failover orchestration with jitter-damped latency EMAs, zero-packet-loss state synchronization with vector clocks, multi-language client SDK integration (Go, TypeScript, Python, C#), Cloudflare Edge Worker gateway telemetry, and real-time Admin Console monitoring.
 - **Adaptive Zero-Trust Device Health Scoring & Continuous Posture Attestation (v2.6.0)**: Multi-vector endpoint posture analyzer evaluating OS patch currency, UEFI Secure Boot, TPM 2.0 presence, full-disk volume encryption, endpoint anti-malware status, and runtime integrity (anti-debugging and root/jailbreak detection). Delivers composite weighted confidence scores (0–100) and maps devices into `healthy` (>=80), `warning` (60–79), and `quarantine` (<60 or integrity trip) tiers. Features an isolated quarantine registry with graceful degradation allowances, cryptographic step-up challenge nonces verified with constant-time proofs, full client SDK integration (Go, TypeScript, Python, C#), Cloudflare Edge Worker gateway telemetry, and real-time Admin Console monitoring.
 - **Real-Time Decentralized Audit Ledger & Verifiable Transparency Logs (v2.5.0)**: RFC 6962 compliant Merkle Tree transparency log with strict cryptographic domain prefix separation (0x00 leaf / 0x01 interior node) preventing second-preimage attacks. Delivers logarithmic O(log n) inclusion proofs and append-only consistency proofs without re-evaluating historical records. Incorporates an autonomous multi-party witness network detecting split-view attacks in real-time, publishing Signed Tree Heads (STH) with multi-witness co-signatures, full client SDK verification (Go, TypeScript, Python, C#), Cloudflare Edge Worker gateway telemetry, and interactive Admin Console verification tools.
 - **Confidential Computing SEV-SNP & Intel TDX Remote Enclave Validation (v2.4.0)**: Hardware-enforced remote attestation verifying Intel TDX Quote v4 structures, ECDSA P-256/P-384 signatures, TCB SVNs, and MRTD/RTMR registers alongside AMD SEV-SNP 1184-byte signed reports. Issues HMAC-SHA256 hardware-bound attestation tokens and provides isolated memory execution sandbox guarantees (zero-allocation `SecureBuffer` memory destruction) for license key decryption without cleartext exposure to host OS, hypervisor, or broker layers.
@@ -1803,6 +1805,109 @@ GET /api/posture/device?tenant_id=default&device_id=DEV-WORKSTATION-01
 
 ---
 
+### 🌐 Autonomous Multi-Cloud Edge Failover & Geo-DNS Health Routing (v2.7.0)
+
+`sheet-license-broker` delivers active-active multi-cloud edge routing across Cloudflare, AWS CloudFront, and Fastly, sub-second failover orchestration with jitter-damped latency EMAs, and zero-packet-loss state synchronization using vector clocks:
+
+#### Query Multi-Cloud Cluster Status & Telemetry
+```http
+GET /api/multicloud/status
+```
+
+**Response:**
+```json
+{
+  "active_provider_count": 3,
+  "total_providers": 3,
+  "active_active_enabled": true,
+  "primary_provider_id": "cf-iad-01",
+  "average_latency_ms": 16.8,
+  "uptime_ratio": 0.9999,
+  "providers": [
+    {
+      "id": "cf-iad-01",
+      "name": "Cloudflare Edge IAD",
+      "type": "cloudflare",
+      "status": "healthy",
+      "circuit_state": "closed",
+      "latency_ema_ms": 12.5,
+      "success_rate": 1.0
+    },
+    {
+      "id": "aws-fra-02",
+      "name": "CloudFront EU Central",
+      "type": "cloudfront",
+      "status": "healthy",
+      "circuit_state": "closed",
+      "latency_ema_ms": 18.2,
+      "success_rate": 0.99
+    }
+  ],
+  "recent_failovers": []
+}
+```
+
+#### Route Client via Geo-DNS Health Score
+```http
+POST /api/multicloud/route
+Content-Type: application/json
+
+{
+  "client_region": "us-east",
+  "client_ip": "198.51.100.24"
+}
+```
+
+**Response:**
+```json
+{
+  "provider": {
+    "id": "cf-iad-01",
+    "name": "Cloudflare Edge IAD",
+    "endpoint_url": "https://edge-cf.example.com",
+    "status": "healthy"
+  },
+  "token": {
+    "token_id": "mctok-9b0d-e626",
+    "provider_id": "cf-iad-01",
+    "client_region": "us-east",
+    "signature": "hmac_signature_hex",
+    "expires_at": 1730592000
+  }
+}
+```
+
+#### Submit Real-Time Latency Health Probe
+```http
+POST /api/multicloud/probe
+Content-Type: application/json
+
+{
+  "provider_id": "cf-iad-01",
+  "success": true,
+  "latency_ms": 14.2,
+  "status_code": 200,
+  "origin_region": "us-east"
+}
+```
+
+#### Submit Zero-Loss State Replication Delta
+```http
+POST /api/multicloud/sync/delta
+Content-Type: application/json
+
+{
+  "origin_provider": "cf-iad-01",
+  "action": "license_bound",
+  "payload": {
+    "license_key": "SLB-PRO-12345",
+    "hwid": "HWID-9B0D-E626"
+  }
+}
+```
+
+---
+
 ## ⚡ Cloudflare Edge Gateway
 
 For globally distributed, sub-millisecond edge license verification, deploy the Cloudflare Worker located in `edge/cloudflare/`:
@@ -1816,6 +1921,7 @@ wrangler deploy
 - **Hardware Web Crypto**: Edge HMAC-SHA256 signature and replay prevention before hitting origin.
 - **Automated Origin Fallback**: Uncached queries, key binds, and revocations transparently proxy to the origin server.
 - **Zero-Trust Posture Telemetry**: Inspect edge device health and quarantine capabilities via `GET /edge/posture/status`.
+- **Multi-Cloud Failover Telemetry**: Query active-active routing health and failover capabilities via `GET /edge/multicloud/status`.
 
 ---
 

@@ -362,5 +362,21 @@ describe('Cloudflare Edge Worker Gateway Tests', () => {
     assert.ok(data.vectors.includes('os_patch'));
     assert.ok(data.vectors.includes('runtime_integrity'));
   });
+
+  test('reports multi-cloud active-active routing and sub-second failover capabilities at edge', async () => {
+    const req = new Request('https://edge.example.com/edge/multicloud/status');
+    const resp = await worker.fetch(req, {});
+    assert.equal(resp.status, 200);
+    const data = await resp.json();
+    assert.equal(data.edge_multicloud_enabled, true);
+    assert.equal(data.version, '2.7.0');
+    assert.equal(data.active_active_routing, true);
+    assert.equal(data.sub_second_failover, true);
+    assert.equal(data.zero_packet_loss_sync, true);
+    assert.equal(data.vector_clock_reconciliation, true);
+    assert.ok(data.supported_providers.includes('cloudflare'));
+    assert.ok(data.supported_providers.includes('cloudfront'));
+    assert.ok(data.supported_providers.includes('fastly'));
+  });
 });
 

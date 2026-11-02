@@ -41,6 +41,8 @@ const SHEET_TRANSPARENCY_LOG = 'Transparency_Log';
 const SHEET_WITNESS_COSIGNATURES = 'Witness_Cosignatures';
 const SHEET_DEVICE_HEALTH_POSTURE = 'Device_Health_Posture';
 const SHEET_DEVICE_QUARANTINE = 'Device_Quarantine';
+const SHEET_MULTICLOUD_PROVIDERS = 'MultiCloud_Providers';
+const SHEET_MULTICLOUD_SYNC_LOG = 'MultiCloud_Sync_Log';
 
 function doGet(e) {
   return handleRequest(e, 'GET');
@@ -299,6 +301,18 @@ function handleRequest(e, method) {
       case 'posture_get_status':
         return handlePostureGetStatus(output, payload);
 
+      case 'multicloud_record_probe':
+        return handleMultiCloudRecordProbe(output, payload);
+
+      case 'multicloud_record_failover':
+        return handleMultiCloudRecordFailover(output, payload);
+
+      case 'multicloud_record_sync_delta':
+        return handleMultiCloudRecordSyncDelta(output, payload);
+
+      case 'multicloud_get_status':
+        return handleMultiCloudGetStatus(output, payload);
+
       default:
         return jsonResponse(output, { status: 'error', message: 'Unknown action: ' + action });
     }
@@ -345,7 +359,9 @@ function initSheets() {
     { name: SHEET_TRANSPARENCY_LOG, cols: ['index', 'action', 'tenant_id', 'leaf_hash_hex', 'timestamp', 'signature', 'tree_size', 'root_hash_hex', 'payload_json'] },
     { name: SHEET_WITNESS_COSIGNATURES, cols: ['witness_id', 'tree_size', 'root_hash_hex', 'timestamp', 'signature', 'status'] },
     { name: SHEET_DEVICE_HEALTH_POSTURE, cols: ['device_id', 'tenant_id', 'tier', 'composite_score', 'os_score', 'hardware_score', 'endpoint_score', 'integrity_score', 'violations', 'degraded_allowed', 'evaluated_at'] },
-    { name: SHEET_DEVICE_QUARANTINE, cols: ['device_id', 'tenant_id', 'hwid', 'reason', 'composite_score', 'degraded_allowed', 'status', 'quarantined_at', 'released_at'] }
+    { name: SHEET_DEVICE_QUARANTINE, cols: ['device_id', 'tenant_id', 'hwid', 'reason', 'composite_score', 'degraded_allowed', 'status', 'quarantined_at', 'released_at'] },
+    { name: SHEET_MULTICLOUD_PROVIDERS, cols: ['provider_id', 'name', 'type', 'endpoint_url', 'weight', 'status', 'circuit_state', 'latency_ema_ms', 'success_rate', 'last_probe_time'] },
+    { name: SHEET_MULTICLOUD_SYNC_LOG, cols: ['delta_id', 'origin_provider', 'sequence_number', 'action', 'checksum', 'timestamp'] }
   ];
   defs.forEach(d => {
     if (!ss.getSheetByName(d.name)) {
@@ -2288,12 +2304,104 @@ function handlePostureGetStatus(output, payload) {
   }
   return jsonResponse(output, {
     status: 'success',
-    version: '2.6.0',
+    version: '2.7.0',
     total_evaluations: totalEvaluations,
     active_quarantined: activeQuarantined,
     timestamp: new Date().toISOString()
   });
 }
+
+function handleMultiCloudRecordProbe(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MULTICLOUD_PROVIDERS);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  const providerId = payload.provider_id || '';
+  const latency = payload.latency_ms || 0;
+  const success = payload.success ? 100.0 : 0.0;
+  const timestamp = payload.timestamp || new Date().toISOString();
+
+  const data = sheet.getDataRange().getValues();
+  let updated = false;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === providerId) {
+      sheet.getRange(i + 1, 6).setValue(payload.success ? 'healthy' : 'degraded');
+      sheet.getRange(i + 1, 8).setValue(latency);
+      sheet.getRange(i + 1, 9).setValue(success);
+      sheet.getRange(i + 1, 10).setValue(timestamp);
+      updated = true;
+      break;
+    }
+  }
+  if (!updated) {
+    sheet.appendRow([
+      providerId,
+      payload.name || providerId,
+      payload.type || 'custom',
+      payload.endpoint_url || '',
+      0.33,
+      payload.success ? 'healthy' : 'degraded',
+      'closed',
+      latency,
+      success,
+      timestamp
+    ]);
+  }
+  return jsonResponse(output, { status: 'success', provider_id: providerId, recorded: true });
+}
+
+function handleMultiCloudRecordFailover(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const auditSheet = ss.getSheetByName(SHEET_AUDIT_LOGS);
+  if (auditSheet) {
+    auditSheet.appendRow([
+      payload.timestamp || new Date().toISOString(),
+      'MULTICLOUD_FAILOVER',
+      'broker-failover-orchestrator',
+      'From ' + (payload.previous_provider || '') + ' to ' + (payload.new_provider || '') + ' (Reason: ' + (payload.reason || '') + ')',
+      'TRIGGERED'
+    ]);
+  }
+  return jsonResponse(output, { status: 'success', event_id: payload.event_id, recorded: true });
+}
+
+function handleMultiCloudRecordSyncDelta(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_MULTICLOUD_SYNC_LOG);
+  if (!sheet) return jsonResponse(output, { status: 'error', message: 'Sheet not found' });
+  sheet.appendRow([
+    payload.delta_id || '',
+    payload.origin_provider || '',
+    payload.sequence_number || 0,
+    payload.action || '',
+    payload.checksum || '',
+    payload.timestamp || new Date().toISOString()
+  ]);
+  return jsonResponse(output, { status: 'success', delta_id: payload.delta_id, committed: true });
+}
+
+function handleMultiCloudGetStatus(output, payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const provSheet = ss.getSheetByName(SHEET_MULTICLOUD_PROVIDERS);
+  const syncSheet = ss.getSheetByName(SHEET_MULTICLOUD_SYNC_LOG);
+  let totalProviders = 0;
+  let totalDeltas = 0;
+
+  if (provSheet && provSheet.getLastRow() > 1) {
+    totalProviders = provSheet.getLastRow() - 1;
+  }
+  if (syncSheet && syncSheet.getLastRow() > 1) {
+    totalDeltas = syncSheet.getLastRow() - 1;
+  }
+  return jsonResponse(output, {
+    status: 'success',
+    version: '2.7.0',
+    total_providers: totalProviders,
+    total_deltas_synced: totalDeltas,
+    active_active_enabled: true,
+    timestamp: new Date().toISOString()
+  });
+}
+
 
 
 

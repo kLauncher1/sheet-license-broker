@@ -56,6 +56,7 @@ func setupTestServer(t *testing.T, secret string, enforce bool) (*AppServer, htt
 	server.registerAirgapRoutes(apiMux)
 	server.registerTransparencyRoutes(apiMux)
 	server.registerPostureRoutes(apiMux)
+	server.registerFailoverRoutes(apiMux)
 
 	return server, mux
 }
@@ -77,8 +78,11 @@ func TestHealthAndSecurityStatus(t *testing.T) {
 		t.Fatalf("failed to parse health response: %v", err)
 	}
 
-	if res["version"] != "2.6.0" {
-		t.Fatalf("expected version 2.6.0, got: %v", res["version"])
+	if res["version"] != "2.7.0" {
+		t.Fatalf("expected version 2.7.0, got: %v", res["version"])
+	}
+	if res["multicloud"] == nil {
+		t.Fatalf("expected multicloud telemetry in health response")
 	}
 	if res["transparency"] == nil {
 		t.Fatalf("expected transparency telemetry in health response")
@@ -359,8 +363,8 @@ func TestAirgapEndpoints(t *testing.T) {
 
 	var healthRes map[string]interface{}
 	_ = json.Unmarshal(hW.Body.Bytes(), &healthRes)
-	if healthRes["version"] != "2.6.0" {
-		t.Errorf("expected version 2.6.0, got %v", healthRes["version"])
+	if healthRes["version"] != "2.7.0" {
+		t.Errorf("expected version 2.7.0, got %v", healthRes["version"])
 	}
 	if airgapVal, ok := healthRes["airgap"].(map[string]interface{}); !ok || airgapVal["vault_active"] != true {
 		t.Errorf("expected active airgap status in health response")

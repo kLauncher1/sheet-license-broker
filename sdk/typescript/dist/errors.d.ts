@@ -10,6 +10,7 @@ export declare class LicenseValidationError extends BrokerError {
     constructor(message: string, statusCode?: number, details?: Record<string, unknown>);
 }
 export declare class RateLimitError extends BrokerError {
-    constructor(message: string, statusCode?: number, details?: Record<string, unknown>);
+    retryAfter: number;
+    constructor(message: string, statusCode?: number, details?: Record<string, unknown>, retryAfter?: number);
 }
 //# sourceMappingURL=errors.d.ts.map

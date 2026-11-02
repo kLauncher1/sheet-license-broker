@@ -1,6 +1,6 @@
 {
   "name": "@sheet-license/client",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Lightweight client SDK for sheet-license-broker with automated HWID binding and HMAC-SHA256 request signing",
   "type": "module",
   "main": "./dist/index.js",
@@ -24,5 +24,9 @@
     "security"
   ],
   "author": "kLauncher1",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
 }
